@@ -10,10 +10,12 @@
   "dependencies": {
     "@kesher/shared": "*",
     "express": "^5.2.1",
+    "mongodb": "^7.6.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "mongodb-memory-server-core": "^11.3.0",
     "tsx": "^4.23.15"
   }
 }
