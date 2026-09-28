@@ -3,11 +3,14 @@ import express, { type ErrorRequestHandler, type Express } from 'express';
 import type { Db } from 'mongodb';
 import { createModelClient, resolveFromKeys, type ModelClient } from './llm/client';
 import { devRouter } from './routes/dev';
+import { mcpRouter } from './routes/mcp';
 
 export interface AppDeps {
   db: Db;
   // Mounts the development routes, such as POST /dev/replay. Off in production.
   devRoutes: boolean;
+  // Mounts POST /mcp when set. The secret verifies run tokens (MCP_TOKEN_SECRET).
+  mcp?: { secret: string };
   // Where request errors go. The server passes a logger that redacts secrets.
   logError?: (error: unknown) => void;
   // Pipeline messages, such as an update that was not processed again. Redacted by the server.
@@ -24,6 +27,7 @@ const noKeys = () => createModelClient({ resolve: resolveFromKeys({}) });
 export function createApp({
   db,
   devRoutes,
+  mcp,
   logError = logMessage,
   log = console.log,
   models = noKeys,
@@ -35,6 +39,7 @@ export function createApp({
     res.json(HealthResponse.parse({ status: 'ok' }));
   });
 
+  if (mcp) app.use(mcpRouter(db, mcp.secret, logError));
   if (devRoutes) app.use(devRouter(db, models, log));
 
   // Answers without internals; driver errors can carry connection details.

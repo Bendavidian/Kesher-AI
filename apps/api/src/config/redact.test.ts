@@ -12,4 +12,10 @@ describe('redactor', () => {
   it('still removes a value that is not a parseable URL', () => {
     expect(redactor('mongodb://%zz')('x mongodb://%zz y')).toBe('x [REDACTED] y');
   });
+
+  it('also removes the other secrets it is given', () => {
+    const secret = 'mcp-token-secret-that-is-long-enough';
+    const redact = redactor('mongodb://localhost/kesher', [secret]);
+    expect(redact(`key ${secret} here`)).toBe('key [REDACTED] here');
+  });
 });

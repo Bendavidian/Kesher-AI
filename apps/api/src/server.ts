@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createApp } from './app';
-import { loadEnv, loadModelKeys } from './config/env';
+import { loadEnv, loadMcpEnv, loadModelKeys } from './config/env';
 import { describeError, redactor } from './config/redact';
 import { DB_NAME, connect } from './db/client';
 import { ensureCollections, ensureIndexes } from './db/indexes';
@@ -8,7 +8,8 @@ import { createModelClient, resolveFromKeys, type ModelClient } from './llm/clie
 
 const port = z.coerce.number().int().min(1).max(65535).default(3001).parse(process.env.PORT);
 const env = loadEnv();
-const redact = redactor(env.MONGODB_URI);
+const mcpEnv = loadMcpEnv();
+const redact = redactor(env.MONGODB_URI, [mcpEnv.MCP_TOKEN_SECRET]);
 
 const client = await connect(env.MONGODB_URI).catch((error: unknown) => {
   console.error(redact(`Could not connect to MongoDB: ${describeError(error)}`));
@@ -28,12 +29,13 @@ const devRoutes = env.NODE_ENV !== 'production';
 const server = createApp({
   db,
   devRoutes,
+  mcp: { secret: mcpEnv.MCP_TOKEN_SECRET },
   logError: (error) => console.error(redact(describeError(error))),
   log: (message) => console.log(redact(message)),
   models,
 }).listen(port, () => {
   console.log(
-    `api listening on http://localhost:${port}, database ${DB_NAME}, dev routes ${devRoutes ? 'on' : 'off'}`,
+    `api listening on http://localhost:${port}, database ${DB_NAME}, mcp on /mcp, dev routes ${devRoutes ? 'on' : 'off'}`,
   );
 });
 
