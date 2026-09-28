@@ -19,13 +19,16 @@ export async function scoreEvent(db: Db, eventId: string, now = new Date()): Pro
   const event = MarketEvent.parse(stored);
   if (!event.extraction) throw new Error(`event ${eventId} has no extraction to score`);
 
-  const companies = eventCompanies(event.extraction.companies.map((company) => company.symbol));
-  const edges = await loadEdges(db, companies);
   const sources = await collection(db, 'sources')
     .find({ _id: { $in: event.sourceIds } })
-    .project<SourceTier>({ _id: 0, tier: 1, publisher: 1 })
+    .project<SourceTier & { symbols: string[] }>({ _id: 0, tier: 1, publisher: 1, symbols: 1 })
     .toArray();
   const confidence = confidenceFor(sources);
+  const companies = eventCompanies(
+    event.extraction.companies.map((company) => company.symbol),
+    sources.flatMap((source) => source.symbols),
+  );
+  const edges = await loadEdges(db, companies);
 
   // Holdings only; the password hash never leaves the users collection.
   const users = await collection(db, 'users')

@@ -16,7 +16,10 @@ describe('relevance on the seeded graph, on mongod', () => {
 
   // Stores a news item and gives its event an extraction, as processItem would.
   let nextId = 1;
-  const extractedEvent = async (companies: UniverseSymbol[]) => {
+  const extractedEvent = async (
+    companies: UniverseSymbol[],
+    symbols: UniverseSymbol[] = companies,
+  ) => {
     const id = String(nextId++);
     const { eventId } = await ingestItem(
       mongo.db,
@@ -30,7 +33,7 @@ describe('relevance on the seeded graph, on mongod', () => {
         publisher: 'Benzinga',
         title: `News about ${companies.join(', ')}`,
         text: null,
-        symbols: companies,
+        symbols,
         publishedAt: now,
       },
       now,
@@ -156,6 +159,17 @@ describe('relevance on the seeded graph, on mongod', () => {
           hops: [{ from: 'NVDA', to: 'TSM', type: 'customer_of' }],
         },
       });
+    });
+
+    it('ignores a company the text names but the provider never tagged', async () => {
+      // Tagged KO only; the untrusted text also names NVDA, and the model extracted both.
+      const eventId = await extractedEvent(['KO', 'NVDA'], ['KO']);
+      const items = byPersona(await scoreEvent(mongo.db, eventId, now));
+
+      expect(items.A).toMatchObject({ relevance: 0, path: null });
+      expect(items.C).toMatchObject({ relevance: 1, path: { holding: 'KO', hops: [] } });
+      const stored = await collection(mongo.db, 'market_events').findOne({ _id: eventId });
+      expect(stored?.extraction?.companies.map((c) => c.symbol)).toEqual(['KO', 'NVDA']);
     });
 
     it('keeps one item per user and its ids when scored again', async () => {

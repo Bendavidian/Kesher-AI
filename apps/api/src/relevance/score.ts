@@ -20,10 +20,19 @@ export interface Scored {
 
 const UNIVERSE_ORDER = new Map<string, number>(UNIVERSE.map((symbol, index) => [symbol, index]));
 
-// The extracted symbols that are universe companies, once each, in universe order. Anything else
-// the model named, such as a benchmark or a company outside the universe, is not a graph node.
-export function eventCompanies(symbols: readonly string[]): UniverseSymbol[] {
-  const known = symbols.filter((symbol): symbol is UniverseSymbol => UNIVERSE_ORDER.has(symbol));
+// The start nodes of the graph: extracted symbols that the provider also tagged and that are
+// universe companies, once each, in universe order. The provider tags are the code's check on the
+// model: a company named only in the untrusted text, never tagged by the provider, is not a start
+// node, so an injected article cannot pull relevance for another company's holders. The full
+// extraction stays stored; only the start nodes are restricted.
+export function eventCompanies(
+  extracted: readonly string[],
+  tagged: readonly string[],
+): UniverseSymbol[] {
+  const provider = new Set(tagged);
+  const known = extracted.filter(
+    (symbol): symbol is UniverseSymbol => UNIVERSE_ORDER.has(symbol) && provider.has(symbol),
+  );
   return [...new Set(known)].sort((a, b) => UNIVERSE_ORDER.get(a)! - UNIVERSE_ORDER.get(b)!);
 }
 

@@ -108,8 +108,16 @@ describe('bestPath evidence rule', () => {
 });
 
 describe('eventCompanies', () => {
+  const tagged = ['TSM', 'NVDA', 'SSNLF', 'SPY'];
+
   it('keeps universe symbols once, in a stable order', () => {
-    expect(eventCompanies(['TSM', 'SSNLF', 'NVDA', 'TSM', 'SPY'])).toEqual(['NVDA', 'TSM']);
-    expect(eventCompanies([])).toEqual([]);
+    expect(eventCompanies(['TSM', 'SSNLF', 'NVDA', 'TSM', 'SPY'], tagged)).toEqual(['NVDA', 'TSM']);
+    expect(eventCompanies([], tagged)).toEqual([]);
+  });
+
+  it('starts only from companies the provider also tagged', () => {
+    // An article tagged KO whose text names NVDA: NVDA is extracted but is not a start node.
+    expect(eventCompanies(['KO', 'NVDA'], ['KO'])).toEqual(['KO']);
+    expect(eventCompanies(['NVDA'], [])).toEqual([]);
   });
 });
