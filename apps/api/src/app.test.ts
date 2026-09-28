@@ -1,6 +1,7 @@
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { HealthResponse } from '@kesher/shared';
+import { MongoClient } from 'mongodb';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from './app';
 
@@ -9,7 +10,9 @@ describe('api', () => {
   let baseUrl: string;
 
   beforeAll(async () => {
-    server = createApp().listen(0);
+    // /health never touches the db; the client is never connected.
+    const db = new MongoClient('mongodb://127.0.0.1:1').db('unused');
+    server = createApp({ db, devRoutes: false }).listen(0);
     await new Promise<void>((resolve) => server.once('listening', resolve));
     const { port } = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${port}`;
