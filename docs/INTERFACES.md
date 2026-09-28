@@ -40,7 +40,7 @@ The MCP server rejects any call to a tool that the token does not list.
 - GET /feed?cursor=
 - POST /events/:eventId/investigate
 - GET /runs/:runId
-- POST /dev/replay/:sourceId (development only)
+- POST /dev/replay/:sourceId (development only, not mounted in production): sourceId is an Alpaca news id, not a Source._id. Replays the recording `recordings/alpaca/<sourceId>.json` through the ingest path and returns `{ sourceId, eventId, sourceCreated, eventCreated }`, ReplayResponse in packages/shared, where the ids are the stored Source and MarketEvent. A second replay returns the same ids with both flags false. 400 when sourceId is not all digits, 404 when there is no recording.
 
 ## Socket.IO events, server to client
 - feed:item: a new FeedItem for the current user

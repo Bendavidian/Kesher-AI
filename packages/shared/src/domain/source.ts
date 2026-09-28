@@ -27,6 +27,9 @@ export const Source = z.strictObject({
   url: z.httpUrl(),
   author: NonBlank.nullable(),
   title: NonBlank,
+  // The item body as untrusted data, normalized with normalizeText. null when the provider sent
+  // no body, and for filings, whose text lives in FilingChunk.
+  text: NonBlank.nullable(),
   // Provider symbols as delivered, which may include companies outside the universe.
   symbols: z.array(Ticker),
   publishedAt: z.date(),

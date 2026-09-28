@@ -239,6 +239,8 @@ const filing = (
     author: null,
     title: `${company} 10-K for the fiscal year ended ${period}`,
     symbols: [symbol],
+    // Filing text lives in FilingChunk (T11), not on the Source.
+    text: null,
     publishedAt: new Date(acceptedAt),
     // Seeded filings are reviewed by hand, not screened; the pipeline screens what it ingests.
     injectionScreen: null,

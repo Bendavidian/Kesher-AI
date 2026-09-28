@@ -57,6 +57,7 @@ describe('Source', () => {
     url: 'https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm',
     author: null,
     title: 'NVIDIA Corp 10-K for the fiscal year ended 25 Jan 2026',
+    text: null,
     symbols: ['NVDA'],
     publishedAt: at,
     injectionScreen: null,
@@ -74,6 +75,14 @@ describe('Source', () => {
     expect(Source.safeParse({ ...source, injectionScreen: noScore }).success).toBe(true);
     const outOfRange = { ...screen, score: 1.5 };
     expect(Source.safeParse({ ...source, injectionScreen: outOfRange }).success).toBe(false);
+  });
+
+  it('keeps the body text, nullable but never blank', () => {
+    expect(
+      Source.safeParse({ ...source, text: 'Taiwan was struck by an earthquake.' }).success,
+    ).toBe(true);
+    expect(Source.safeParse({ ...source, text: '  ' }).success).toBe(false);
+    expect(Source.safeParse({ ...source, text: undefined }).success).toBe(false);
   });
 
   it('rejects unknown keys', () => {

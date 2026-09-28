@@ -1,4 +1,6 @@
 export { HealthResponse } from './health';
+export { ReplayResponse } from './dev';
+export { normalizeText } from './text';
 export * from './domain/common';
 export * from './domain/universe';
 export * from './domain/user';
