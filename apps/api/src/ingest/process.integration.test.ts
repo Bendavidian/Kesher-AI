@@ -6,7 +6,7 @@ import { createModelClient, MissingModelKeyError, MODELS, resolveFromKeys } from
 import type { ModelClient } from '../llm/client';
 import { loadModelRecording, type ModelRecording } from '../llm/recordings';
 import { DEMO_SOURCE_ID } from '../seed/config';
-import { mockModel, resolveMocks } from '../test/models';
+import { mockModel, rateLimitError, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import { toIncomingItem } from './alpaca';
 import type { IncomingItem } from './item';
@@ -182,6 +182,31 @@ describe('processItem on mongod', () => {
       expect((await storedEvent()).extraction).not.toBeNull();
       expect(logs).toHaveLength(1);
       expect(logs[0]).toMatch(/^injection screen failed for alpaca 38062166: .*guard unavailable/s);
+    });
+
+    // An unscreened item must never look like a clean one: a screen that did not finish leaves
+    // null, never flagged: false with a partial score.
+    it.each([
+      [
+        'a later chunk fails after a clean first chunk',
+        ['0.0001', new Error('guard unavailable')],
+        2,
+      ],
+      ['prompt guard answers 429', [rateLimitError()], 1],
+      ['prompt guard answers something that is not a probability', ['BENIGN'], 1],
+    ])('leaves no label when %s', async (_case, screen, guardCalls) => {
+      // About 2,500 characters: more than one screen chunk.
+      const long = { ...item, text: Array.from({ length: 400 }, () => 'quake').join(' ') };
+      const { guard, groq, client } = models({ screen });
+
+      await processItem(mongo.db, long, deps(client));
+
+      expect(guard.doGenerateCalls).toHaveLength(guardCalls);
+      expect((await storedSource()).injectionScreen).toBeNull();
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatch(/^injection screen failed for alpaca 38062166: /);
+      expect(groq.doGenerateCalls).toHaveLength(1);
+      expect((await storedEvent()).extraction).not.toBeNull();
     });
   });
 
