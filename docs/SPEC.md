@@ -62,7 +62,8 @@ X is V2, so the MVP has no X sources: Tier 1 is SEC filings and company IR relea
 
 ## Interest graph
 - Nodes: companies in the demo universe, sectors, themes.
-- Edge types: holds (per user, from holdings), competitor_of (Finnhub peers), in_sector (company profiles), supplier_of and customer_of (LLM extraction from 10-K sections, reviewed by hand), has_theme (fixed taxonomy).
+- Edge types: holds (per user, from holdings), competitor_of (Finnhub peers, kept only inside the demo universe), in_sector (company profiles), supplier_of and customer_of (LLM extraction from 10-K sections, reviewed by hand), has_theme (fixed taxonomy).
+- Every relationship is stored in both directions with its inverse type: supplier_of pairs with customer_of, and competitor_of is symmetric. Traversal then works from either end: news about AMD reaches NVDA holders, and news about NVDA reaches TSM holders.
 - Every edge that comes from a document carries evidence: source id, filing date, verbatim quote, URL and a reviewed flag. Unreviewed edges are never used.
 - One offline job reads each 10-K once and feeds both the edges and FilingChunk for RAG.
 - Foreign issuers such as TSM and ASML file 20-F and 6-K instead of 10-K and 8-K. In the MVP they are graph nodes without filing RAG.
@@ -79,10 +80,12 @@ X is V2, so the MVP has no X sources: Tier 1 is SEC filings and company IR relea
 Personas: A, AI investor (NVDA, MSFT, AMZN). B, semiconductor investor (AMD, AVGO, TSM, ASML). C, unrelated investor (KO, JNJ, XOM).
 
 ## Research agent
-- Input: the event, the user's path and holdings, a step budget (auto mode 6 tool calls, deep mode 15).
-- Tools: read only, scoped by the run token.
+- Input: the event, the user's path and holdings, a step budget (auto mode 6 tool calls, deep mode 15) and a token budget (6,000 tokens per run to start, tuned in T16).
+- Tools: read only, scoped by the run token. Tool output is capped: at most 3 filing chunks per call.
 - Output: typed claims plus open questions, as JSON validated with zod.
-- Stops when the budget is spent or every report section has supported claims.
+- Stops when either budget is spent or every report section has supported claims.
+- Every model call goes through a limiter that respects the provider's tokens per minute. Tokens are recorded per step in the AgentRun.
+- Model: Groq; the exact research model is decided once the console quotas are recorded. Gemini Flash-Lite stays the fallback on a 429.
 
 ## Claims and verification
 - fact: cites a verbatim quote from a source. The display text may paraphrase it.
@@ -97,7 +100,13 @@ Order: deterministic checks first (quotes exist verbatim, numbers match, cited s
 - For each run the api mints a short lived token (5 minutes) with the user, the agent and its allowed tools. The server derives identity and permissions from the token alone.
 
 ## Price reaction
-Computed from SIP bars older than 15 minutes, the limit of the free Alpaca plan. Fixed windows: 15 minutes, 2 hours, 1 day. Always shown with SMH and SPY in the same window and labeled as delayed. Example wording: "NVDA moved −2.1% in the two hours after the headline; SMH −1.6%, SPY −0.4%." Never "caused".
+Computed from SIP bars older than 15 minutes, the limit of the free Alpaca plan. Windows are anchored to the regular session. The Alpaca market calendar (GET /v2/calendar) defines the trading days and their open and close, so headlines on weekends, holidays and early close days anchor to the correct trading day.
+- Headline during a regular session: the base is the price at the headline. Windows: 15 minutes, 2 hours, session close.
+- Headline outside a regular session (overnight, weekend, holiday, after an early close): the base is the previous regular close. Windows: open gap, 15 minutes after the open, 2 hours after the open, session close, all on the next trading day.
+- A window that would end after the session close ends at the close.
+- The result states the anchor it used: headline or previous close, the base time and the trading day.
+
+Always shown with SMH and SPY in the same windows and labeled as delayed. Example wording, from the demo event: "NVDA opened −1.1% below its previous close after the overnight headline; SMH −1.0%, SPY −0.2%." Never "caused".
 
 ## X integration (V2)
 Moved to V2 on 28 Sep 2026: the X API has no free tier, which breaks principle 9. The design below is kept for V2.
@@ -107,6 +116,9 @@ Moved to V2 on 28 Sep 2026: the X API has no free tier, which breaks principle 9
 
 ## Replay and recording
 Live items are recorded from day 2: news, filings and price bars (X posts in V2). The demo and the evals replay recorded events through the same pipeline. Historical Alpaca news, available since 2015, can also be replayed.
+- Replay selects items by source id, never by keyword.
+- The demo item is pinned: Alpaca news id 38062166, "TSMC Suspends Chip Production After Taiwan Rocked By Strongest Tremor In 25 Years" (2024-04-03T03:57:09Z). The seed config holds it as DEMO_SOURCE_ID=38062166.
+- The free Alpaca plan allows one live WebSocket per account, so LIVE_INGEST is on for one machine only; the other works from replay. Once deployed (T18), the deployed instance is the single live ingester.
 
 ## Evals
 - 20 recorded events × 3 personas, labeled high, medium or none: 60 labels.
@@ -116,24 +128,25 @@ Live items are recorded from day 2: news, filings and price bars (X posts in V2)
 ## Domain model
 Outline only. T02 turns it into types, zod schemas, collections and indexes.
 - User: email, password hash, display name, holdings (embedded: symbol, quantity), interests (themes).
-- Company: symbol, name, CIK, filer type (10-K or 20-F), sector, themes.
-- Relationship: from, to, type, weight, evidence (source id, quote, filing date, URL, reviewed).
+- Company: symbol (the US ticker used for news and prices), primary listing (from the Finnhub profile, for example 2330.TW for TSM), name, CIK, filer type (10-K or 20-F), sector, themes.
+- Relationship: from, to, type, weight, evidence (source id, quote, filing date, URL, reviewed). Stored in both directions with the inverse type.
 - Source: provider, kind (news, filing, x_post, market_data), tier, external id, URL, author, published at.
 - MarketEvent: source ids (cluster), headline, companies with per entity impact, event type, themes, importance, status (unconfirmed or confirmed), embedding.
 - FeedItem: user, event, relevance, path, confidence, status, research state. Unique per user and event.
-- AgentRun: user, event, agent, mode, trigger, gate decision, steps (tool, input, output summary, latency, tokens), cost, status.
+- AgentRun: user, event, agent, mode, trigger, gate decision, step budget, token budget, steps (tool, input, output summary, latency, tokens), tokens used, cost, status.
 - Report: run, sections with claim ids, open questions.
 - Claim: report, type, text, sources with quotes, premises, status, check results.
-- FilingChunk: source, symbol, form, section, text, embedding.
+- FilingChunk: source, symbol, form, section, text (at most 256 tokens), embedding.
 
-The Atlas free tier allows 3 search indexes: event vectors, filing chunk vectors, and one text index for hybrid search.
+The Atlas free tier allows 3 search indexes: event vectors, filing chunk vectors (both 384 dimensions, cosine), and one text index for hybrid search. Vector scores only rank results; they never act as a threshold that decides anything.
 
 ## Stack
 - Frontend: React, TypeScript, Vite, Tailwind, mobile first and responsive.
 - Backend: Node and Express with TypeScript, Socket.IO, an in process job queue.
 - Data store: MongoDB Atlas free tier with Vector Search and $graphLookup.
-- AI: Vercel AI SDK for model calls, so a provider switch is a config change. Groq free tier is primary for extraction, research and verification. Gemini Flash-Lite on the Google AI Studio free tier is the backup for extraction. Official MCP TypeScript SDK.
-- Data sources: Alpaca (news stream, news history, SIP bars), Finnhub (peers, profiles), SEC EDGAR (filings, XBRL), all on free tiers. X API in V2.
+- AI: Vercel AI SDK for model calls, so a provider switch is a config change. Groq free tier is primary for extraction, research and verification. Gemini Flash-Lite on the Google AI Studio free tier is the backup for extraction and the fallback on a 429. Official MCP TypeScript SDK.
+- Embeddings: local Xenova/all-MiniLM-L6-v2 through @huggingface/transformers, 384 dimensions, cosine; no key and no quota. Upgrade path: Gemini gemini-embedding-2 at 768 dimensions.
+- Data sources: Alpaca (news stream, news history, SIP bars, market calendar), Finnhub (peers, profiles), SEC EDGAR (filings, XBRL), all on free tiers. X API in V2.
 
 ## Build order
 Walking skeleton T01 to T09 by the end of day 3 (docs/BACKLOG.md). Days 4 to 8 deepen each stage, days 9 and 10 cover evals and personas, then deployment, rehearsal and buffer.
@@ -151,3 +164,10 @@ Thesis guardian, BullMQ and Redis, full PWA, fund look through exposure, Israeli
 - 28 Sep 2026: Zero extra spend. Every external service runs on a free tier; any paid call is a bug (principle 9).
 - 28 Sep 2026: LLM providers on free tiers through the Vercel AI SDK. Groq is primary for extraction, research and verification; Gemini Flash-Lite (Google AI Studio free tier) is the backup for extraction. A paid Anthropic API key is the documented V2 upgrade path.
 - 28 Sep 2026: X moves to V2, both levels, because its API has no free tier. The source tier design is kept. Supersedes the X decision of 27 Sep.
+- 28 Sep 2026 (T00 finding A): Price reaction windows are anchored to the regular session, using the Alpaca market calendar for weekends, holidays and early closes. get_price_reaction returns the anchor it used. Replaces the fixed 15 minute, 2 hour and 1 day windows from the headline.
+- 28 Sep 2026 (T00 finding B): Company keeps symbol as the US ticker and adds primary listing, because Finnhub profiles return the home listing (2330.TW for TSM).
+- 28 Sep 2026 (T00 finding C): competitor_of edges come from Finnhub peers filtered to the demo universe. Every relationship is stored in both directions with its inverse type: supplier_of pairs with customer_of, and competitor_of is symmetric.
+- 28 Sep 2026 (T00 finding D): LIVE_INGEST is on for one machine only, because the free Alpaca plan allows one live WebSocket. After T18 the deployed instance is the single live ingester.
+- 28 Sep 2026 (T00 finding E): Each research run gets a token budget next to its step budget, starting at 6,000 tokens and tuned in T16. A limiter respects each provider's tokens per minute. Tool output is capped at 3 filing chunks per call. Tokens are recorded per step in the AgentRun. The research model is decided after the console quotas are recorded; Gemini Flash-Lite stays the fallback on a 429.
+- 28 Sep 2026 (T00 finding F): Embeddings use local Xenova/all-MiniLM-L6-v2, 384 dimensions, cosine, with filing chunks of at most 256 tokens. Gemini gemini-embedding-2 at 768 dimensions is the documented upgrade path.
+- 28 Sep 2026: The demo item is pinned by id: Alpaca news 38062166, DEMO_SOURCE_ID in the seed config. Replay selects items by id, never by keyword.
