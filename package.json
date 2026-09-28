@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces --if-present",
     "lint": "eslint . && prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "seed": "npm run seed -w @kesher/api"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "seed": "tsx src/seed/run.ts"
   },
   "dependencies": {
     "@kesher/shared": "*",
