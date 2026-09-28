@@ -1,11 +1,11 @@
-import { IngestCounter, MarketEvent, ReplayResponse, Source } from '@kesher/shared';
+import { FeedItem, IngestCounter, MarketEvent, ReplayResponse, Source } from '@kesher/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { collection } from '../db/collections';
-import { ensureCollections, ensureIndexes } from '../db/indexes';
 import { createModelClient, MissingModelKeyError, MODELS, resolveFromKeys } from '../llm/client';
 import type { ModelClient } from '../llm/client';
 import { loadModelRecording, type ModelRecording } from '../llm/recordings';
-import { DEMO_SOURCE_ID } from '../seed/config';
+import { DEMO_SOURCE_ID, PERSONAS } from '../seed/config';
+import { runSeed } from '../seed/seed';
 import { mockModel, rateLimitError, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import { toIncomingItem } from './alpaca';
@@ -55,20 +55,23 @@ describe('processItem on mongod', () => {
     (await collection(mongo.db, 'ingest_counters').find({}).sort({ reason: 1, mode: 1 }).toArray())
       .map((doc) => IngestCounter.parse(doc))
       .map(({ day, mode, reason, count }) => ({ day, mode, reason, count }));
-  const storedSource = async () => Source.parse(await collection(mongo.db, 'sources').findOne({}));
+  // The seeded filings are sources too; the item under test is the only Alpaca one.
+  const storedSource = async () =>
+    Source.parse(await collection(mongo.db, 'sources').findOne({ provider: 'alpaca' }));
   const storedEvent = async () =>
     MarketEvent.parse(await collection(mongo.db, 'market_events').findOne({}));
 
   beforeAll(async () => {
     mongo = await startTestMongo('kesher_process_test');
-    await ensureCollections(mongo.db);
-    await ensureIndexes(mongo.db);
+    // The personas and the reviewed edges, so relevance has users and a graph to score against.
+    await runSeed(mongo.db, now);
     item = toIncomingItem((await loadRecording(DEMO_SOURCE_ID))!.item);
     recorded = (await loadModelRecording(DEMO_SOURCE_ID))!;
   }, MONGO_START_TIMEOUT_MS);
 
   beforeEach(async () => {
-    for (const name of ['sources', 'market_events', 'ingest_counters'] as const) {
+    await collection(mongo.db, 'sources').deleteMany({ provider: 'alpaca' });
+    for (const name of ['market_events', 'feed_items', 'ingest_counters'] as const) {
       await collection(mongo.db, name).deleteMany({});
     }
     logs = [];
@@ -96,6 +99,62 @@ describe('processItem on mongod', () => {
     expect(await counters()).toEqual([]);
   });
 
+  describe('relevance', () => {
+    const feedItems = async () => {
+      const users = await collection(mongo.db, 'users').find().toArray();
+      const persona = (userId: string) =>
+        PERSONAS.findIndex((p) => p.email === users.find((u) => u._id === userId)?.email);
+      const items = await collection(mongo.db, 'feed_items').find().toArray();
+      return items
+        .map((doc) => FeedItem.parse(doc))
+        .map((feed) => ({
+          persona: 'ABC'[persona(feed.userId)],
+          relevance: feed.relevance,
+          holding: feed.path?.holding ?? null,
+        }))
+        .sort((a, b) => (a.persona ?? '').localeCompare(b.persona ?? ''));
+    };
+
+    it('writes a FeedItem per persona once the demo item is extracted', async () => {
+      await processItem(mongo.db, item, deps(models().client));
+
+      expect(await feedItems()).toEqual([
+        { persona: 'A', relevance: 0.8, holding: 'NVDA' },
+        { persona: 'B', relevance: 1, holding: 'TSM' },
+        { persona: 'C', relevance: 0, holding: null },
+      ]);
+    });
+
+    it('resumes an extracted event that was never scored, with no model call', async () => {
+      const first = await processItem(mongo.db, item, deps(models().client));
+      await collection(mongo.db, 'feed_items').deleteMany({});
+
+      const resumed = await processItem(mongo.db, item, noModels());
+
+      expect(resumed).toEqual({ ...first, sourceCreated: false, eventCreated: false });
+      expect(await feedItems()).toHaveLength(3);
+      expect(await counters()).toEqual([]);
+      expect(await processItem(mongo.db, item, noModels())).toMatchObject({
+        outcome: 'dropped',
+        reason: 'duplicate',
+      });
+    });
+
+    it('completes a scoring run that stopped partway', async () => {
+      const first = await processItem(mongo.db, item, deps(models().client));
+      await collection(mongo.db, 'feed_items').deleteOne({ relevance: 0 });
+
+      const resumed = await processItem(mongo.db, item, noModels());
+
+      expect(resumed).toEqual({ ...first, sourceCreated: false, eventCreated: false });
+      expect(await feedItems()).toEqual([
+        { persona: 'A', relevance: 0.8, holding: 'NVDA' },
+        { persona: 'B', relevance: 1, holding: 'TSM' },
+        { persona: 'C', relevance: 0, holding: null },
+      ]);
+    });
+  });
+
   describe('pre filter', () => {
     it('drops an item outside the universe before any write or model call, and counts it', async () => {
       const benchmarks = await processItem(
@@ -109,7 +168,7 @@ describe('processItem on mongod', () => {
       for (const result of [benchmarks, none, outside]) {
         expect(result).toEqual({ outcome: 'dropped', reason: 'not_in_universe' });
       }
-      expect(await collection(mongo.db, 'sources').countDocuments()).toBe(0);
+      expect(await collection(mongo.db, 'sources').countDocuments({ provider: 'alpaca' })).toBe(0);
       expect(await collection(mongo.db, 'market_events').countDocuments()).toBe(0);
       expect(await counters()).toEqual([
         { day: '2026-09-28', mode: 'replay', reason: 'not_in_universe', count: 3 },

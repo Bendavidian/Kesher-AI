@@ -71,8 +71,12 @@ export async function scoreEvent(db: Db, eventId: string, now = new Date()): Pro
   return written;
 }
 
-// An event is scored once it has a FeedItem. With no users nothing is written, so the event is
-// scored again on the next try; that costs no model call.
+// An event is scored once every user has its FeedItem. A scoring run that stopped partway, or a
+// user added since, leaves the event unscored, and the next try completes it with no model call.
 export async function isScored(db: Db, eventId: string): Promise<boolean> {
-  return (await collection(db, 'feed_items').countDocuments({ eventId }, { limit: 1 })) > 0;
+  const [users, items] = await Promise.all([
+    collection(db, 'users').countDocuments(),
+    collection(db, 'feed_items').countDocuments({ eventId }),
+  ]);
+  return items >= users;
 }
