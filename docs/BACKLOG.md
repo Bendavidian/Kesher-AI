@@ -58,6 +58,11 @@ Web feed with cards pushed over Socket.IO, and login as any of the three persona
 Build to docs/UI.md, including the one column layout below 1280px. docs/design/feed.dc.html is markup reference only; it needs the design canvas runtime and does not run on its own. The real spike values shown in the design (the demo headline, the 10-K quote and the anchored price moves) are fixtures for the replay demo and its tests.
 Done when: replaying the TSMC event updates three open browser sessions with three different cards.
 Note from the UI track: login for the persona switcher needs a PublicUser type in shared and POST /auth/login with the demo password; the switcher logs in as the chosen persona.
+Notes from T05:
+- Mount GET /feed with feedCardsFor(db, userId) from apps/api/src/feed/cards.ts, taking userId from the auth context only. It has a limit but no cursor yet; its order (createdAt descending, then _id) is stable enough to add one. Emit feed:item with feedCard(db, item) for each FeedItem that scoreEvent (apps/api/src/relevance/feed.ts) writes; processItem calls it after extraction.
+- FeedCard dates arrive as ISO strings over JSON and Socket.IO; convert them before FeedCard.parse on the web.
+- Replace the web fixtures with FeedCards. Render "Why you" with whyYou and the bands with relevanceBand from packages/shared; the web view already uses both.
+- The seed ran `backfillPublishers`; run `npm run seed` on each machine's database once before T06.
 
 ### [x] T07 MCP server, thin
 packages/mcp with get_event and search_news, and run token verification with user and tool scopes.
