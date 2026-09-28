@@ -10,7 +10,10 @@
     "record": "tsx src/ingest/record.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.82",
+    "@ai-sdk/groq": "^4.0.50",
     "@kesher/shared": "*",
+    "ai": "^7.0.118",
     "express": "^5.2.1",
     "mongodb": "^7.6.0",
     "zod": "^4.6.5"
