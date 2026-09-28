@@ -24,6 +24,7 @@ function source(overrides: Partial<Source> & Pick<Source, 'title' | 'publishedAt
     externalId: id,
     url: `https://example.com/${id}`,
     author: null,
+    publisher: 'Benzinga',
     text: null,
     symbols: ['TSM'],
     injectionScreen: null,

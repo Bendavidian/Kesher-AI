@@ -11,7 +11,15 @@ export function passesUniverse(symbols: readonly string[]): boolean {
 }
 
 // The fields a provider can change on an item it sends again.
-const PROVIDER_FIELDS = ['url', 'author', 'title', 'text', 'symbols', 'publishedAt'] as const;
+const PROVIDER_FIELDS = [
+  'url',
+  'author',
+  'publisher',
+  'title',
+  'text',
+  'symbols',
+  'publishedAt',
+] as const;
 type ProviderField = (typeof PROVIDER_FIELDS)[number];
 
 type Comparable = Pick<IncomingItem, ProviderField>;

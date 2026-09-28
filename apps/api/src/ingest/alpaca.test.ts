@@ -23,6 +23,7 @@ describe('toIncomingItem', () => {
       externalId: '38062166',
       url: raw.url,
       author: 'Benzinga Neuro',
+      publisher: 'Benzinga',
       title: raw.headline,
       text: 'Taiwan was struck by a powerful 7.2 magnitude earthquake on Wednesday.',
       symbols: ['TSM'],
@@ -34,6 +35,14 @@ describe('toIncomingItem', () => {
     const item = toIncomingItem(AlpacaNewsItem.parse({ ...raw, author: ' ', summary: '<p></p>' }));
     expect(item.author).toBeNull();
     expect(item.text).toBeNull();
+  });
+
+  it('names the publisher from the provider source, trimmed, null when blank', () => {
+    const publisher = (source: string) =>
+      toIncomingItem(AlpacaNewsItem.parse({ ...raw, source })).publisher;
+    expect(publisher('benzinga')).toBe('Benzinga');
+    expect(publisher(' Reuters ')).toBe('Reuters');
+    expect(publisher('  ')).toBeNull();
   });
 });
 

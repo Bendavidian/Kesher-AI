@@ -26,6 +26,8 @@ export const Source = z.strictObject({
   externalId: z.string().min(1),
   url: z.httpUrl(),
   author: NonBlank.nullable(),
+  // The outlet that published the item, for example Benzinga for Alpaca news. null for filings.
+  publisher: NonBlank.nullable(),
   title: NonBlank,
   // The item body as untrusted data, normalized with normalizeText. null when the provider sent
   // no body, and for filings, whose text lives in FilingChunk.

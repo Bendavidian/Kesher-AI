@@ -57,6 +57,7 @@ describe('Source', () => {
     externalId: '0001045810-26-000021',
     url: 'https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm',
     author: null,
+    publisher: null,
     title: 'NVIDIA Corp 10-K for the fiscal year ended 25 Jan 2026',
     text: null,
     symbols: ['NVDA'],
@@ -84,6 +85,12 @@ describe('Source', () => {
     ).toBe(true);
     expect(Source.safeParse({ ...source, text: '  ' }).success).toBe(false);
     expect(Source.safeParse({ ...source, text: undefined }).success).toBe(false);
+  });
+
+  it('names the publisher, nullable but never blank or missing', () => {
+    expect(Source.safeParse({ ...source, publisher: 'Benzinga' }).success).toBe(true);
+    expect(Source.safeParse({ ...source, publisher: ' ' }).success).toBe(false);
+    expect(Source.safeParse({ ...source, publisher: undefined }).success).toBe(false);
   });
 
   it('rejects unknown keys', () => {

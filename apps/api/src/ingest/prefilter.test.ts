@@ -30,6 +30,7 @@ describe('repeatReason', () => {
     externalId: '38062166',
     url: 'https://www.benzinga.com/news/24/04/38062166/tsmc',
     author: 'Benzinga Neuro',
+    publisher: 'Benzinga',
     title: 'TSMC Suspends Chip Production',
     text: 'Taiwan was struck by a powerful earthquake.',
     symbols: ['TSM', 'NVDA'],
