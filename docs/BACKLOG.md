@@ -29,9 +29,12 @@ Types and zod schemas in packages/shared for every entity in SPEC.md, Mongo coll
 Company has primaryListing next to symbol. Every relationship is stored in both directions with its inverse type (supplier_of with customer_of, competitor_of both ways). The seed config holds DEMO_SOURCE_ID=38062166. Vector indexes use 384 dimensions, cosine.
 Done when: the seed runs twice without duplicates, and a test validates every seeded document against its schema.
 
-### [ ] T03 Replay ingestion
+### [~] T03 Replay ingestion
 POST /dev/replay/:sourceId loads one recorded or historical item, stores a Source and creates a MarketEvent through the same path live items will use. Replay selects items by id, never by keyword.
 Done when: replaying DEMO_SOURCE_ID (Alpaca news 38062166) creates exactly one Source and one MarketEvent.
+Notes from T03 for later tasks:
+- T04: every item enters through ingestItem (apps/api/src/ingest/ingest.ts), which stores the Source and creates its MarketEvent. Put the pre filter there. Decide whether a dropped item is still stored as a Source; its counters need somewhere to live. ingestItem already reports sourceCreated, which the duplicate and update reasons can use. The screen and extraction read Source.text, which is null when the provider sent no summary; the demo item has one.
+- T10: live Alpaca items map through toIncomingItem, the same as replay. Provider symbols must pass the Ticker schema, or the whole item fails validation; filter bad symbols before ingest. An item with an empty url fails Source.url. Decide where live recordings go on the deployed instance: the recordings files or a collection.
 
 ### [ ] T04 Extraction, thin
 Order: pre filter, then the injection screen, then extraction.

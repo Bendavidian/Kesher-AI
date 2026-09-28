@@ -31,9 +31,10 @@ If a task conflicts with SPEC.md, stop and ask. Never change a decision silently
 
 ## Commands
 Created in T01. Keep this list current when scripts change.
-- npm run dev: web (localhost:5173) and api (localhost:3001) together; the web dev server proxies /api to the api
+- npm run dev: web (localhost:5173) and api (localhost:3001) together; the web dev server proxies /api to the api. The api needs MONGODB_URI and mounts POST /dev/replay/:sourceId unless NODE_ENV is production
 - npm run test: vitest, all workspaces; npm run test:watch to rerun on change. Integration tests start mongod 8.0.32 through mongodb-memory-server (downloaded once to ~/.cache/mongodb-binaries), never Atlas
 - npm run seed: personas, demo universe, filing sources and reviewed edges into Atlas (MONGODB_URI), then any missing vector search indexes; safe to rerun
+- npm run record -- --id <alpaca news id> --symbol <ticker> --date <YYYY-MM-DD>: records one historical Alpaca news item to recordings/alpaca/<id>.json for replay (needs the Alpaca keys; --force to record again)
 - npm run typecheck
 - npm run lint: ESLint, then a Prettier check
 - npm run format: Prettier write
