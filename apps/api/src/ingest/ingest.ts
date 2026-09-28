@@ -18,11 +18,12 @@ export function initialStatus(tier: Tier): EventStatus {
   return tier === 3 ? 'unconfirmed' : 'confirmed';
 }
 
-// The single entry for every item, replayed or live: store the Source, then its MarketEvent.
-// Deterministic code only. A second call with the same item creates nothing: the Source is
-// upserted on provider and externalId, and the event is found by its source id. The pipeline's
-// own fields (injection screen, extraction, embedding) are written only on insert, so a replay
-// never erases them.
+// Stores the Source, then its MarketEvent. processItem (process.ts) runs the pre filter first
+// and is the single entry for every item, replayed or live. Deterministic code only. A second
+// call with the same item creates nothing: the Source is upserted on provider and externalId,
+// and the event is found by its source id. Every Source field is written only on insert, so the
+// stored text always matches its injection screen and extraction; an update from the provider
+// is logged and counted by processItem, never written.
 export async function ingestItem(
   db: Db,
   item: IncomingItem,
@@ -34,12 +35,12 @@ export async function ingestItem(
     injectionScreen: null,
     createdAt: now,
   });
-  const { _id, createdAt, injectionScreen, ...providerFields } = candidate;
+  const { provider, externalId, ...insertFields } = candidate;
   const sources = collection(db, 'sources');
   const upsertSource = () =>
     sources.findOneAndUpdate(
-      { provider: candidate.provider, externalId: candidate.externalId },
-      { $set: providerFields, $setOnInsert: { _id, createdAt, injectionScreen } },
+      { provider, externalId },
+      { $setOnInsert: insertFields },
       { upsert: true, returnDocument: 'after', includeResultMetadata: true },
     );
   // Concurrent first upserts of one key can fail with E11000 (MongoDB upsert caveat). The

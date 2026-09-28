@@ -4,9 +4,7 @@
   "screen": {
     "model": "meta-llama/llama-prompt-guard-2-86m",
     "input": "TSMC Suspends Chip Production After Taiwan Rocked By Strongest Tremor In 25 Years\n\nTaiwan was struck by a powerful 7.2 magnitude earthquake on Wednesday, the strongest in a quarter of a century. The quake has resulted in one fatality, numerous injuries, and significant damage to buildings in the region.",
-    "chunks": [
-      "0.0004025209345854819"
-    ]
+    "chunks": ["0.0004025209345854819"]
   },
   "extraction": {
     "provider": "groq",

@@ -1,11 +1,14 @@
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { ReplayResponse } from '@kesher/shared';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import { collection } from '../db/collections';
 import { ensureCollections, ensureIndexes } from '../db/indexes';
+import { createModelClient, MODELS } from '../llm/client';
+import { loadModelRecording, type ModelRecording } from '../llm/recordings';
 import { DEMO_SOURCE_ID } from '../seed/config';
+import { mockModel, rateLimitError, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 
 async function listen(server: Server): Promise<string> {
@@ -23,9 +26,14 @@ async function close(server: Server | undefined): Promise<void> {
 
 describe('POST /dev/replay/:sourceId', () => {
   let mongo: TestMongo;
+  let recorded: ModelRecording;
   let server: Server;
+  let keylessServer: Server;
+  let limitedServer: Server;
   let prodServer: Server;
   let baseUrl: string;
+  let keylessUrl: string;
+  let limitedUrl: string;
   let prodUrl: string;
 
   const replay = (id: string, url = baseUrl) =>
@@ -34,24 +42,61 @@ describe('POST /dev/replay/:sourceId', () => {
     sources: await collection(mongo.db, 'sources').countDocuments({ externalId: DEMO_SOURCE_ID }),
     events: await collection(mongo.db, 'market_events').countDocuments(),
   });
+  // The recorded answers for the demo item, replayed; no test calls a provider.
+  const recordedModels = () => {
+    const guard = mockModel(MODELS.screen.model, recorded.screen.chunks);
+    const groq = mockModel(MODELS.extraction.model, [recorded.extraction.text]);
+    return createModelClient({
+      resolve: resolveMocks({ [guard.modelId]: guard, [groq.modelId]: groq }),
+    });
+  };
+  const rateLimited = () => {
+    const guard = mockModel(MODELS.screen.model, [rateLimitError()]);
+    const groq = mockModel(MODELS.extraction.model, [rateLimitError()]);
+    const gemini = mockModel(MODELS.fallback.model, [rateLimitError()]);
+    return createModelClient({
+      resolve: resolveMocks({
+        [guard.modelId]: guard,
+        [groq.modelId]: groq,
+        [gemini.modelId]: gemini,
+      }),
+    });
+  };
 
   beforeAll(async () => {
     mongo = await startTestMongo('kesher_replay_test');
     await ensureCollections(mongo.db);
     await ensureIndexes(mongo.db);
-    server = createApp({ db: mongo.db, devRoutes: true }).listen(0);
+    recorded = (await loadModelRecording(DEMO_SOURCE_ID))!;
+    const quiet = () => undefined;
+    server = createApp({ db: mongo.db, devRoutes: true, models: recordedModels }).listen(0);
     baseUrl = await listen(server);
+    keylessServer = createApp({ db: mongo.db, devRoutes: true, logError: quiet }).listen(0);
+    keylessUrl = await listen(keylessServer);
+    limitedServer = createApp({
+      db: mongo.db,
+      devRoutes: true,
+      models: rateLimited,
+      logError: quiet,
+      log: quiet,
+    }).listen(0);
+    limitedUrl = await listen(limitedServer);
     prodServer = createApp({ db: mongo.db, devRoutes: false }).listen(0);
     prodUrl = await listen(prodServer);
   }, MONGO_START_TIMEOUT_MS);
 
+  beforeEach(async () => {
+    for (const name of ['sources', 'market_events', 'ingest_counters'] as const) {
+      await collection(mongo.db, name).deleteMany({});
+    }
+  });
+
   afterAll(async () => {
-    await close(server);
-    await close(prodServer);
+    for (const s of [server, keylessServer, limitedServer, prodServer]) await close(s);
     await mongo?.stop();
   });
 
-  it('replaying DEMO_SOURCE_ID creates exactly one Source and one MarketEvent', async () => {
+  it('replaying DEMO_SOURCE_ID creates exactly one Source and one extracted MarketEvent', async () => {
     const response = await replay(DEMO_SOURCE_ID);
 
     expect(response.status).toBe(200);
@@ -62,16 +107,46 @@ describe('POST /dev/replay/:sourceId', () => {
 
     const event = await collection(mongo.db, 'market_events').findOne({ _id: body.eventId });
     expect(event?.sourceIds).toEqual([body.sourceId]);
+    expect(event?.extraction?.companies.map((c) => c.symbol)).toContain('TSM');
   });
 
-  it('a second replay returns the same ids and creates nothing', async () => {
-    const [first, second] = [
-      ReplayResponse.parse(await (await replay(DEMO_SOURCE_ID)).json()),
-      ReplayResponse.parse(await (await replay(DEMO_SOURCE_ID)).json()),
-    ];
+  it('a second replay is a duplicate with the same ids, and needs no model key', async () => {
+    const first = ReplayResponse.parse(await (await replay(DEMO_SOURCE_ID)).json());
+    if (first.outcome !== 'processed') throw new Error('expected processed');
 
-    expect(second).toEqual({ ...first, sourceCreated: false, eventCreated: false });
+    const second = await replay(DEMO_SOURCE_ID, keylessUrl);
+
+    expect(second.status).toBe(200);
+    expect(ReplayResponse.parse(await second.json())).toEqual({
+      outcome: 'dropped',
+      reason: 'duplicate',
+      sourceId: first.sourceId,
+      eventId: first.eventId,
+    });
     expect(await counts()).toEqual({ sources: 1, events: 1 });
+  });
+
+  it('answers 503 naming the missing key, and keeps the item for the next replay', async () => {
+    const response = await replay(DEMO_SOURCE_ID, keylessUrl);
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: 'GROQ_API_KEY is not set; the screen and extraction need it',
+    });
+    const event = await collection(mongo.db, 'market_events').findOne({});
+    expect(event?.extraction).toBeNull();
+
+    const retry = ReplayResponse.parse(await (await replay(DEMO_SOURCE_ID)).json());
+    expect(retry).toMatchObject({ outcome: 'processed', sourceCreated: false });
+  });
+
+  it('answers 503 when both model providers are rate limited', async () => {
+    const response = await replay(DEMO_SOURCE_ID, limitedUrl);
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: 'the model providers are rate limited; replay again later',
+    });
   });
 
   it('answers 400 for an id that is not an Alpaca news id', async () => {

@@ -115,6 +115,16 @@ describe('ingestItem on mongod', () => {
     expect(event?.extraction).toEqual(extraction);
   });
 
+  it('keeps the stored Source when the same item arrives with changes', async () => {
+    const first = await ingestItem(mongo.db, item);
+
+    const second = await ingestItem(mongo.db, { ...item, title: 'Updated title', text: 'New.' });
+
+    expect(second).toMatchObject({ sourceId: first.sourceId, sourceCreated: false });
+    const source = await collection(mongo.db, 'sources').findOne({ _id: first.sourceId });
+    expect(source).toMatchObject({ title: item.title, text: item.text });
+  });
+
   it('rejects an item that fails the Source schema before any write', async () => {
     await expect(ingestItem(mongo.db, { ...item, title: ' ' })).rejects.toThrow();
     await expect(ingestItem(mongo.db, { ...item, url: 'not a url' })).rejects.toThrow();
