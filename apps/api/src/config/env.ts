@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
+import type { ModelKeys } from '../llm/client';
 
 // The repo root .env, from apps/api/src/config.
 const ROOT_ENV_FILE = resolve(import.meta.dirname, '../../../../.env');
@@ -38,4 +39,16 @@ export function loadEnv(): Env {
 
 export function loadAlpacaEnv(): AlpacaEnv {
   return load(AlpacaEnv);
+}
+
+// Model keys are optional: the api starts without them, and only a call that needs a provider
+// fails, naming the missing key (MissingModelKeyError).
+const ModelEnv = z.object({
+  GROQ_API_KEY: z.string().min(1).optional().catch(undefined),
+  GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1).optional().catch(undefined),
+});
+
+export function loadModelKeys(): ModelKeys {
+  const env = load(ModelEnv);
+  return { groq: env.GROQ_API_KEY, google: env.GOOGLE_GENERATIVE_AI_API_KEY };
 }

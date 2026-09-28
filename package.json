@@ -18,7 +18,8 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "seed": "npm run seed -w @kesher/api",
-    "record": "npm run record -w @kesher/api --"
+    "record": "npm run record -w @kesher/api --",
+    "record:models": "npm run record:models -w @kesher/api --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
