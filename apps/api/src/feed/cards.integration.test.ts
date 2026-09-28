@@ -57,17 +57,17 @@ describe('FeedCards for the replayed demo event, on mongod', () => {
       publisher: 'Benzinga',
     });
     expect(card?.source).not.toHaveProperty('text');
-    expect(card?.evidence).toEqual([
-      expect.objectContaining({
-        from: 'TSM',
-        to: 'NVDA',
-        type: 'supplier_of',
-        reviewed: true,
-        quote: expect.stringContaining('Taiwan Semiconductor Manufacturing Company Limited'),
-        filingDate: FILINGS.NVDA.filingDate,
-        filing: expect.objectContaining({ symbol: 'NVDA', form: '10-K', tier: 1 }),
-      }),
-    ]);
+    expect(card?.evidence).toHaveLength(1);
+    const [evidence] = card!.evidence;
+    expect(evidence).toMatchObject({
+      from: 'TSM',
+      to: 'NVDA',
+      type: 'supplier_of',
+      reviewed: true,
+      filingDate: FILINGS.NVDA.filingDate,
+      filing: { symbol: 'NVDA', form: '10-K', tier: 1, title: FILINGS.NVDA.source.title },
+    });
+    expect(evidence?.quote).toContain('Taiwan Semiconductor Manufacturing Company Limited');
     expect(card?.priceReaction).toBeNull();
   });
 
