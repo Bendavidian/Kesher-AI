@@ -46,7 +46,8 @@ Created in T01. Keep this list current when scripts change.
 - TypeScript strict. Validate every external boundary with zod: APIs, LLM outputs, MCP inputs.
 - Never read, print or log secrets. The .env file is off limits to you; the code reads it at runtime.
 - Commit messages start with the task id, for example "T05: render Why you from path". One concern per commit.
-- Two machines, a Mac mini and a Windows laptop: pull before starting, push when done. Scripts and paths must work on both.
+- One branch and one PR per task. CI must pass before a PR is merged, and only I merge (Rebase and merge). Never push to main.
+- Two machines, a Mac mini and a Windows laptop: pull before starting, push the task branch when done. Scripts and paths must work on both.
 - Before committing changes in apps/api, packages/mcp or packages/shared, run the reviewer subagent.
 - End every session with /wrap so STATE.md is always current.
 
