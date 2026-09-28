@@ -24,7 +24,7 @@ npm workspaces: apps/web, apps/api, packages/shared, packages/mcp. TypeScript st
 The Tailwind theme defines the tokens from docs/UI.md, and the web shell renders the terminal frame: top bar, three panels and the ticker footer.
 Done when: npm run dev shows the web shell in the Browser pane with the theme tokens from docs/UI.md and the terminal frame (top bar, three panels, ticker footer), GET /health returns ok, and CI passes.
 
-### [~] T02 Domain model and seed
+### [x] T02 Domain model and seed
 Types and zod schemas in packages/shared for every entity in SPEC.md, Mongo collections and indexes, and a seed script for the three personas, the demo universe and six hand written edges with evidence (five were planned; the quote review on 28 Sep 2026 added LRCX supplier_of TSM for a two hop supply chain path).
 Company has primaryListing next to symbol. Every relationship is stored in both directions with its inverse type (supplier_of with customer_of, competitor_of both ways). The seed config holds DEMO_SOURCE_ID=38062166. Vector indexes use 384 dimensions, cosine.
 Done when: the seed runs twice without duplicates, and a test validates every seeded document against its schema.
