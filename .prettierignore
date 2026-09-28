@@ -1,0 +1,8 @@
+# The spike is kept as T00 evidence, and docs are formatted by hand (tables).
+spike/
+docs/
+**/*.md
+package-lock.json
+dist/
+coverage/
+.claude/

@@ -19,7 +19,7 @@ Done when: docs/SPIKE.md covers all seven checks with evidence, and every failur
 
 ## Phase 1: walking skeleton, thin and end to end
 
-### [ ] T01 Monorepo scaffold
+### [~] T01 Monorepo scaffold
 npm workspaces: apps/web, apps/api, packages/shared, packages/mcp. TypeScript strict, ESLint, Prettier, vitest. Scripts dev, test, typecheck and lint that work on macOS and Windows. A .claude/launch.json with the web and api servers. A GitHub Actions workflow for typecheck and test.
 The Tailwind theme defines the tokens from docs/UI.md, and the web shell renders the terminal frame: top bar, three panels and the ticker footer.
 Done when: npm run dev shows the web shell in the Browser pane with the theme tokens from docs/UI.md and the terminal frame (top bar, three panels, ticker footer), GET /health returns ok, and CI passes.

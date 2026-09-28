@@ -31,10 +31,11 @@ If a task conflicts with SPEC.md, stop and ask. Never change a decision silently
 
 ## Commands
 Created in T01. Keep this list current when scripts change.
-- npm run dev: web and api together
-- npm run test: vitest
+- npm run dev: web (localhost:5173) and api (localhost:3001) together; the web dev server proxies /api to the api
+- npm run test: vitest, all workspaces; npm run test:watch to rerun on change
 - npm run typecheck
-- npm run lint
+- npm run lint: ESLint, then a Prettier check
+- npm run format: Prettier write
 
 ## How we work
 - Plan before any change that touches more than one file, and wait for approval.

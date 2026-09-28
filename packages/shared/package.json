@@ -1,0 +1,16 @@
+{
+  "name": "@kesher/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Domain types and zod schemas used by the web app and the api.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  }
+}
