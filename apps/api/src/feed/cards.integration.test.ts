@@ -1,0 +1,102 @@
+import { FeedCard } from '@kesher/shared';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { collection } from '../db/collections';
+import { toIncomingItem } from '../ingest/alpaca';
+import { processItem } from '../ingest/process';
+import { loadRecording } from '../ingest/recordings';
+import { createModelClient, MODELS } from '../llm/client';
+import { loadModelRecording } from '../llm/recordings';
+import { DEMO_SOURCE_ID, FILINGS, PERSONAS } from '../seed/config';
+import { runSeed } from '../seed/seed';
+import { mockModel, resolveMocks } from '../test/models';
+import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
+import { feedCard, feedCardsFor } from './cards';
+
+const now = new Date('2026-09-28T12:00:00Z');
+
+describe('FeedCards for the replayed demo event, on mongod', () => {
+  let mongo: TestMongo;
+  const userId = async (index: number) =>
+    (await collection(mongo.db, 'users').findOne({ email: PERSONAS[index]!.email }))!._id;
+
+  beforeAll(async () => {
+    mongo = await startTestMongo('kesher_cards_test');
+    await runSeed(mongo.db, now);
+    const recorded = (await loadModelRecording(DEMO_SOURCE_ID))!;
+    const guard = mockModel(MODELS.screen.model, recorded.screen.chunks);
+    const groq = mockModel(MODELS.extraction.model, [recorded.extraction.text]);
+    const client = createModelClient({
+      resolve: resolveMocks({ [guard.modelId]: guard, [groq.modelId]: groq }),
+    });
+    const item = toIncomingItem((await loadRecording(DEMO_SOURCE_ID))!.item);
+    await processItem(mongo.db, item, {
+      mode: 'replay',
+      models: () => client,
+      now: () => now,
+      log: () => {},
+    });
+  }, MONGO_START_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await mongo?.stop();
+  });
+
+  it('gives A the supplier path with the NVIDIA 10-K quote as evidence', async () => {
+    const [card] = await feedCardsFor(mongo.db, await userId(0));
+
+    expect(FeedCard.parse(card)).toEqual(card);
+    expect(card?.item).toMatchObject({ relevance: 0.8, confidence: 'medium' });
+    expect(card?.event.headline).toBe(
+      'TSMC Suspends Chip Production After Taiwan Rocked By Strongest Tremor In 25 Years',
+    );
+    expect(card?.event).not.toHaveProperty('embedding');
+    expect(card?.source).toMatchObject({
+      provider: 'alpaca',
+      externalId: DEMO_SOURCE_ID,
+      tier: 2,
+      publisher: 'Benzinga',
+    });
+    expect(card?.source).not.toHaveProperty('text');
+    expect(card?.evidence).toEqual([
+      expect.objectContaining({
+        from: 'TSM',
+        to: 'NVDA',
+        type: 'supplier_of',
+        reviewed: true,
+        quote: expect.stringContaining('Taiwan Semiconductor Manufacturing Company Limited'),
+        filingDate: FILINGS.NVDA.filingDate,
+        filing: expect.objectContaining({ symbol: 'NVDA', form: '10-K', tier: 1 }),
+      }),
+    ]);
+    expect(card?.priceReaction).toBeNull();
+  });
+
+  it('gives B a direct card without evidence, and C a card at relevance 0', async () => {
+    const [b] = await feedCardsFor(mongo.db, await userId(1));
+    const [c] = await feedCardsFor(mongo.db, await userId(2));
+
+    expect(b?.item).toMatchObject({ relevance: 1, path: { holding: 'TSM', hops: [] } });
+    expect(b?.evidence).toEqual([]);
+    expect(c?.item).toMatchObject({ relevance: 0, path: null });
+    expect(c?.evidence).toEqual([]);
+  });
+
+  it('shows no evidence for a hop whose edge is no longer reviewed', async () => {
+    const [card] = await feedCardsFor(mongo.db, await userId(0));
+    const edgeId = card!.item.path!.hops[0]!.relationshipId;
+    const edges = collection(mongo.db, 'relationships');
+    await edges.updateOne({ _id: edgeId }, { $set: { 'evidence.reviewed': false } });
+    try {
+      expect((await feedCard(mongo.db, card!.item))?.evidence).toEqual([]);
+    } finally {
+      await edges.updateOne({ _id: edgeId }, { $set: { 'evidence.reviewed': true } });
+    }
+  });
+
+  it("returns only the given user's cards, and none for a user without items", async () => {
+    const a = await userId(0);
+    const cards = await feedCardsFor(mongo.db, a);
+    expect(cards.every((card) => card.item.userId === a)).toBe(true);
+    expect(await feedCardsFor(mongo.db, '33333333-3333-4333-8333-333333333333')).toEqual([]);
+  });
+});
