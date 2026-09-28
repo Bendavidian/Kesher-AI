@@ -17,7 +17,8 @@
     "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces --if-present",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "seed": "npm run seed -w @kesher/api"
+    "seed": "npm run seed -w @kesher/api",
+    "record": "npm run record -w @kesher/api --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

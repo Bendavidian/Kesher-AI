@@ -7,17 +7,35 @@ const ROOT_ENV_FILE = resolve(import.meta.dirname, '../../../../.env');
 
 const Env = z.object({
   MONGODB_URI: z.string().regex(/^mongodb(\+srv)?:\/\//),
+  // Development routes such as POST /dev/replay are mounted everywhere except production.
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });
 export type Env = z.infer<typeof Env>;
 
-// Loads the root .env at runtime when it exists and validates what the api needs. Nothing runs
-// at import, so tests and CI never need a .env. Values are never printed; errors name keys only.
-export function loadEnv(): Env {
+// Only the recorder needs Alpaca; the api itself replays from recordings.
+const AlpacaEnv = z.object({
+  ALPACA_API_KEY_ID: z.string().min(1),
+  ALPACA_API_SECRET_KEY: z.string().min(1),
+});
+export type AlpacaEnv = z.infer<typeof AlpacaEnv>;
+
+// Loads the root .env at runtime when it exists and validates what the caller needs. Nothing
+// runs at import, so tests and CI never need a .env. Values are never printed; errors name keys
+// only.
+function load<T>(schema: z.ZodType<T>): T {
   if (existsSync(ROOT_ENV_FILE)) process.loadEnvFile(ROOT_ENV_FILE);
-  const parsed = Env.safeParse(process.env);
+  const parsed = schema.safeParse(process.env);
   if (!parsed.success) {
     const keys = [...new Set(parsed.error.issues.map((issue) => issue.path.join('.')))];
     throw new Error(`Missing or invalid environment variables: ${keys.join(', ')}`);
   }
   return parsed.data;
+}
+
+export function loadEnv(): Env {
+  return load(Env);
+}
+
+export function loadAlpacaEnv(): AlpacaEnv {
+  return load(AlpacaEnv);
 }
