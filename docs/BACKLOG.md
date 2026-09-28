@@ -75,6 +75,12 @@ Notes from T07 for later tasks:
 ### [ ] T08 Research agent, thin
 The Investigate button starts a run. The agent calls the two tools within a step budget and a token budget (6,000 tokens per run to start) and returns claims as JSON. Model calls go through the limiter from T04. The run picks its provider once at the start: Gemini gemini-3.5-flash-lite, or Groq openai/gpt-oss-120b for the whole run if Gemini is over its limit. It never switches mid-run; on a 429 inside the run the limiter waits and retries. Tokens, provider and model are recorded per step in the AgentRun. A basic deterministic check confirms each quote appears in its source. The report attaches to the card, which renders a basic report view with claims and sources; T14 completes it to docs/UI.md.
 Note from T04: the model client (apps/api/src/llm/client.ts) already has pickRunProvider(budgetTokens) and a limiter per model; record the provider and model it returns on each AgentRun step.
+Notes from the UI track, for the wiring in T08 and T09:
+- AgentName is already exported from packages/shared (T07), but the web still derives it locally from AgentRun['agent'] in apps/web/src/view/types.ts; switch to the shared one. Move the run token scope type (ToolName, now in packages/mcp/src/token.ts) into packages/shared and export it, so the web can name tool scopes.
+- AgentStep keeps only outputSummary. Add an output field with the step's JSON output, capped at 8 KB with a truncated flag and passed through redaction, so the run screen shows real tool output.
+- Define the check names once in packages/shared: quote_verbatim, numbers_match, sources_exist, premises_supported, verifier.
+- Add a read model for report sources (title, quote label, id) and api routes for the report and its claims (T08), one run and the run list (T09). The Agent runs tab then uses the run list instead of the fixture import in apps/web/src/routes.ts.
+- The api serves the free tier limits shown in the run screen footer, instead of the copy in apps/web/src/view/run.ts.
 Done when: Investigate on the TSMC card returns a report in which every fact claim has a source id and a verified quote, and a test shows that a 429 in the middle of a run is retried on the same provider.
 
 ### [ ] T09 Agent Runs view, thin
@@ -116,6 +122,7 @@ Done when: each agent's token lists only its own tools, and get_price_reaction r
 Typed claims (fact, metric, inference), deterministic checks, an independent verifier agent. Unsupported facts are dropped, and inferences appear only with supported premises.
 The research report screen is completed to docs/UI.md: claim type chips, statuses, the supported and removed bar, the removed claim block and the sources panel. docs/design/report.dc.html is markup reference only; it needs the design canvas runtime and does not run on its own.
 Done when: every planted error in a fixture report is caught, and the rendered report contains only supported claims.
+Note from the UI track: check steps record the ids of the claims they removed, so the run screen colors only the check that removed a claim. Use the check names defined once in packages/shared (see the T08 notes).
 
 ### [ ] T16 Evals
 20 recorded events × 3 personas labeled high, medium or none. Planted errors for the verifier. Poisoned press releases and posts. An eval runner that prints label agreement, catch rate, injection success rate with and without the injection screen, cost and latency. Tune the research token budget, which starts at 6,000 tokens per run.
