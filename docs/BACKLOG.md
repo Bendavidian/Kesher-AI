@@ -59,7 +59,7 @@ Build to docs/UI.md, including the one column layout below 1280px. docs/design/f
 Done when: replaying the TSMC event updates three open browser sessions with three different cards.
 Note from the UI track: login for the persona switcher needs a PublicUser type in shared and POST /auth/login with the demo password; the switcher logs in as the chosen persona.
 
-### [ ] T07 MCP server, thin
+### [~] T07 MCP server, thin
 packages/mcp with get_event and search_news, and run token verification with user and tool scopes.
 Done when: a test proves that a token without search_news is rejected, and no tool accepts a user id argument.
 
