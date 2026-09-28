@@ -1,4 +1,4 @@
-import type { Claim, ClaimStatus, UniverseSymbol } from '@kesher/shared';
+import { SHORT_NAME, type Claim, type ClaimStatus, type UniverseSymbol } from '@kesher/shared';
 import { Link, useParams } from 'react-router';
 import { RingPath } from '../components/ConnectionPath';
 import { CheckIcon } from '../components/EvidenceCard';
@@ -7,7 +7,6 @@ import { TIER_CHIP } from '../components/tierChip';
 import { TopBar, ViewingAs } from '../components/TopBar';
 import { DEMO_RESEARCH, DEMO_STORE, PERSONAS } from '../fixtures';
 import { FEED_PATH, runPath } from '../routes';
-import { SHORT_NAME } from '../view/companies';
 import { TIER_LABEL } from '../view/feed';
 import { buildPathView } from '../view/path';
 import {

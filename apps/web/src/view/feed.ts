@@ -1,25 +1,31 @@
-import type {
-  Company,
-  Confidence,
-  FeedItem,
-  Importance,
-  MarketEvent,
-  Relationship,
-  Tier,
-  UniverseSymbol,
+import {
+  relevanceBand,
+  SHORT_NAME,
+  type Company,
+  type Confidence,
+  type FeedItem,
+  type Importance,
+  type MarketEvent,
+  type RelevanceBand,
+  type Relationship,
+  type Tier,
+  type UniverseSymbol,
 } from '@kesher/shared';
-import { SHORT_NAME } from './companies';
 import { formatDay } from './format';
 import { buildPathView, type PathView } from './path';
 import type { FilingView, NewsSourceView, Persona, PriceReaction } from './types';
 
-export type RelevanceBand = 'High' | 'Medium' | 'None';
+export type RelevanceLabel = 'High' | 'Medium' | 'None';
 
-// Display bands for the code computed relevance. SPEC.md labels evals high, medium or none;
-// T05 owns the thresholds and may move these.
-export function relevanceBand(relevance: number): RelevanceBand {
-  if (relevance === 0) return 'None';
-  return relevance >= 0.8 ? 'High' : 'Medium';
+const BAND_LABEL: Record<RelevanceBand, RelevanceLabel> = {
+  high: 'High',
+  medium: 'Medium',
+  none: 'None',
+};
+
+// The display label of the relevance band; the thresholds live in packages/shared.
+export function relevanceLabel(relevance: number): RelevanceLabel {
+  return BAND_LABEL[relevanceBand(relevance)];
 }
 
 export const TIER_LABEL: Record<Tier, string> = {
@@ -98,7 +104,7 @@ function eventCompany(event: MarketEvent, item: FeedItem): UniverseSymbol | null
 }
 
 function relevanceNote(item: FeedItem): string {
-  const band = relevanceBand(item.relevance);
+  const band = relevanceLabel(item.relevance);
   if (!item.path) return `${band}. No path to your holdings.`;
   if (item.path.hops.length === 0) return `${band}. You hold the company.`;
   return `${band}. Measured along the path.`;

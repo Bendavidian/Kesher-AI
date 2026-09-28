@@ -1,3 +1,4 @@
+import { SHORT_NAME } from '@kesher/shared';
 import type { ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { CheckIcon } from '../components/EvidenceCard';
@@ -7,7 +8,6 @@ import { TONE_CLASS } from '../components/stepTone';
 import { TopBar, ViewingAs } from '../components/TopBar';
 import { DEMO_RESEARCH, DEMO_STORE, PERSONAS } from '../fixtures';
 import { FEED_PATH, reportPath } from '../routes';
-import { SHORT_NAME } from '../view/companies';
 import { buildRunView, TONE_LABEL, type RunView, type StepTone } from '../view/run';
 import { NotFoundScreen } from './NotFoundScreen';
 

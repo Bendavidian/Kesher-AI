@@ -1,5 +1,5 @@
 import { formatScore, joinList } from '../view/format';
-import { relevanceBand, type FeedEntry } from '../view/feed';
+import { relevanceLabel, type FeedEntry } from '../view/feed';
 import type { Persona } from '../view/types';
 import { MiniPath } from './ConnectionPath';
 
@@ -10,7 +10,7 @@ const PILL = {
 } as const;
 
 export function RelevancePill({ relevance }: { relevance: number }) {
-  const band = relevanceBand(relevance);
+  const band = relevanceLabel(relevance);
   return (
     <span className={`rounded-chip text-[11px] font-extrabold tabular-nums ${PILL[band]}`}>
       {band} {formatScore(relevance)}

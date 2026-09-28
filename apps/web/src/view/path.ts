@@ -1,10 +1,15 @@
-import type { FeedPath, RelationshipType, UniverseSymbol } from '@kesher/shared';
-import { SHORT_NAME } from './companies';
-import { joinList } from './format';
+import {
+  HOP_VERB,
+  SHORT_NAME,
+  whyYou,
+  type FeedPath,
+  type RelationshipType,
+  type UniverseSymbol,
+} from '@kesher/shared';
 import type { Persona } from './types';
 
-// "Why you" is rendered from the graph path with fixed templates, never by a model
-// (CLAUDE.md, principle 3). Every sentence here comes from the path and the persona alone.
+// The connection path layout. Every sentence comes from the shared "Why you" templates
+// (packages/shared whyYou), rendered from the graph path, never by a model (principle 3).
 
 export type LineKind = 'supplier' | 'competitor' | 'you';
 
@@ -41,10 +46,10 @@ export type PathView =
       explanation: string;
     };
 
-const HOP_TEMPLATE: Record<RelationshipType, { kind: LineKind; verb: string }> = {
-  supplier_of: { kind: 'supplier', verb: 'supplies' },
-  customer_of: { kind: 'supplier', verb: 'buys from' },
-  competitor_of: { kind: 'competitor', verb: 'competes with' },
+const HOP_LINE: Record<RelationshipType, LineKind> = {
+  supplier_of: 'supplier',
+  customer_of: 'supplier',
+  competitor_of: 'competitor',
 };
 
 const HOLDING_LINE: PathLine = { kind: 'you', label: 'in your portfolio' };
@@ -59,9 +64,10 @@ export function buildPathView(
   persona: Persona,
 ): PathView {
   const eventName = SHORT_NAME[eventCompany];
+  const held = persona.holdings.map((holding) => holding.symbol);
+  const why = whyYou(path, eventCompany, held);
 
   if (!path) {
-    const held = persona.holdings.map((holding) => holding.symbol);
     return {
       kind: 'none',
       eventName,
@@ -70,9 +76,9 @@ export function buildPathView(
         you(persona, 'you'),
       ],
       lineLabel: 'no connection within two stops',
-      label: `No connection from ${eventName} to your holdings`,
-      rowLabel: 'No path to your holdings',
-      explanation: `You hold ${joinList(held)}. Nothing in the graph links them to ${eventName} within two stops.`,
+      label: why.label,
+      rowLabel: why.rowLabel,
+      explanation: why.explanation ?? '',
     };
   }
 
@@ -86,14 +92,14 @@ export function buildPathView(
         you(persona, 'you'),
       ],
       lines: [HOLDING_LINE],
-      label: `You hold ${name} directly`,
-      rowLabel: `You hold ${name}`,
+      label: why.label,
+      rowLabel: why.rowLabel,
     };
   }
 
   const lines: PathLine[] = path.hops.map((hop) => ({
-    kind: HOP_TEMPLATE[hop.type].kind,
-    label: HOP_TEMPLATE[hop.type].verb,
+    kind: HOP_LINE[hop.type],
+    label: HOP_VERB[hop.type],
   }));
   lines.push(HOLDING_LINE);
 
@@ -106,16 +112,12 @@ export function buildPathView(
   }));
   stations.push(you(persona, 'you'));
 
-  const clauses = path.hops.map(
-    (hop) => `${SHORT_NAME[hop.from]} ${HOP_TEMPLATE[hop.type].verb} ${SHORT_NAME[hop.to]}`,
-  );
-  const holdingName = SHORT_NAME[path.holding];
   return {
     kind: 'connected',
     direct: false,
     stations,
     lines,
-    label: `${clauses.join(', ')}, and ${holdingName} is in your portfolio`,
-    rowLabel: `${clauses.join(', ')}, which you hold`,
+    label: why.label,
+    rowLabel: why.rowLabel,
   };
 }
