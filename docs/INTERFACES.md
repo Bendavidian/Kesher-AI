@@ -35,6 +35,7 @@ Minted by the api for each agent run and signed with MCP_TOKEN_SECRET.
 The MCP server rejects any call to a tool that the token does not list.
 
 ## REST (api)
+- GET /health: `{ status: "ok" }`, HealthResponse in packages/shared
 - POST /auth/login, GET /me
 - GET /feed?cursor=
 - POST /events/:eventId/investigate
