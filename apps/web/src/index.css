@@ -1,0 +1,53 @@
+@import 'tailwindcss';
+
+/* Tokens from docs/UI.md. The default palette is removed, so components can only use these. */
+@theme {
+  --color-*: initial;
+  --color-bg: #0b0e13;
+  --color-panel: #12161d;
+  --color-inset: #0f131a;
+  --color-raised: #1a2029;
+  --color-border: #242b36;
+  --color-divider: #1e242e;
+  --color-border-strong: #3a4350;
+  --color-text: #e7ebf0;
+  --color-text-2: #aab3c0;
+  --color-text-3: #7d8797;
+  --color-you: #ff7a33;
+  --color-you-tint: #2a1a10;
+  --color-you-border: #5a3016;
+  --color-on-you: #1a0d05;
+  --color-up: #27c47a;
+  --color-up-tint: #0f2a1e;
+  --color-down: #f2555a;
+  --color-down-tint: #2e1416;
+  --color-supplier: #4f9cff;
+  --color-supplier-tint: #102239;
+  --color-supplier-light: #8ebbff;
+  --color-competitor: #a77bff;
+  --color-model: #f5b83d;
+  --color-model-tint: #2e2410;
+  --color-code: #2dd4bf;
+  --color-code-tint: #0e2a27;
+
+  --font-sans: 'Overpass', system-ui, sans-serif;
+  --font-mono: 'Overpass Mono', ui-monospace, monospace;
+
+  --radius-panel: 10px;
+  --radius-button: 8px;
+  --radius-chip: 6px;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+}
