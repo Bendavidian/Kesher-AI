@@ -14,7 +14,7 @@ All tools are read only. Identity and the allowed tool list come from the run to
 | search_filings | symbol, query | filing chunks with source ids | RAG over FilingChunk |
 | get_price_reaction | symbol, eventTime | stock, SMH and SPY moves per window, delayed flag | SIP bars older than 15 minutes |
 | get_financial_facts | symbol, metrics | XBRL values with period and source | us-gaap filers only in the MVP |
-| search_x_posts | query, since? | posts as Tier 3 signals with links | X level 1 |
+| search_x_posts | query, since? | posts as Tier 3 signals with links | V2, not in the MVP (X level 1) |
 
 ## Run token
 Minted by the api for each agent run and signed with MCP_TOKEN_SECRET.

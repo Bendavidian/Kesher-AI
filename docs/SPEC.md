@@ -3,7 +3,7 @@
 Agreed design as of 27 Sep 2026. Change a decision only through the decision log at the bottom.
 
 ## Vision
-A real time market intelligence system that learns a user's portfolio and interests, monitors market news, SEC filings and X, and surfaces the events that matter to that specific investor, including events linked to their holdings only indirectly. Every event carries an exact explanation of why it reached this user. Significant events get agent driven research whose claims are verified before the user sees them.
+A real time market intelligence system that learns a user's portfolio and interests, monitors market news and SEC filings (X in V2), and surfaces the events that matter to that specific investor, including events linked to their holdings only indirectly. Every event carries an exact explanation of why it reached this user. Significant events get agent driven research whose claims are verified before the user sees them.
 
 ## Principles
 1. The model understands, the code decides, the model explains.
@@ -14,6 +14,7 @@ A real time market intelligence system that learns a user's portfolio and intere
 6. External content is untrusted data, never instructions.
 7. Temporal association, not causality, unless a source states the cause.
 8. Information, not advice.
+9. Zero extra spend. Every external service runs on a free tier; any paid call is a bug.
 
 ## MVP definition of done
 This demo runs reliably from a recorded event:
@@ -28,7 +29,7 @@ This demo runs reliably from a recorded event:
 
 ## Pipeline
 ```
-Event: Alpaca news stream or replay, SEC EDGAR poller, X (level 2)
+Event: Alpaca news stream or replay, SEC EDGAR poller
 → Extract companies, per entity impact, event type, themes, importance 1 to 5  [LLM, structured]
 → Propagate on the interest graph, max 2 hops, weights per edge type           [code, $graphLookup]
 → Relevance, confidence and "Why you" from the exact path                      [code]
@@ -56,6 +57,8 @@ Importance rubric examples: 1 routine commentary or price target reiterations; 2
 - Tier 1, primary: SEC filings, company IR releases, allowlisted official company accounts on X.
 - Tier 2, wires: Benzinga through Alpaca.
 - Tier 3, social: all other X posts. They can trigger research and appear as unconfirmed events, and are never evidence for a fact claim.
+
+X is V2, so the MVP has no X sources: Tier 1 is SEC filings and company IR releases, and Tier 3 is empty until X arrives. The tier design and the confidence rule stay unchanged.
 
 ## Interest graph
 - Nodes: companies in the demo universe, sectors, themes.
@@ -96,14 +99,14 @@ Order: deterministic checks first (quotes exist verbatim, numbers match, cited s
 ## Price reaction
 Computed from SIP bars older than 15 minutes, the limit of the free Alpaca plan. Fixed windows: 15 minutes, 2 hours, 1 day. Always shown with SMH and SPY in the same window and labeled as delayed. Example wording: "NVDA moved −2.1% in the two hours after the headline; SMH −1.6%, SPY −0.4%." Never "caused".
 
-## X integration
-- Level 1, Must: search_x_posts on the official recent search endpoint. Results enter research as Tier 3 signals.
-- Level 2, Should: filtered stream over curated accounts plus universe keywords. Tier 3 posts create unconfirmed events, confirmed when clustering links a Tier 1 or Tier 2 item or when research finds corroboration. No push notifications for unconfirmed events.
+## X integration (V2)
+Moved to V2 on 28 Sep 2026: the X API has no free tier, which breaks principle 9. The design below is kept for V2.
+- Level 1: search_x_posts on the official recent search endpoint. Results enter research as Tier 3 signals.
+- Level 2: filtered stream over curated accounts plus universe keywords. Tier 3 posts create unconfirmed events, confirmed when clustering links a Tier 1 or Tier 2 item or when research finds corroboration. No push notifications for unconfirmed events.
 - Cost control: no cashtag rules on large caps, a spending limit in the X developer console, post ids stored with links back to X.
-- Cut line: if the core is not stable by day 7, Level 2 moves to V2.
 
 ## Replay and recording
-Live items are recorded from day 2: news, X posts and price bars. The demo and the evals replay recorded events through the same pipeline. Historical Alpaca news, available since 2015, can also be replayed without X posts.
+Live items are recorded from day 2: news, filings and price bars (X posts in V2). The demo and the evals replay recorded events through the same pipeline. Historical Alpaca news, available since 2015, can also be replayed.
 
 ## Evals
 - 20 recorded events × 3 personas, labeled high, medium or none: 60 labels.
@@ -129,14 +132,14 @@ The Atlas free tier allows 3 search indexes: event vectors, filing chunk vectors
 - Frontend: React, TypeScript, Vite, Tailwind, mobile first and responsive.
 - Backend: Node and Express with TypeScript, Socket.IO, an in process job queue.
 - Data store: MongoDB Atlas free tier with Vector Search and $graphLookup.
-- AI: Vercel AI SDK for model calls, official MCP TypeScript SDK.
-- Data sources: Alpaca (news stream, news history, SIP bars), Finnhub (peers, profiles), SEC EDGAR (filings, XBRL), X API (pay per use).
+- AI: Vercel AI SDK for model calls, so a provider switch is a config change. Groq free tier is primary for extraction, research and verification. Gemini Flash-Lite on the Google AI Studio free tier is the backup for extraction. Official MCP TypeScript SDK.
+- Data sources: Alpaca (news stream, news history, SIP bars), Finnhub (peers, profiles), SEC EDGAR (filings, XBRL), all on free tiers. X API in V2.
 
 ## Build order
 Walking skeleton T01 to T09 by the end of day 3 (docs/BACKLOG.md). Days 4 to 8 deepen each stage, days 9 and 10 cover evals and personas, then deployment, rehearsal and buffer.
 
 ## Out of scope (V2)
-Thesis guardian, BullMQ and Redis, full PWA, fund look through exposure, Israeli market data, MCP Apps, price anomaly detection, filing RAG for foreign issuers.
+Thesis guardian, BullMQ and Redis, full PWA, fund look through exposure, Israeli market data, MCP Apps, price anomaly detection, filing RAG for foreign issuers, X level 1 and level 2, a paid Anthropic API key as the LLM upgrade path.
 
 ## Decision log
 - 27 Sep 2026: Name is Kesher AI. Solo build, two weeks.
@@ -145,3 +148,6 @@ Thesis guardian, BullMQ and Redis, full PWA, fund look through exposure, Israeli
 - 27 Sep 2026: Source tiers and computed confidence. X is a Tier 3 signal, integrated in two levels.
 - 27 Sep 2026: Demo and evals run on recorded events. Three personas are the core demo.
 - 27 Sep 2026: Development in the Claude Code desktop app; the repo is the source of truth for tasks and state.
+- 28 Sep 2026: Zero extra spend. Every external service runs on a free tier; any paid call is a bug (principle 9).
+- 28 Sep 2026: LLM providers on free tiers through the Vercel AI SDK. Groq is primary for extraction, research and verification; Gemini Flash-Lite (Google AI Studio free tier) is the backup for extraction. A paid Anthropic API key is the documented V2 upgrade path.
+- 28 Sep 2026: X moves to V2, both levels, because its API has no free tier. The source tier design is kept. Supersedes the X decision of 27 Sep.

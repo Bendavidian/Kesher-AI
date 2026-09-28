@@ -6,13 +6,14 @@ Walking skeleton: T00 to T09 by the end of day 3. Then deepen.
 ## Phase 0: validation
 
 ### [ ] T00 Spike: verify every external dependency
-Throwaway scripts in /spike (TypeScript run with tsx). Results in docs/SPIKE.md: pass or fail, evidence, limits observed.
-- Alpaca: receive live news over WebSocket; fetch one historical TSMC news item by symbol and date.
-- Alpaca: SIP bars for NVDA, SMH and SPY in a historical window around that item.
-- Finnhub: peers and profile for NVDA and TSM.
-- SEC: fetch NVIDIA's latest 10-K through the submissions API with a declared User-Agent; locate the TSMC foundry passage.
-- MongoDB Atlas free tier: create a vector index and run one $graphLookup.
-- X: developer account with a spending limit; one filtered stream rule receives posts; one recent search call; usage visible in the console.
+Throwaway scripts in /spike (TypeScript run with tsx). Results in docs/SPIKE.md: pass or fail, evidence, limits observed. Every service on a free tier. Checks run in this order:
+1. SEC: fetch NVIDIA's latest 10-K through the submissions API with a declared User-Agent; locate the TSMC foundry passage.
+2. Finnhub: peers and profile for NVDA and TSM.
+3. Alpaca: receive live news over WebSocket; fetch one historical TSMC news item by symbol and date; SIP bars for NVDA, SMH and SPY in a historical window around that item.
+4. Groq: one structured output call. Record latency, token usage and the daily quota shown in the console.
+5. Gemini Flash-Lite: one structured output call. Record latency, token usage and the daily quota shown in the console.
+6. MongoDB Atlas free tier: create a vector index and run one $graphLookup.
+A check whose key is missing reports "skipped: missing key" and does not block the others.
 Done when: docs/SPIKE.md covers all six checks with evidence, and every failure comes with a proposed change to SPEC.md.
 
 ## Phase 1: walking skeleton, thin and end to end
@@ -75,18 +76,21 @@ Done when: each agent's token lists only its own tools, and get_price_reaction r
 Typed claims (fact, metric, inference), deterministic checks, an independent verifier agent. Unsupported facts are dropped, and inferences appear only with supported premises.
 Done when: every planted error in a fixture report is caught, and the rendered report contains only supported claims.
 
-### [ ] T15 X level 1
-search_x_posts on the official recent search endpoint. Results enter research as Tier 3 signals.
-Done when: a test proves an X post can appear only as a signal, never as the source of a fact claim.
-
 ### [ ] T16 Evals
 20 recorded events × 3 personas labeled high, medium or none. Planted errors for the verifier. Poisoned press releases and posts. An eval runner that prints label agreement, catch rate, injection success rate, cost and latency.
 Done when: one command produces the eval table and its numbers are copied into the README.
 
-### [ ] T17 X level 2 (Should; cut if the core is not stable by day 7)
-Filtered stream over curated accounts and universe keywords, unconfirmed events, confirmation through clustering or research, no push for unconfirmed events.
-Done when: an X post creates an unconfirmed card that turns confirmed after a matching Benzinga item arrives.
-
 ### [ ] T18 Deploy, README, demo
 Deployed web and api, a README with an architecture diagram and the eval numbers, and a rehearsed five minute demo from a recorded event.
 Done when: the demo runs end to end on the deployed app.
+
+## V2 (not in MVP)
+Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).
+
+### [ ] T15 X level 1
+search_x_posts on the official recent search endpoint. Results enter research as Tier 3 signals.
+Done when: a test proves an X post can appear only as a signal, never as the source of a fact claim.
+
+### [ ] T17 X level 2
+Filtered stream over curated accounts and universe keywords, unconfirmed events, confirmation through clustering or research, no push for unconfirmed events.
+Done when: an X post creates an unconfirmed card that turns confirmed after a matching Benzinga item arrives.
