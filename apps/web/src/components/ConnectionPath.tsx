@@ -169,3 +169,57 @@ export function MiniPath({ path }: { path: PathView }) {
     </span>
   );
 }
+
+function ringColumns(stations: number): CSSProperties {
+  return { gridTemplateColumns: Array(stations).fill('28px').join(' minmax(0, 1fr) ') };
+}
+
+// The small path in the report's side panel: 28px rings and 6px lines, without motion.
+export function RingPath({ path }: { path: PathView }) {
+  if (path.kind === 'none') {
+    return <p className="text-xs font-bold text-text-3">{path.rowLabel}</p>;
+  }
+  const { stations, lines } = path;
+  const track: ReactNode[] = [];
+  const names: ReactNode[] = [];
+  stations.forEach((station, index) => {
+    track.push(
+      station.you ? (
+        <span
+          key={`s${index}`}
+          className="flex size-7 items-center justify-center rounded-full border-4 border-you bg-panel"
+        >
+          <span className="block size-2.5 rounded-full bg-you" />
+        </span>
+      ) : (
+        <span
+          key={`s${index}`}
+          className={`block size-7 rounded-full border-[6px] bg-panel ${RING_BORDER[station.ring]}`}
+        />
+      ),
+    );
+    names.push(
+      <span
+        key={`s${index}`}
+        className={`-ml-7 w-[84px] text-center text-[13px] font-extrabold ${station.you ? 'text-you' : ''}`}
+      >
+        {station.title}
+      </span>,
+    );
+    const line = lines[index];
+    if (!line || index === stations.length - 1) return;
+    track.push(<span key={`l${index}`} className={`block h-1.5 ${LINE_BG[line.kind]}`} />);
+    names.push(<span key={`l${index}`} />);
+  });
+  return (
+    <div
+      role="img"
+      aria-label={path.label}
+      className="grid w-full max-w-[328px] items-center gap-y-2 px-7"
+      style={ringColumns(stations.length)}
+    >
+      {track}
+      {names}
+    </div>
+  );
+}

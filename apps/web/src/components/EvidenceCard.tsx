@@ -1,12 +1,5 @@
-import type { Tier } from '@kesher/shared';
 import { TIER_LABEL, type EvidenceView } from '../view/feed';
-
-// Tier 1 chips use the supplier tint (docs/UI.md); the other tiers stay neutral.
-const TIER_CHIP: Record<Tier, string> = {
-  1: 'bg-supplier-tint text-supplier',
-  2: 'bg-border text-text-2',
-  3: 'bg-border text-text-2',
-};
+import { TIER_CHIP } from './tierChip';
 
 // Green here means verified: the edge was reviewed.
 export function CheckIcon({ size }: { size: number }) {
