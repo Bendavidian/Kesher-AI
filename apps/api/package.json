@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/google": "^4.0.82",
     "@ai-sdk/groq": "^4.0.50",
+    "@kesher/mcp": "*",
     "@kesher/shared": "*",
     "ai": "^7.0.118",
     "express": "^5.2.1",
@@ -20,6 +21,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.1.0",
     "@types/express": "^5.0.6",
     "mongodb-memory-server-core": "^11.3.0",
     "tsx": "^4.23.15"

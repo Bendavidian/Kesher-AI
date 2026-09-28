@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { MIN_SECRET_LENGTH } from '@kesher/mcp';
 import { z } from 'zod';
 import type { ModelKeys } from '../llm/client';
 
@@ -19,6 +20,12 @@ const AlpacaEnv = z.object({
   ALPACA_API_SECRET_KEY: z.string().min(1),
 });
 export type AlpacaEnv = z.infer<typeof AlpacaEnv>;
+
+// The key that signs and verifies MCP run tokens (docs/INTERFACES.md, Run token).
+export const McpEnv = z.object({
+  MCP_TOKEN_SECRET: z.string().min(MIN_SECRET_LENGTH),
+});
+export type McpEnv = z.infer<typeof McpEnv>;
 
 // Loads the root .env at runtime when it exists and validates what the caller needs. Nothing
 // runs at import, so tests and CI never need a .env. Values are never printed; errors name keys
@@ -51,4 +58,8 @@ const ModelEnv = z.object({
 export function loadModelKeys(): ModelKeys {
   const env = load(ModelEnv);
   return { groq: env.GROQ_API_KEY, google: env.GOOGLE_GENERATIVE_AI_API_KEY };
+}
+
+export function loadMcpEnv(): McpEnv {
+  return load(McpEnv);
 }

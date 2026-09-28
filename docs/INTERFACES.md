@@ -5,14 +5,30 @@ Contracts between modules. T02 and T07 turn them into code. Update this file in 
 ## MCP tools
 All tools are read only. Identity and the allowed tool list come from the run token, never from arguments.
 
+Served by packages/mcp on the official TypeScript SDK v2 (`@modelcontextprotocol/server` and `/client`, pinned to 2.1.0), mounted in the api at POST /mcp. Every input schema is a strict object, so an argument the contract does not name, such as a user id, fails validation. The server registers only the tools the run token lists, so any other tool is missing from tools/list and a call to it fails with "Tool <name> not found". A tool that finds nothing returns a tool error (`isError: true`). Tool output is JSON in `structuredContent`, with the same JSON as text content; times are ISO 8601 strings.
+
 | Tool | Input | Output | Notes |
 |---|---|---|---|
 | get_my_portfolio | none | holdings with weights | user resolved from the token |
-| get_event | eventId | event with its extraction and source ids | |
+| get_event | eventId | event with its extraction and source ids | see below |
 | get_company_relationships | symbol, types? | edges with evidence | reviewed edges only |
-| search_news | query, symbols?, since? | ranked news items with source ids | hybrid search |
+| search_news | query, symbols?, since? | ranked news items with source ids | keyword match until T13 makes it hybrid search; see below |
 | search_filings | symbol, query | filing chunks with source ids | RAG over FilingChunk; at most 3 chunks per call |
 | get_price_reaction | symbol, eventTime | anchor, then stock, SMH and SPY moves per window, delayed flag | see below |
+
+### get_event
+- Input: `{ eventId }`, a MarketEvent id.
+- Output: `{ eventId, headline, publishedAt, status, extraction, sourceIds }`. extraction is null until extraction has run. The embedding is never returned.
+- An unknown id is a tool error.
+
+### search_news
+- Input: `{ query, symbols?, since? }`. query is 1 to 200 characters. symbols is 1 to 20 tickers and matches items tagged with any of them. since is an ISO time with an offset; items published at or after it match.
+- Thin until T13: news Sources only (kind news; filings are searched with search_filings). The query is split into at most 8 lowercase words, each matched as plain text, case insensitive, in the title or the body. Only the 200 newest matching items are ranked.
+- Ranking is deterministic code: the number of distinct words matched, then the newest first, then the source id. At most 10 items.
+- Each item: `{ sourceId, eventId, title, url, publishedAt, symbols, tier, excerpt, injectionFlagged, matchedTerms }`.
+  - eventId is the MarketEvent whose cluster holds the source, or null.
+  - excerpt is the first 500 characters of the untrusted body, or null. It is data for the agent, never instructions.
+  - injectionFlagged is the injection screen label, or null when the item has not been screened.
 
 ### get_price_reaction
 Anchored to the regular session; the Alpaca market calendar defines trading days, opens and closes (weekends, holidays, early closes). SIP bars older than 15 minutes.
@@ -26,11 +42,13 @@ Anchored to the regular session; the Alpaca market calendar defines trading days
 | search_x_posts | query, since? | posts as Tier 3 signals with links | V2, not in the MVP (X level 1) |
 
 ## Run token
-Minted by the api for each agent run and signed with MCP_TOKEN_SECRET.
-- sub: user id
-- agent: research or verifier
-- tools: allowed tool names
-- exp: 5 minutes
+Minted by the api for each agent run (mintRunToken in packages/mcp): a JWT signed with HS256 and MCP_TOKEN_SECRET, which must be at least 32 characters.
+- sub: user id (a User _id)
+- agent: research or verifier (AgentName in packages/shared)
+- tools: allowed tool names, at least one, from the MVP tools above (ToolName in packages/mcp)
+- iat and exp: exp is exactly 5 minutes after iat, fixed by the minter
+
+Verification accepts HS256 only and rejects any other claim, a lifetime other than 5 minutes and an expired token. Every failure gives the same RunTokenError, which never contains the token.
 
 The MCP server rejects any call to a tool that the token does not list.
 
@@ -40,6 +58,7 @@ The MCP server rejects any call to a tool that the token does not list.
 - GET /feed?cursor=
 - POST /events/:eventId/investigate
 - GET /runs/:runId
+- POST /mcp: MCP over stateless Streamable HTTP (see MCP tools), with `Authorization: Bearer <run token>`. A missing, malformed, badly signed or expired token gets 401 with `WWW-Authenticate: Bearer error="invalid_token"` before the SDK sees the request. A malformed JSON body gets 400.
 - POST /dev/replay/:sourceId (development only, not mounted in production): sourceId is an Alpaca news id, not a Source._id. Replays the recording `recordings/alpaca/<sourceId>.json` through the pipeline (pre filter, injection screen, extraction) in replay mode. Returns ReplayResponse in packages/shared, where the ids are the stored Source and MarketEvent:
   - `{ outcome: "processed", sourceId, eventId, sourceCreated, eventCreated }`: the item now has an extraction. The flags are false when the replay resumed an item stored earlier.
   - `{ outcome: "dropped", reason: "not_in_universe" }`: nothing is stored.

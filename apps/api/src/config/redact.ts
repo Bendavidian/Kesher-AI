@@ -1,6 +1,9 @@
-// Driver errors can echo the connection string; never print it or its password.
-export function redactor(mongodbUri: string): (text: string) => string {
-  const secrets = [mongodbUri];
+// Driver errors can echo the connection string; never print it, its password or another secret.
+export function redactor(
+  mongodbUri: string,
+  otherSecrets: string[] = [],
+): (text: string) => string {
+  const secrets = [mongodbUri, ...otherSecrets.filter(Boolean)];
   try {
     const password = new URL(mongodbUri).password;
     if (password) secrets.push(password, decodeURIComponent(password));

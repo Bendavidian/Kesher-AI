@@ -33,11 +33,15 @@ export const AgentStep = z.discriminatedUnion('kind', [
 ]);
 export type AgentStep = z.infer<typeof AgentStep>;
 
+// The agents that run with a run token (docs/INTERFACES.md).
+export const AgentName = z.enum(['research', 'verifier']);
+export type AgentName = z.infer<typeof AgentName>;
+
 export const AgentRun = z.strictObject({
   _id: Id,
   userId: Id,
   eventId: Id,
-  agent: z.enum(['research', 'verifier']),
+  agent: AgentName,
   mode: z.enum(['auto', 'deep']),
   trigger: z.enum(['gate', 'investigate']),
   // Decided by code policy, with the reason shown in Agent Runs.

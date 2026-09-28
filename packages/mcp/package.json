@@ -9,5 +9,15 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@kesher/shared": "*",
+    "@modelcontextprotocol/server": "2.1.0",
+    "jose": "^6.2.12",
+    "mongodb": "^7.6.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.1.0"
   }
 }
