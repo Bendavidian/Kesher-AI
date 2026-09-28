@@ -32,7 +32,8 @@ If a task conflicts with SPEC.md, stop and ask. Never change a decision silently
 ## Commands
 Created in T01. Keep this list current when scripts change.
 - npm run dev: web (localhost:5173) and api (localhost:3001) together; the web dev server proxies /api to the api
-- npm run test: vitest, all workspaces; npm run test:watch to rerun on change
+- npm run test: vitest, all workspaces; npm run test:watch to rerun on change. Integration tests start mongod 8.0.32 through mongodb-memory-server (downloaded once to ~/.cache/mongodb-binaries), never Atlas
+- npm run seed: personas, demo universe, filing sources and reviewed edges into Atlas (MONGODB_URI), then any missing vector search indexes; safe to rerun
 - npm run typecheck
 - npm run lint: ESLint, then a Prettier check
 - npm run format: Prettier write

@@ -31,4 +31,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      # mongodb-memory-server downloads mongod on first use; the key follows MONGOD_VERSION
+      # in apps/api/src/test/mongo.ts.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongod-${{ runner.os }}-8.0.32
       - run: npm run test

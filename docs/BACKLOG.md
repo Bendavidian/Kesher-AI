@@ -24,8 +24,8 @@ npm workspaces: apps/web, apps/api, packages/shared, packages/mcp. TypeScript st
 The Tailwind theme defines the tokens from docs/UI.md, and the web shell renders the terminal frame: top bar, three panels and the ticker footer.
 Done when: npm run dev shows the web shell in the Browser pane with the theme tokens from docs/UI.md and the terminal frame (top bar, three panels, ticker footer), GET /health returns ok, and CI passes.
 
-### [ ] T02 Domain model and seed
-Types and zod schemas in packages/shared for every entity in SPEC.md, Mongo collections and indexes, and a seed script for the three personas, the demo universe and five hand written edges with evidence.
+### [~] T02 Domain model and seed
+Types and zod schemas in packages/shared for every entity in SPEC.md, Mongo collections and indexes, and a seed script for the three personas, the demo universe and six hand written edges with evidence (five were planned; the quote review on 28 Sep 2026 added LRCX supplier_of TSM for a two hop supply chain path).
 Company has primaryListing next to symbol. Every relationship is stored in both directions with its inverse type (supplier_of with customer_of, competitor_of both ways). The seed config holds DEMO_SOURCE_ID=38062166. Vector indexes use 384 dimensions, cosine.
 Done when: the seed runs twice without duplicates, and a test validates every seeded document against its schema.
 
@@ -73,6 +73,12 @@ Done when: a live news item reaches the feed without manual action and can be re
 Finnhub peers and profiles. LLM extraction of supplier and customer edges from 10-K sections with verbatim quotes. A review CLI to accept or reject edges. The same sections chunked and embedded into FilingChunk.
 Peers are kept only inside the demo universe. Every edge is written in both directions with its inverse type. primaryListing comes from the Finnhub profile (check ASML as well as TSM). Chunks of at most 256 tokens, embedded with local Xenova/all-MiniLM-L6-v2 (384 dimensions).
 Done when: at least 40 reviewed edges with evidence exist, and filing search returns the NVIDIA foundry passage for "foundry dependency".
+Open decisions and notes from T02:
+- Evidence for Finnhub peers: CLAUDE.md requires a verbatim quote on every edge, but peers have none. Since T02 the Relationship schema requires filing evidence on every edge. Decide how competitor_of from peers fits before writing any.
+- in_sector and has_theme: T02 stores sector and themes as Company fields, not edges, because they carry no filing evidence and SPEC.md names no inverse types for them. Decide whether they become edges, and note that "same sector 0.4" as a node path is two hops.
+- Field ownership: the T02 seed overwrites primaryListing, sector, name and themes with $set. Decide whether the seed or this job owns them once profiles are fetched.
+- XOM now maps to CIK 0002115436 (ExxonMobil Holdings Corp). Keep the SEC value; when fetching XOM filings, fall back to the old CIK 0000034088 if the new one has no 10-K yet.
+- Finnhub sectors put AMZN in retail and GOOGL and META in media. Keep them as data, but do not score relevance on sector without checking this; themes from our taxonomy are likely the better signal.
 
 ### [ ] T12 Gate policy and automatic research
 The gate from SPEC.md: relevance threshold, importance of at least 4, dedupe per event cluster, daily budget. Cards appear immediately and research attaches asynchronously.
