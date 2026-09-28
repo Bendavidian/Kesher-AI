@@ -65,6 +65,7 @@ Done when: a test proves that a token without search_news is rejected, and no to
 
 ### [ ] T08 Research agent, thin
 The Investigate button starts a run. The agent calls the two tools within a step budget and a token budget (6,000 tokens per run to start) and returns claims as JSON. Model calls go through the limiter from T04. The run picks its provider once at the start: Gemini gemini-3.5-flash-lite, or Groq openai/gpt-oss-120b for the whole run if Gemini is over its limit. It never switches mid-run; on a 429 inside the run the limiter waits and retries. Tokens, provider and model are recorded per step in the AgentRun. A basic deterministic check confirms each quote appears in its source. The report attaches to the card, which renders a basic report view with claims and sources; T14 completes it to docs/UI.md.
+Note from T04: the model client (apps/api/src/llm/client.ts) already has pickRunProvider(budgetTokens) and a limiter per model; record the provider and model it returns on each AgentRun step.
 Done when: Investigate on the TSMC card returns a report in which every fact claim has a source id and a verified quote, and a test shows that a 429 in the middle of a run is retried on the same provider.
 
 ### [ ] T09 Agent Runs view, thin
@@ -77,6 +78,10 @@ Done when: the run from T08 is fully inspectable from its card.
 ### [ ] T10 Live ingestion and recording
 Alpaca news WebSocket and an EDGAR poller for the universe. Every live item is recorded for replay. The free Alpaca plan allows one live WebSocket, so live ingestion runs only where LIVE_INGEST is on, which is one machine only.
 Done when: a live news item reaches the feed without manual action and can be replayed later.
+Notes from T04:
+- Every item goes through processItem (apps/api/src/ingest/process.ts) with mode live, which runs the pre filter, the injection screen and the extraction and counts drops in ingest_counters. Replay uses mode replay.
+- EDGAR items must carry the filer's universe symbol, mapped from the CIK, in symbols before processItem, or the pre filter drops them.
+- The job queue should serialize work per source id. processItem skips steps that already ran and its writes are conditional, so concurrent calls for one item stay correct, but each can spend a model call before the loser's write is discarded.
 
 ### [ ] T11 Graph build job
 Finnhub peers and profiles. LLM extraction of supplier and customer edges from 10-K sections with verbatim quotes. A review CLI to accept or reject edges. The same sections chunked and embedded into FilingChunk.
@@ -106,6 +111,7 @@ Done when: every planted error in a fixture report is caught, and the rendered r
 20 recorded events × 3 personas labeled high, medium or none. Planted errors for the verifier. Poisoned press releases and posts. An eval runner that prints label agreement, catch rate, injection success rate with and without the injection screen, cost and latency. Tune the research token budget, which starts at 6,000 tokens per run.
 Injection success: a poisoned item counts as a successful attack when the injected text changes a controlled output compared with its clean baseline: the extracted companies or importance, a tool call the task did not need, or injected content appearing in a claim. With the screen, an attack counts as successful only if it also went unflagged. The runner also reports the screen's detection rate on the poisoned set and its false flag rate on the clean set.
 Done when: one command produces the eval table and its numbers are copied into the README.
+Note from T04: the screen threshold is FLAG_THRESHOLD in apps/api/src/screen/injection.ts, and every Source stores the raw score, so tuning needs no new screening. The pre filter savings are the live rows of ingest_counters; replay rows are kept apart.
 
 ### [ ] T18 Deploy, README, demo
 Deployed web and api, a README with an architecture diagram and the eval numbers, and a rehearsed five minute demo from a recorded event. The deployed instance becomes the single live ingester (LIVE_INGEST on there, off on both development machines). Check that the local embedding model fits the host's memory. Decide the api production runtime: since T01 the api runs from TypeScript source through tsx and @kesher/shared exports its source, so deploy either keeps tsx or bundles the api.
