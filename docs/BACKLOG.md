@@ -59,9 +59,12 @@ Build to docs/UI.md, including the one column layout below 1280px. docs/design/f
 Done when: replaying the TSMC event updates three open browser sessions with three different cards.
 Note from the UI track: login for the persona switcher needs a PublicUser type in shared and POST /auth/login with the demo password; the switcher logs in as the chosen persona.
 
-### [~] T07 MCP server, thin
+### [x] T07 MCP server, thin
 packages/mcp with get_event and search_news, and run token verification with user and tool scopes.
 Done when: a test proves that a token without search_news is rejected, and no tool accepts a user id argument.
+Notes from T07 for later tasks:
+- T08: mint one token per run with mintRunToken(secret, { userId, agent, tools }) from @kesher/mcp, taking userId from the auth context only. Connect `Client` with `StreamableHTTPClientTransport` to POST /mcp and pass the token as `Authorization: Bearer`. The token lives 5 minutes, so a run longer than that needs a fresh token. Tool results are in structuredContent; a tool that finds nothing returns isError. search_news excerpts are untrusted text.
+- T13: add each tool to TOOLS in packages/mcp/src/tools.ts with a strict input schema; the user id test in tools.test.ts covers new tools automatically. get_my_portfolio reads the user from ctx.claims.sub, never from arguments. Replace the thin search_news with hybrid search behind the same contract. It ranks only the 200 newest matching items today.
 
 ### [ ] T08 Research agent, thin
 The Investigate button starts a run. The agent calls the two tools within a step budget and a token budget (6,000 tokens per run to start) and returns claims as JSON. Model calls go through the limiter from T04. The run picks its provider once at the start: Gemini gemini-3.5-flash-lite, or Groq openai/gpt-oss-120b for the whole run if Gemini is over its limit. It never switches mid-run; on a 429 inside the run the limiter waits and retries. Tokens, provider and model are recorded per step in the AgentRun. A basic deterministic check confirms each quote appears in its source. The report attaches to the card, which renders a basic report view with claims and sources; T14 completes it to docs/UI.md.
