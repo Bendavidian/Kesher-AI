@@ -11,19 +11,26 @@ Packages: ai 7.0.118, @ai-sdk/groq 4.0.50, @ai-sdk/google 4.0.82, mongodb 7.6.0,
 | 1 | SEC EDGAR | pass | NVIDIA 10-K filed 25 Feb 2026, TSMC foundry sentence found verbatim | 10 requests per second, declared User-Agent |
 | 2 | Finnhub | pass | NVDA peers and NVDA, TSM profiles | 60 calls per minute |
 | 3 | Alpaca | pass | Earthquake item found in the primary window; SIP bars for TSM, NVDA, SMH, SPY; market calendar handles holidays and early closes; live item after 188 s | 200 calls per minute, one WebSocket connection |
-| 4 | Groq | pass | gpt-oss-120b extracts TSM, negative, natural_disaster, importance 4 in 1.2 s | 8,000 tokens per minute, 1,000 requests per day |
-| 5 | Gemini | pass | gemini-3.5-flash-lite gives the same extraction in 1.5 s | per model daily quota (fill from console) |
-| 6 | Embeddings | pass | Both options pass the retrieval test; **local MiniLM recommended** | Gemini: per model quota; local: none |
+| 4 | Groq | pass | gpt-oss-120b extracts TSM, negative, natural_disaster, importance 4 in 1.2 s | 30 requests per minute, 1,000 per day; 8,000 tokens per minute, 200,000 per day |
+| 5 | Gemini | pass | gemini-3.5-flash-lite gives the same extraction in 1.5 s | 15 requests per minute, 500 per day; 250,000 tokens per minute |
+| 6 | Embeddings | pass | Both options pass the retrieval test; **local MiniLM recommended** | Gemini: 100 requests per minute, 1,000 per day; local: none |
 | 7 | Atlas | pass | 384 dim vector index queryable in 24 s, $vectorSearch ranks correctly, $graphLookup reaches A at hop 2 and B at hop 1, not C | 512 MB, 3 search indexes |
 
 No check failed. The six findings below were decided on 28 Sep 2026 and are recorded in the SPEC.md decision log.
 
-## Console numbers to fill in by hand
-The spike cannot read the consoles. Please fill these in:
-- Groq, openai/gpt-oss-120b, daily quota (console.groq.com, Settings, Limits): requests per day ____, tokens per day ____.
-- Google AI Studio, gemini-3.5-flash-lite, free tier: requests per minute ____, requests per day ____.
-- Google AI Studio, gemini-embedding-2, free tier: requests per minute ____, requests per day ____.
-- Confirm that billing is off on the Google Cloud project behind GOOGLE_GENERATIVE_AI_API_KEY: ____.
+## Console numbers
+The spike cannot read the consoles, so these were read by hand on 28 Sep 2026 (console.groq.com, Settings, Limits; Google AI Studio).
+
+| Provider | Model | Requests per minute | Requests per day | Tokens per minute | Tokens per day |
+|---|---|---|---|---|---|
+| Groq | openai/gpt-oss-120b | 30 | 1,000 | 8,000 | 200,000 |
+| Groq | meta-llama/llama-prompt-guard-2-86m | 30 | 14,400 | 15,000 | not shown |
+| Gemini | gemini-3.5-flash-lite | 15 | 500 | 250,000 | not shown |
+| Gemini | gemini-embedding-2 | 100 | 1,000 | 30,000 | not shown |
+
+- openai/gpt-oss-20b and qwen/qwen3.8-27b on Groq have the same limits as gpt-oss-120b, so a smaller Groq model does not help.
+- Billing: off. AI Studio shows the project on the Free tier, with billing not set up.
+- What these numbers decided is under finding E below and in the SPEC.md decision log.
 
 ## 1. SEC EDGAR: pass
 - Submissions API for CIK 0001045810 answered in about 0.4 s. The latest 10-K is accession 0001045810-26-000021, filed 25 Feb 2026, for the period ending 25 Jan 2026.
@@ -144,6 +151,14 @@ Decided:
 - Extraction also tests a smaller Groq model if the console shows a higher tokens per minute limit.
 - The research model is decided after the console numbers are in. Gemini Flash-Lite stays the fallback on a 429.
 - Updated: SPEC.md Research agent, Stack and Domain model; INTERFACES.md search_filings; BACKLOG.md T04, T08, T13 and T16; STATE.md Open decisions.
+
+Follow-up after the console numbers (28 Sep 2026):
+- The research agent moves to Gemini gemini-3.5-flash-lite (250,000 tokens per minute against 8,000 on Groq). The provider is picked once per run, with Groq as the whole run fallback.
+- Extraction and the verifier stay on Groq openai/gpt-oss-120b, with a per call fallback to Gemini.
+- No smaller Groq model is tested, since the smaller models have the same limits.
+- Groq's 200,000 tokens per day makes a deterministic pre filter necessary in front of extraction.
+- Groq's prompt guard model is added as an injection screen.
+- Recorded in the SPEC.md decision log and in BACKLOG.md T04, T08 and T16.
 
 **F. Embedding model and dimension.**
 Decided:

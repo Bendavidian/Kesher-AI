@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kesher agent run</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&amp;family=Overpass+Mono:wght@400;600&amp;display=swap">
+<style>
+body{margin:0;background:#0B0E13}
+a{color:#7FB6FF}a:hover{color:#A9CCFF}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; display: flex; flex-direction: column; background: #0B0E13; color: #E7EBF0; font-family: Overpass, system-ui, sans-serif">
+
+<header style="height: 56px; flex-shrink: 0; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 18px; background: #12161D; border-bottom: 1px solid #242B36">
+<a href="Main.dc.html" aria-label="Kesher home" style="display: flex; align-items: center; gap: 9px; height: 44px; text-decoration: none; color: #E7EBF0">
+<svg width="24" height="24" viewBox="0 0 28 28" aria-hidden="true"><path d="M6 22 L6 13 Q6 6 13 6 L22 6" style="fill: none; stroke: #4F9CFF; stroke-width: 3.5; stroke-linecap: round"></path><circle cx="6" cy="22" r="4" style="fill: #12161D; stroke: #E7EBF0; stroke-width: 3"></circle><circle cx="22" cy="6" r="4" style="fill: #FF7A33; stroke: #FF7A33; stroke-width: 3"></circle></svg>
+<span style="font-size: 18px; font-weight: 800; letter-spacing: 0.01em">Kesher</span>
+</a>
+<nav aria-label="Main" style="display: flex; gap: 6px">
+<a href="Main.dc.html" style="display: flex; align-items: center; height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 8px; border: 1px solid transparent; color: #AAB3C0; font-size: 14px; font-weight: 600; text-decoration: none">Feed</a>
+<a href="Runs.dc.html" aria-current="page" style="display: flex; align-items: center; height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 8px; background: #2A1A10; border: 1px solid #5A3016; color: #FF7A33; font-size: 14px; font-weight: 700; text-decoration: none">Agent runs</a>
+</nav>
+<div style="flex-grow: 1"></div>
+<div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 8px; background: #2A1A10; border: 1px solid #5A3016; font-size: 12px; color: #FFB48A">
+<span>Viewing as</span>
+<span style="font-weight: 800; color: #FF7A33">AI investor</span>
+</div>
+</header>
+
+<div style="display: flex; flex-grow: 1; min-height: 0; box-sizing: border-box; padding: 12px; gap: 12px">
+
+<main style="width: 680px; flex-shrink: 0; display: flex; flex-direction: column; background: #12161D; border: 1px solid #242B36; border-radius: 10px; overflow: hidden">
+<div style="padding: 10px 20px 14px 20px; border-bottom: 1px solid #242B36; display: flex; flex-direction: column; gap: 10px">
+<nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #7D8797">
+<a href="Report.dc.html" style="display: inline-block; padding: 12px 0; font-weight: 700">Research report</a>
+<span aria-hidden="true">/</span>
+<span>Agent run</span>
+</nav>
+<div style="display: flex; align-items: center; gap: 10px">
+<h1 style="margin: 0; font-size: 24px; line-height: 1.2; font-weight: 800">Research run</h1>
+<span style="padding: 4px 9px; border-radius: 6px; background: #242B36; font-size: 12px; font-weight: 800; color: #AAB3C0">Deep mode</span>
+<span style="display: flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 6px; background: #0F2A1E; font-size: 12px; font-weight: 800; color: #27C47A"><svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5 L6.5 12 L13 4.5" style="fill: none; stroke: #27C47A; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"></path></svg>Completed</span>
+</div>
+<p style="margin: 0; font-size: 13px; color: #AAB3C0">Started when you chose Investigate on the TSMC event. Finished in 8.1 s.</p>
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+<div style="background: #102239; border: 1px solid #1D3A5E; border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 1px">
+<dt style="font-size: 11px; font-weight: 700; color: #8EBBFF">Tool calls</dt>
+<dd style="margin: 0; font-size: 17px; font-weight: 800; color: #4F9CFF; font-variant-numeric: tabular-nums">5 of 15</dd>
+</div>
+<div style="background: #2E2410; border: 1px solid #4E3C16; border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 1px">
+<dt style="font-size: 11px; font-weight: 700; color: #F8CF7A">Tokens</dt>
+<dd style="margin: 0; font-size: 17px; font-weight: 800; color: #F5B83D; font-variant-numeric: tabular-nums">5.4k of 6k</dd>
+</div>
+<div style="background: #1A2029; border: 1px solid #2C3440; border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 1px">
+<dt style="font-size: 11px; font-weight: 700; color: #7D8797">Model</dt>
+<dd style="margin: 0; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums">gpt-oss-120b</dd>
+</div>
+<div style="background: #0E2A27; border: 1px solid #16463F; border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 1px">
+<dt style="font-size: 11px; font-weight: 700; color: #7FE6D6">Cost</dt>
+<dd style="margin: 0; font-size: 17px; font-weight: 800; color: #2DD4BF; font-variant-numeric: tabular-nums">$0.00</dd>
+</div>
+</dl>
+<div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 11px; font-weight: 700; color: #AAB3C0">
+<span style="display: flex; align-items: center; gap: 6px"><span style="display: block; width: 16px; height: 3px; border-radius: 2px; background: #2DD4BF"></span>Code</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="display: block; width: 16px; height: 3px; border-radius: 2px; background: #4F9CFF"></span>Tool call</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="display: block; width: 16px; height: 3px; border-radius: 2px; background: #F5B83D"></span>Model</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="display: block; width: 16px; height: 3px; border-radius: 2px; background: #F2555A"></span>Check that removed a claim</span>
+</div>
+</div>
+
+<ol aria-label="Run steps" style="list-style: none; margin: 0; padding: 8px 8px; display: flex; flex-direction: column">
+<li style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px; column-gap: 12px; padding: 0 12px">
+<span style="position: relative; display: block"><span style="position: absolute; left: 9px; top: 13px; bottom: 0; width: 3px; background: #2DD4BF"></span><span style="position: absolute; left: 3px; top: 12px; width: 15px; height: 15px; box-sizing: border-box; border-radius: 999px; border: 3px solid #2DD4BF; background: #12161D"></span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; padding: 9px 0"><span style="font-size: 14px; font-weight: 800">Gate check</span><span style="font-size: 12px; color: #7D8797">Investigate skips the relevance and importance conditions. Daily budget has room.</span></span>
+<span style="padding: 10px 0; font-size: 12px; color: #7D8797; text-align: right; font-variant-numeric: tabular-nums">3 ms</span>
+</li>
+<li style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px; column-gap: 12px; padding: 0 12px">
+<span style="position: relative; display: block"><span style="position: absolute; left: 9px; top: 0; bottom: 0; width: 3px; background: #2DD4BF"></span><span style="position: absolute; left: 3px; top: 12px; width: 15px; height: 15px; box-sizing: border-box; border-radius: 999px; border: 3px solid #2DD4BF; background: #12161D"></span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; padding: 9px 0"><span style="font-size: 14px; font-weight: 800">Run token issued</span><span style="font-size: 12px; color: #7D8797">Research agent, five read only tools, valid for 5 minutes.</span></span>
+<span style="padding: 10px 0; font-size: 12px; color: #7D8797; text-align: right; font-variant-numeric: tabular-nums">2 ms</span>
+</li>
+<li style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px; column-gap: 12px; padding: 0 12px">
+<span style="position: relative; display: block"><span style="position: absolute; left: 9px; top: 0; bottom: 0; width: 3px; background: #4F9CFF"></span><span style="position: absolute; left: 3px; top: 12px; width: 15px; height: 15px; box-sizing: border-box; border-radius: 999px; border: 3px solid #4F9CFF; background: #12161D"></span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; padding: 9px 0"><span style="font-family: 'Overpass Mono', monospace; font-size: 13px; font-weight: 600">get_event</span><span style="font-size: 12px; color: #7D8797">Loaded event 38062166 and its extraction.</span></span>
+<span style="padding: 10px 0; font-size: 12px; color: #7D8797; text-align: right; font-variant-numeric: tabular-nums">38 ms</span>
+</li>
+<li style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px; column-gap: 12px; padding: 0 12px">
+<span style="position: relative; display: block"><span style="position: absolute; left: 9px; top: 0; bottom: 0; width: 3px; background: #4F9CFF"></span><span style="position: absolute; left: 3px; top: 12px; width: 15px; height: 15px; box-sizing: border-box; border-radius: 999px; border: 3px solid #4F9CFF; background: #12161D"></span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; padding: 9px 0"><span style="font-family: 'Overpass Mono', monospace; font-size: 13px; font-weight: 600">get_company_relationships</span><span style="font-size: 12px; color: #7D8797">One reviewed edge: TSM supplier_of NVDA.</span></span>
+<span style="padding: 10px 0; font-size: 12px; color: #7D8797; text-align: right; font-variant-numeric: tabular-nums">61 ms</span>
+</li>
+<li aria-current="step" style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px; column-gap: 12px; padding: 0 12px; background: #1A2029; border-radius: 8px; box-shadow: inset 0 0 0 1px #2F4E7A">
+<span style="position: relative; display: block"><span style="position: absolute; left: 9px; top: 0; bottom: 0; width: 3px; background: #4F9CFF"></span><span style="position: absolute; left: 1px; top: 10px; width: 19px; height: 19px; box-sizing: border-box; border-radius: 999px; border: 4px solid #4F9CFF; background: #4F9CFF"></span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; padding: 9px 0"><span style="font-family: 'Overpass Mono', monospace; font-size: 13px; font-weight: 600; color: #8EBBFF">search_filings</span><span style="font-size: 12px; color: #AAB3C0">Three passages from the NVIDIA 10-K.</span></span>
+<span style="padding: 10px 0; font-size: 12px; font-weight: 800; color: #8EBBFF; text-align: right; font-variant-numeric: tabular-nums">410 ms</span>
+</li>
+<li style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px; column-gap: 12px; padding: 0 12px">
+<span style="position: relative; display: block"><span style="position: absolute; left: 9px; top: 0; bottom: 0; width: 3px; background: #4F9CFF"></span><span style="position: absolute; left: 3px; top: 12px; width: 15px; height: 15px; box-sizing: border-box; border-radius: 999px; border: 3px solid #4F9CFF; background: #12161D"></span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; padding: 9px 0"><span style="font-family: 'Overpass Mono', monospace; font-size: 13px; font-weight: 600">search_news</span><span style="font-size: 12px; color: #7D8797">Two related items in the recorded set.</span></span>
+<span style="padding: 10px 0; font-size: 12px; color: #7D8797; text-align: right; font-variant-numeric: tabular-nums">350 ms</span>
+</li>
+<li style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px; column-gap: 12px; padding: 0 12px">
+<span style="position: relative; display: block"><span style="position: absolute; left: 9px; top: 0; bottom: 0; width: 3px; background: #4F9CFF"></span><span style="position: absolute; left: 3px; top: 12px; width: 15px; height: 15px; box-sizing: border-box; border-radius: 999px; border: 3px solid #4F9CFF; background: #12161D"></span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; padding: 9px 0"><span style="font-family: 'Overpass Mono', monospace; font-size: 13px; font-weight: 600">get_price_reaction</span><span style="font-size: 12px; color: #7D8797">Anchored to the Apr 2 close, since the headline came after hours.</span></span>
+<span style="padding: 10px 0; font-size: 12px; color: #7D8797; text-align: right; font-variant-numeric: tabular-nums">240 ms</span>
+</li>
+<li style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px; column-gap: 12px; padding: 0 12px">
+<span style="position: relative; display: block"><span style="position: absolute; left: 9px; top: 0; bottom: 0; width: 3px; background: #F5B83D"></span><span style="position: absolute; left: 3px; top: 12px; width: 15px; height: 15px; box-sizing: border-box; border-radius: 999px; border: 3px solid #F5B83D; background: #12161D"></span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; padding: 9px 0"><span style="font-size: 14px; font-weight: 800">Draft claims</span><span style="font-size: 12px; color: #7D8797">Five claims, all valid against the schema.</span></span>
+<span style="padding: 10px 0; font-size: 12px; color: #7D8797; text-align: right; font-variant-numeric: tabular-nums">3.9 s, 3.1k tok</span>
+</li>
+<li style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px; column-gap: 12px; padding: 0 12px">
+<span style="position: relative; display: block"><span style="position: absolute; left: 9px; top: 0; bottom: 0; width: 3px; background: #F2555A"></span><span style="position: absolute; left: 3px; top: 12px; width: 15px; height: 15px; box-sizing: border-box; border-radius: 999px; border: 3px solid #F2555A; background: #12161D"></span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; padding: 9px 0"><span style="font-size: 14px; font-weight: 800">Deterministic checks</span><span style="font-size: 12px; color: #7D8797">Four passed. One quote wasn't found in its source, so that claim was removed.</span></span>
+<span style="padding: 10px 0; font-size: 12px; color: #7D8797; text-align: right; font-variant-numeric: tabular-nums">11 ms</span>
+</li>
+<li style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px; column-gap: 12px; padding: 0 12px">
+<span style="position: relative; display: block"><span style="position: absolute; left: 9px; top: 0; bottom: 0; width: 3px; background: #F5B83D"></span><span style="position: absolute; left: 3px; top: 12px; width: 15px; height: 15px; box-sizing: border-box; border-radius: 999px; border: 3px solid #F5B83D; background: #12161D"></span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; padding: 9px 0"><span style="font-size: 14px; font-weight: 800">Verifier agent</span><span style="font-size: 12px; color: #7D8797">Separate context, read only. Four claims supported.</span></span>
+<span style="padding: 10px 0; font-size: 12px; color: #7D8797; text-align: right; font-variant-numeric: tabular-nums">2.7 s, 1.9k tok</span>
+</li>
+<li style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 90px; column-gap: 12px; padding: 0 12px">
+<span style="position: relative; display: block"><span style="position: absolute; left: 9px; top: 0; height: 19px; width: 3px; background: #2DD4BF"></span><span style="position: absolute; left: 3px; top: 12px; width: 15px; height: 15px; box-sizing: border-box; border-radius: 999px; border: 3px solid #2DD4BF; background: #2DD4BF"></span></span>
+<span style="display: flex; flex-direction: column; gap: 1px; padding: 9px 0"><span style="font-size: 14px; font-weight: 800">Report attached</span><span style="font-size: 12px; color: #7D8797">Sent to your card in the feed.</span></span>
+<span style="padding: 10px 0; font-size: 12px; color: #7D8797; text-align: right; font-variant-numeric: tabular-nums">6 ms</span>
+</li>
+</ol>
+</main>
+
+<section aria-labelledby="step-title" style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box; padding: 18px 22px; background: #12161D; border: 1px solid #242B36; border-radius: 10px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; color: #7D8797">Step 5 of 11</span>
+<div style="display: flex; align-items: center; gap: 10px">
+<h2 id="step-title" style="margin: 0; font-family: 'Overpass Mono', monospace; font-size: 22px; font-weight: 600; color: #8EBBFF">search_filings</h2>
+<span style="padding: 3px 8px; border-radius: 5px; background: #102239; font-size: 11px; font-weight: 800; color: #4F9CFF">Tool call</span>
+<span style="font-size: 13px; color: #AAB3C0; font-variant-numeric: tabular-nums">410 ms</span>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 13px; font-weight: 800; color: #AAB3C0">Input</h3>
+<pre style="margin: 0; padding: 14px 16px; background: #0F131A; border: 1px solid #242B36; border-radius: 8px; font-family: 'Overpass Mono', monospace; font-size: 12.5px; line-height: 1.65; color: #E7EBF0; white-space: pre">{
+  <span style="color: #8EBBFF">"symbol"</span>: <span style="color: #2DD4BF">"NVDA"</span>,
+  <span style="color: #8EBBFF">"query"</span>: <span style="color: #2DD4BF">"foundry dependency"</span>
+}</pre>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 13px; font-weight: 800; color: #AAB3C0">Output, capped at 3 chunks</h3>
+<pre style="margin: 0; padding: 14px 16px; background: #0F131A; border: 1px solid #242B36; border-radius: 8px; font-family: 'Overpass Mono', monospace; font-size: 12.5px; line-height: 1.65; color: #E7EBF0; white-space: pre">{
+  <span style="color: #8EBBFF">"count"</span>: <span style="color: #F5B83D">3</span>,
+  <span style="color: #8EBBFF">"chunks"</span>: [
+    { <span style="color: #8EBBFF">"id"</span>: <span style="color: #2DD4BF">"fc_nvda_10k_item1_014"</span>, <span style="color: #8EBBFF">"section"</span>: <span style="color: #2DD4BF">"Item 1. Business"</span> },
+    { <span style="color: #8EBBFF">"id"</span>: <span style="color: #2DD4BF">"fc_nvda_10k_item1a_031"</span>, <span style="color: #8EBBFF">"section"</span>: <span style="color: #2DD4BF">"Item 1A. Risk Factors"</span> },
+    { <span style="color: #8EBBFF">"id"</span>: <span style="color: #2DD4BF">"fc_nvda_10k_item1a_032"</span>, <span style="color: #8EBBFF">"section"</span>: <span style="color: #2DD4BF">"Item 1A. Risk Factors"</span> }
+  ]
+}</pre>
+</div>
+
+<div style="background: #0F131A; border: 1px solid #242B36; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px">
+<h3 style="margin: 0; font-size: 13px; font-weight: 800; color: #AAB3C0">Access for this call</h3>
+<dl style="margin: 0; display: grid; grid-template-columns: 120px minmax(0, 1fr); column-gap: 14px; row-gap: 11px; font-size: 13px; line-height: 1.5; align-items: start">
+<dt style="color: #7D8797">User</dt>
+<dd style="margin: 0">Taken from your sign in, never from the agent.</dd>
+<dt style="color: #7D8797">Allowed tools</dt>
+<dd style="margin: 0; display: flex; flex-wrap: wrap; gap: 6px">
+<span style="padding: 2px 8px; border-radius: 5px; background: #102239; color: #8EBBFF; font-family: 'Overpass Mono', monospace; font-size: 11.5px; font-weight: 600">get_event</span>
+<span style="padding: 2px 8px; border-radius: 5px; background: #102239; color: #8EBBFF; font-family: 'Overpass Mono', monospace; font-size: 11.5px; font-weight: 600">get_company_relationships</span>
+<span style="padding: 2px 8px; border-radius: 5px; background: #102239; color: #8EBBFF; font-family: 'Overpass Mono', monospace; font-size: 11.5px; font-weight: 600">search_news</span>
+<span style="padding: 2px 8px; border-radius: 5px; background: #102239; color: #8EBBFF; font-family: 'Overpass Mono', monospace; font-size: 11.5px; font-weight: 600">search_filings</span>
+<span style="padding: 2px 8px; border-radius: 5px; background: #102239; color: #8EBBFF; font-family: 'Overpass Mono', monospace; font-size: 11.5px; font-weight: 600">get_price_reaction</span>
+</dd>
+<dt style="color: #7D8797">Writes</dt>
+<dd style="margin: 0">None. Every tool this agent holds is read only.</dd>
+<dt style="color: #7D8797">Expires</dt>
+<dd style="margin: 0">5 minutes after the run starts.</dd>
+</dl>
+<p style="margin: 0; padding-top: 12px; border-top: 1px solid #242B36; font-size: 12px; line-height: 1.5; color: #AAB3C0">No tool takes a user argument, so the agent can't ask for anyone else's data.</p>
+</div>
+</section>
+
+</div>
+
+<footer aria-label="Run limits" style="height: 34px; flex-shrink: 0; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 22px; background: #12161D; border-top: 1px solid #242B36; font-size: 12px; color: #7D8797; font-variant-numeric: tabular-nums">
+<span>Groq free tier</span>
+<span>8,000 tokens per minute</span>
+<span>1,000 requests per day</span>
+<span style="flex-grow: 1"></span>
+<span>Token budget per run: 6,000</span>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

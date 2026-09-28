@@ -27,7 +27,7 @@ If a task conflicts with SPEC.md, stop and ask. Never change a decision silently
 - packages/mcp: MCP server on the official TypeScript SDK
 - scripts: offline jobs (graph build, filing chunks, evals)
 - MongoDB Atlas free tier: documents, Vector Search, $graphLookup
-- AI: Vercel AI SDK on free tiers. Groq is primary; Gemini Flash-Lite (Google AI Studio) is the backup for extraction.
+- AI: Vercel AI SDK on free tiers. Groq gpt-oss-120b for extraction and the verifier, Gemini Flash-Lite (Google AI Studio) for the research agent, Groq prompt guard as the injection screen. Fallback rules are in the Stack section of docs/SPEC.md.
 
 ## Commands
 Created in T01. Keep this list current when scripts change.

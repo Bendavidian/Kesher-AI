@@ -30,6 +30,8 @@ This demo runs reliably from a recorded event:
 ## Pipeline
 ```
 Event: Alpaca news stream or replay, SEC EDGAR poller
+→ Pre filter: universe symbols, dedupe by source id                            [code]
+→ Injection screen: a label on the Source, decides nothing                     [classifier]
 → Extract companies, per entity impact, event type, themes, importance 1 to 5  [LLM, structured]
 → Propagate on the interest graph, max 2 hops, weights per edge type           [code, $graphLookup]
 → Relevance, confidence and "Why you" from the exact path                      [code]
@@ -39,6 +41,10 @@ Event: Alpaca news stream or replay, SEC EDGAR poller
 → Card pushed live; research attaches to the same card later                   [Socket.IO]
 ```
 A card is written and pushed as soon as relevance is computed; it never waits for research. Investigate is a second entry point into the same research path. It skips the relevance and importance conditions of the gate but not the budget.
+
+Pre filter, before any model call: an item passes only when its provider symbols (Alpaca news symbols, EDGAR filer CIK) include a demo universe company. SPY and SMH are benchmarks, not universe companies, so an item tagged only with them does not pass. Items with no symbols are dropped in the MVP. A source id that was already processed is not extracted again; an update to it is logged. Every dropped item is counted by reason (not in universe, duplicate, update), so the savings show in the metrics.
+
+Injection screen: Groq meta-llama/llama-prompt-guard-2-86m screens the untrusted text in short chunks, and the result is stored on the Source. A flagged item gets a label and stays visible. The screen never decides relevance, gating or writes (principle 3).
 
 ## Scores
 | Score | Computed by | Values |
@@ -84,8 +90,8 @@ Personas: A, AI investor (NVDA, MSFT, AMZN). B, semiconductor investor (AMD, AVG
 - Tools: read only, scoped by the run token. Tool output is capped: at most 3 filing chunks per call.
 - Output: typed claims plus open questions, as JSON validated with zod.
 - Stops when either budget is spent or every report section has supported claims.
-- Every model call goes through a limiter that respects the provider's tokens per minute. Tokens are recorded per step in the AgentRun.
-- Model: Groq; the exact research model is decided once the console quotas are recorded. Gemini Flash-Lite stays the fallback on a 429.
+- Every model call goes through a limiter that respects the provider's tokens per minute. Tokens, provider and model are recorded per step in the AgentRun.
+- Model: Gemini gemini-3.5-flash-lite, picked once per run, with Groq openai/gpt-oss-120b as the whole run fallback (see Stack).
 
 ## Claims and verification
 - fact: cites a verbatim quote from a source. The display text may paraphrase it.
@@ -123,17 +129,17 @@ Live items are recorded from day 2: news, filings and price bars (X posts in V2)
 ## Evals
 - 20 recorded events × 3 personas, labeled high, medium or none: 60 labels.
 - About 10 planted errors for the verifier, and 5 poisoned press releases or posts for injection tests.
-- Metrics: label agreement, verifier catch rate, injection success rate before and after defenses, cost and latency per event.
+- Metrics: label agreement, verifier catch rate, injection success rate before and after defenses and with and without the injection screen, cost and latency per event.
 
 ## Domain model
 Outline only. T02 turns it into types, zod schemas, collections and indexes.
 - User: email, password hash, display name, holdings (embedded: symbol, quantity), interests (themes).
 - Company: symbol (the US ticker used for news and prices), primary listing (from the Finnhub profile, for example 2330.TW for TSM), name, CIK, filer type (10-K or 20-F), sector, themes.
 - Relationship: from, to, type, weight, evidence (source id, quote, filing date, URL, reviewed). Stored in both directions with the inverse type.
-- Source: provider, kind (news, filing, x_post, market_data), tier, external id, URL, author, published at.
+- Source: provider, kind (news, filing, x_post, market_data), tier, external id, URL, author, published at, injection screen result (flag, model).
 - MarketEvent: source ids (cluster), headline, companies with per entity impact, event type, themes, importance, status (unconfirmed or confirmed), embedding.
 - FeedItem: user, event, relevance, path, confidence, status, research state. Unique per user and event.
-- AgentRun: user, event, agent, mode, trigger, gate decision, step budget, token budget, steps (tool, input, output summary, latency, tokens), tokens used, cost, status.
+- AgentRun: user, event, agent, mode, trigger, gate decision, step budget, token budget, steps (tool, provider and model, input, output summary, latency, tokens), tokens used, cost, status.
 - Report: run, sections with claim ids, open questions.
 - Claim: report, type, text, sources with quotes, premises, status, check results.
 - FilingChunk: source, symbol, form, section, text (at most 256 tokens), embedding.
@@ -141,18 +147,28 @@ Outline only. T02 turns it into types, zod schemas, collections and indexes.
 The Atlas free tier allows 3 search indexes: event vectors, filing chunk vectors (both 384 dimensions, cosine), and one text index for hybrid search. Vector scores only rank results; they never act as a threshold that decides anything.
 
 ## Stack
-- Frontend: React, TypeScript, Vite, Tailwind, mobile first and responsive.
+- Frontend: React, TypeScript, Vite, Tailwind. Desktop first: the three panel layout targets screens 1280px and wider. Below that, the panels stack in one column in the order feed, event, scores.
 - Backend: Node and Express with TypeScript, Socket.IO, an in process job queue.
 - Data store: MongoDB Atlas free tier with Vector Search and $graphLookup.
-- AI: Vercel AI SDK for model calls, so a provider switch is a config change. Groq free tier is primary for extraction, research and verification. Gemini Flash-Lite on the Google AI Studio free tier is the backup for extraction and the fallback on a 429. Official MCP TypeScript SDK.
+- AI: Vercel AI SDK for model calls, so a provider switch is a config change. Official MCP TypeScript SDK. Models run on the Groq and Google AI Studio free tiers; the limits are in docs/SPIKE.md.
+  - Extraction and the verifier: Groq openai/gpt-oss-120b. Each call falls back to Gemini gemini-3.5-flash-lite on a 429. The verifier therefore normally uses a different model family than the research agent.
+  - Research agent: Gemini gemini-3.5-flash-lite, which allows 250,000 tokens per minute against 8,000 on Groq. It picks its provider once per run and never switches in the middle of a run; inside a run the limiter waits and retries. If Gemini is over its limit when a run starts, the whole run goes to Groq openai/gpt-oss-120b.
+  - The AgentRun records the provider and model of every step.
+  - Groq's 200,000 tokens per day is the real ceiling for extraction. The deterministic pre filter stays in front of the model, and extraction uses low reasoning effort. openai/gpt-oss-20b and qwen/qwen3.8-27b have the same limits, so a smaller Groq model does not help.
+  - Injection screen: Groq meta-llama/llama-prompt-guard-2-86m (see Pipeline).
 - Embeddings: local Xenova/all-MiniLM-L6-v2 through @huggingface/transformers, 384 dimensions, cosine; no key and no quota. Upgrade path: Gemini gemini-embedding-2 at 768 dimensions.
 - Data sources: Alpaca (news stream, news history, SIP bars, market calendar), Finnhub (peers, profiles), SEC EDGAR (filings, XBRL), all on free tiers. X API in V2.
+
+## UI
+A dark trading terminal, approved 28 Sep 2026. docs/UI.md is the source of truth for the tokens, type, layout and the three screens: feed, research report and agent run. The Tailwind theme defines the tokens, and components never hardcode hex values. docs/design/*.dc.html are markup references only; they need the design canvas runtime and do not run on their own.
+
+The real spike values shown in the designs are fixtures for the replay demo and its tests: the demo headline (Alpaca news 38062166), the NVIDIA 10-K quote about TSMC, and the price moves anchored to the previous close (docs/SPIKE.md checks 1 and 3). Other numbers in the designs are illustrative.
 
 ## Build order
 Walking skeleton T01 to T09 by the end of day 3 (docs/BACKLOG.md). Days 4 to 8 deepen each stage, days 9 and 10 cover evals and personas, then deployment, rehearsal and buffer.
 
 ## Out of scope (V2)
-Thesis guardian, BullMQ and Redis, full PWA, fund look through exposure, Israeli market data, MCP Apps, price anomaly detection, filing RAG for foreign issuers, X level 1 and level 2, a paid Anthropic API key as the LLM upgrade path.
+Thesis guardian, BullMQ and Redis, full PWA, fund look through exposure, Israeli market data, MCP Apps, price anomaly detection, filing RAG for foreign issuers, X level 1 and level 2, a paid Anthropic API key as the LLM upgrade path, relevance from themes alone for items with no symbols.
 
 ## Decision log
 - 27 Sep 2026: Name is Kesher AI. Solo build, two weeks.
@@ -171,3 +187,8 @@ Thesis guardian, BullMQ and Redis, full PWA, fund look through exposure, Israeli
 - 28 Sep 2026 (T00 finding E): Each research run gets a token budget next to its step budget, starting at 6,000 tokens and tuned in T16. A limiter respects each provider's tokens per minute. Tool output is capped at 3 filing chunks per call. Tokens are recorded per step in the AgentRun. The research model is decided after the console quotas are recorded; Gemini Flash-Lite stays the fallback on a 429.
 - 28 Sep 2026 (T00 finding F): Embeddings use local Xenova/all-MiniLM-L6-v2, 384 dimensions, cosine, with filing chunks of at most 256 tokens. Gemini gemini-embedding-2 at 768 dimensions is the documented upgrade path.
 - 28 Sep 2026: The demo item is pinned by id: Alpaca news 38062166, DEMO_SOURCE_ID in the seed config. Replay selects items by id, never by keyword.
+- 28 Sep 2026 (console numbers): Model split. The research agent runs on Gemini gemini-3.5-flash-lite (250,000 tokens per minute against 8,000 on Groq). It picks its provider once per run and never switches mid-run; inside a run the limiter waits and retries. If Gemini is over its limit when a run starts, the whole run goes to Groq openai/gpt-oss-120b. Extraction and the verifier run on Groq openai/gpt-oss-120b and fall back to Gemini per call on a 429, so the verifier normally uses a different model family than the research agent. The AgentRun records provider and model per step. Closes the research model decision from finding E and replaces "Groq is primary for extraction, research and verification".
+- 28 Sep 2026: A deterministic pre filter runs before any model call, because Groq's 200,000 tokens per day is the real ceiling for extraction. It passes only items whose provider symbols include a demo universe company (SPY or SMH alone do not count), drops items with no symbols, never extracts a source id twice and logs updates to it, and counts every drop by reason. Relevance from themes alone moves to V2. Order: pre filter, then the injection screen, then extraction.
+- 28 Sep 2026: Injection screen. Groq meta-llama/llama-prompt-guard-2-86m screens untrusted text in short chunks before extraction and stores its result on the Source. Flagged items get a label and stay visible; the screen never decides relevance, gating or writes, so principle 3 holds. T16 reports the injection success rate with and without it.
+- 28 Sep 2026: Dark trading terminal UI, tokens in docs/UI.md. docs/design/*.dc.html are markup references only. The real spike values in the designs (demo headline, 10-K quote, anchored price moves) are fixtures for the replay demo and its tests.
+- 28 Sep 2026: Desktop first. The three panel layout targets screens 1280px and wider; below that, the panels stack in one column in the order feed, event, scores. Replaces mobile first.
