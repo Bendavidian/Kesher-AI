@@ -44,7 +44,7 @@ Extraction: one structured call on Groq openai/gpt-oss-120b with low reasoning e
 A shared model client with a limiter that respects each provider's tokens per minute. Single calls (extraction, later the verifier) fall back to Gemini gemini-3.5-flash-lite per call on a 429. The client also picks one provider for a whole run, used by T08. A smaller Groq model does not help: openai/gpt-oss-20b and qwen/qwen3.8-27b have the same limits as gpt-oss-120b.
 Done when: a unit test on a recorded model response extracts TSM from the TSMC item with importance of at least 3; tests cover each pre filter drop reason and its counter; a flagged item keeps its label and still reaches extraction; and a Groq 429 sends that single call to Gemini.
 
-### [~] T05 Relevance, thin
+### [x] T05 Relevance, thin
 Graph propagation up to 2 hops with $graphLookup, scoring per SPEC.md, the path saved on the FeedItem, "Why you" rendered from templates.
 Done when: a deterministic test gives the TSMC event high relevance for persona B (direct), high for persona A (supplier path) and none for persona C, and a second test proves traversal in both directions: news about AMD reaches persona A through NVDA competitor_of, and news about NVDA reaches a TSM holder through customer_of.
 Notes from the UI track (contract gap: feed:item carries only a FeedItem with ids, but the feed screen needs the full card):
