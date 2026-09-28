@@ -19,6 +19,15 @@ export const AlpacaNewsItem = z.object({
 });
 export type AlpacaNewsItem = z.infer<typeof AlpacaNewsItem>;
 
+// Display names for the publishers Alpaca reports in lower case. Any other value is kept as sent.
+const PUBLISHER_NAMES: Record<string, string> = { benzinga: 'Benzinga' };
+
+function publisherName(source: string): string | null {
+  const trimmed = source.trim();
+  if (trimmed === '') return null;
+  return PUBLISHER_NAMES[trimmed.toLowerCase()] ?? trimmed;
+}
+
 // Alpaca news is Benzinga, a wire: Tier 2 (SPEC.md Source tiers). Everything here is untrusted
 // data; ingestItem validates the result against the Source schema before any write.
 export function toIncomingItem(item: AlpacaNewsItem): IncomingItem {
@@ -31,6 +40,7 @@ export function toIncomingItem(item: AlpacaNewsItem): IncomingItem {
     externalId: String(item.id),
     url: item.url,
     author: author === '' ? null : author,
+    publisher: publisherName(item.source),
     title: normalizeText(item.headline),
     text: text === '' ? null : text,
     symbols: item.symbols,

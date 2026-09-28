@@ -4,6 +4,7 @@ import { describeError } from '../config/redact';
 import { collection } from '../db/collections';
 import { extractSource } from '../extract/extraction';
 import { MissingModelKeyError, type ModelClient } from '../llm/client';
+import { isScored, scoreEvent } from '../relevance/feed';
 import { screenInput, screenText } from '../screen/injection';
 import { countDrop } from './counters';
 import { ingestItem } from './ingest';
@@ -21,9 +22,9 @@ export interface ProcessDeps {
 export type ProcessResult = ReplayResponse;
 
 // The single entry for every item, replayed or live, in the SPEC.md order: pre filter, then the
-// injection screen, then extraction. Every decision and write here is deterministic code; the
-// models only label and extract. A step that already ran is skipped, so an item whose extraction
-// failed resumes on the next try.
+// injection screen, then extraction, then propagation and relevance. Every decision and write here
+// is deterministic code; the models only label and extract. A step that already ran is skipped, so
+// an item whose extraction or scoring did not finish resumes on the next try.
 export async function processItem(
   db: Db,
   item: IncomingItem,
@@ -37,11 +38,11 @@ export async function processItem(
   const sources = collection(db, 'sources');
   const events = collection(db, 'market_events');
 
-  // Processed means extracted. Such an item is never extracted again.
+  // Processed means extracted and scored. Such an item is never extracted again.
   const stored = await sources.findOne({ provider: item.provider, externalId: item.externalId });
   if (stored) {
     const event = await events.findOne({ sourceIds: stored._id });
-    if (event?.extraction) {
+    if (event?.extraction && (await isScored(db, event._id))) {
       const reason = repeatReason(stored, item);
       if (reason === 'update') {
         const fields = changedFields(stored, item).join(', ');
@@ -77,6 +78,9 @@ export async function processItem(
     const { extraction } = await extractSource(models(), source, now());
     await events.updateOne({ _id: ingested.eventId, extraction: null }, { $set: { extraction } });
   }
+
+  // Code only: the graph, relevance and one FeedItem per user. A card never waits for research.
+  if (!(await isScored(db, ingested.eventId))) await scoreEvent(db, ingested.eventId, now());
 
   return { outcome: 'processed', ...ingested };
 }

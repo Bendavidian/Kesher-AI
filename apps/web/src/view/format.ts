@@ -61,8 +61,5 @@ export function formatDay(day: string | Date, timeZone = 'UTC', withYear = true)
   }).format(date);
 }
 
-// NVDA, MSFT and AMZN
-export function joinList(items: readonly string[], conjunction: 'and' | 'or' = 'and'): string {
-  if (items.length <= 1) return items.join('');
-  return `${items.slice(0, -1).join(', ')} ${conjunction} ${items.at(-1) ?? ''}`;
-}
+// Shared with the api, which renders the same "Why you" wording.
+export { joinList } from '@kesher/shared';

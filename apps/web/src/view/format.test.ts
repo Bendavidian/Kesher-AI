@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  direction,
-  formatDay,
-  formatEt,
-  formatPercent,
-  formatScore,
-  joinList,
-  MINUS,
-} from './format';
+import { direction, formatDay, formatEt, formatPercent, formatScore, MINUS } from './format';
 
 describe('formatPercent', () => {
   it('carries a plus sign on gains', () => {
@@ -55,14 +47,5 @@ describe('formatEt', () => {
 describe('formatDay', () => {
   it('formats an ISO date without shifting it by time zone', () => {
     expect(formatDay('2026-02-25')).toBe('Feb 25, 2026');
-  });
-});
-
-describe('joinList', () => {
-  it('joins with commas and a final conjunction', () => {
-    expect(joinList(['NVDA'])).toBe('NVDA');
-    expect(joinList(['KO', 'JNJ'])).toBe('KO and JNJ');
-    expect(joinList(['AMD', 'AVGO', 'TSM', 'ASML'])).toBe('AMD, AVGO, TSM and ASML');
-    expect(joinList(['KO', 'JNJ', 'XOM'], 'or')).toBe('KO, JNJ or XOM');
   });
 });

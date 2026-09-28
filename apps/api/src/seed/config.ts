@@ -237,6 +237,7 @@ const filing = (
     externalId: accession,
     url: `https://www.sec.gov/Archives/edgar/data/${cik}/${accession.replaceAll('-', '')}/${document}`,
     author: null,
+    publisher: null,
     title: `${company} 10-K for the fiscal year ended ${period}`,
     symbols: [symbol],
     // Filing text lives in FilingChunk (T11), not on the Source.

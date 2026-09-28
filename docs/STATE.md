@@ -1,9 +1,21 @@
 # State
 
-Updated: 28 Sep 2026, T07 done
+Updated: 28 Sep 2026, T05 done
 
 ## Where we are
-T00 to T04 and T07 are done. T05 and T06 are still open; T07 did not depend on them.
+T00 to T05 and T07 are done. T06 is next. The UI track part 2 (PR 6) added the web report and agent run screens on fixtures; their wiring notes are under T08, T09 and T14 in BACKLOG.md.
+
+T05 added propagation and relevance after extraction. processItem now runs pre filter, injection screen, extraction, then scoreEvent (apps/api/src/relevance):
+- loadEdges: one $graphLookup per event from the start companies, maxDepth 1 (2 hops), reviewed edges only.
+- Start nodes are the extracted companies that the provider also tagged (Source.symbols) and that are universe companies. An article tagged KO whose text names NVDA never reaches NVDA holders. The full extraction stays stored.
+- bestPath (pure): direct 1, one hop the edge weight, two hops w1·w2·0.7, maximum over paths, no revisits. Ties go to fewer hops, then event company, holding and edge ids.
+- confidenceFor: high with a Tier 1 source or two Tier 2 sources with different publishers, medium with one Tier 2, low otherwise.
+- One FeedItem per user, relevance 0 included. An event counts as processed once it has an extraction and a FeedItem for every user, so a partial scoring run resumes with no model call. This differs from design point 1 and is logged in SPEC.md with its limit (one document per user per event; a scoredAt marker replaces it at scale). The feed must still hide relevance 0; see the T06 notes.
+- FeedCard in packages/shared, assembled by assembleCards, feedCard and feedCardsFor (apps/api/src/feed/cards.ts): the FeedItem, the event without its embedding, the source without its text, reviewed evidence per hop with the filing and its form, and priceReaction null. GET /feed and the socket events land in T06 with login.
+- Source.publisher (Benzinga for Alpaca news, null for filings). `npm run seed` backfills it on older Sources (backfillPublishers).
+- whyYou, SHORT_NAME, HOP_VERB, joinList and relevanceBand (high from 0.8, medium above 0, none at 0) moved to packages/shared; the web uses them with unchanged wording.
+
+On Atlas the seed backfilled publisher on 5 sources. Replaying 38062166 resumed the extracted event into scoring with the same ids: A 0.8 through TSM supplier_of NVDA, B 1 direct, C 0, all medium. A's card shows Benzinga and the NVIDIA 10-K quote. A second replay returned duplicate (replay/duplicate 2). 347 tests are green.
 
 T07 added the MCP server in packages/mcp, on the official TypeScript SDK v2 pinned at 2.1.0 (`@modelcontextprotocol/server`, and `/client` for tests and T08):
 - Run token (token.ts): an HS256 JWT signed with MCP_TOKEN_SECRET, which must be at least 32 characters. Claims are sub (user id), agent (AgentName, now in shared), tools (ToolName) and a fixed 5 minute lifetime. mintRunToken is ready for T08. verifyRunToken accepts HS256 only, validates the claims with zod and fails with one RunTokenError that never contains the token.
@@ -16,7 +28,7 @@ T07 added the MCP server in packages/mcp, on the official TypeScript SDK v2 pinn
 
 T04 added the pipeline in front of relevance. Every item enters through processItem (apps/api/src/ingest/process.ts), in SPEC.md order:
 - Pre filter, code only. An item passes only when its provider symbols include a demo universe company; SPY and SMH alone and items with no symbols are dropped. A dropped item is not stored at all.
-- An item counts as processed once its event has an extraction. Sent again unchanged it is a duplicate; with changed provider fields it is an update, logged with field names only. Neither calls a model. ingestItem is now insert only, so the stored text always matches its screen and extraction.
+- An item counts as processed once its event has an extraction (since T05, also a FeedItem for every user). Sent again unchanged it is a duplicate; with changed provider fields it is an update, logged with field names only. Neither calls a model. ingestItem is now insert only, so the stored text always matches its screen and extraction.
 - Drops are counted in the new ingest_counters collection, one document per UTC day, mode (live or replay) and reason.
 - Injection screen: Groq prompt guard over chunks of at most 1,200 characters, highest score, flagged at 0.5 (FLAG_THRESHOLD). It fails open: a screen that does not finish leaves injectionScreen null, never flagged: false, and extraction still runs.
 - Extraction: one structured call on Groq openai/gpt-oss-120b with low reasoning effort and no tools, the item quoted inside <article>. Code keeps only valid tickers.
@@ -57,20 +69,19 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. T05, relevance, thin. BACKLOG.md T05 now carries the UI track notes:
-   - a FeedCard read model in shared, with GET /feed and the socket events carrying it;
-   - Source.publisher;
-   - the "Why you" templates moved into shared;
-   - placeholder relevance bands.
-   The extraction on the demo event is ready on Atlas.
+1. T06, live feed with persona switcher. Read the T05 notes under T06 in BACKLOG.md:
+   - mount GET /feed with feedCardsFor, the user from the auth context only, and filter out relevance 0;
+   - emit feed:item and feed:update with feedCard for each FeedItem scoreEvent writes, never for relevance 0;
+   - decode ISO dates before FeedCard.parse on the web, and replace the web fixtures with FeedCards;
+   - decide how persona C sees "none" (DoD point 8, the Hidden for you list) once relevance 0 never reaches the feed.
 2. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
    - The first npm run test downloads mongod 8.0.32, about 100 MB.
-   - Replay needs GROQ_API_KEY in that machine's .env.
-   - The api now needs MCP_TOKEN_SECRET of at least 32 characters in that machine's .env, or it does not start.
-3. Check that CI passes on Ubuntu and Windows for the T07 PR.
-4. T08 then builds on T07: the api mints a run token per run with mintRunToken and connects the SDK client to POST /mcp (see the T07 notes in BACKLOG.md).
+   - Replay needs GROQ_API_KEY, and the api needs MCP_TOKEN_SECRET of at least 32 characters, in that machine's .env.
+   - Run `npm run seed` once if that machine uses its own database, so older Sources get publisher.
+3. Check that CI passes on Ubuntu and Windows for the T05 PR.
+4. T08 builds on T07 and T05: mint a run token per run with mintRunToken, connect the SDK client to POST /mcp, and follow the UI track notes under T08.
 
 Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now.
 
@@ -83,6 +94,7 @@ The UI language is settled by docs/UI.md: English interface, with Hebrew summari
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 28 Sep 2026, macOS (Mac mini), T05: $graphLookup propagation, relevance, confidence and one FeedItem per user after extraction; start nodes limited to provider tagged companies; FeedCard read model and assembler; Source.publisher with a seed backfill; Why you templates and bands in shared; rebased on T07 and the UI track part 2; on Atlas the demo event scored A 0.8, B 1, C 0 and a second replay was a duplicate; 347 tests green; T05 done.
 - 28 Sep 2026, macOS (Mac mini), T07: packages/mcp on MCP SDK v2 with get_event and a thin search_news, HS256 run tokens with user and tool scopes, POST /mcp in the api; a token without search_news is rejected and no tool accepts a user id, proven in memory and over HTTP; checked against Atlas; rebased on T04; 262 tests green; T07 done.
 - 28 Sep 2026, macOS (Mac mini), T04: pre filter with ingest_counters, injection screen that fails open to null, extraction on Groq with a per call Gemini fallback and a limiter, processItem behind replay; on Atlas the demo item extracted TSM, importance 4, and a second replay counted a duplicate; 205 tests green; T04 done.
 - 28 Sep 2026, macOS (Mac mini), T03: POST /dev/replay/:sourceId through a shared ingestItem, Source.text, committed recordings and npm run record; on Atlas, replaying 38062166 twice left one Source and one MarketEvent; 144 tests green; T03 done.

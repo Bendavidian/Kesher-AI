@@ -55,17 +55,29 @@ The MCP server rejects any call to a tool that the token does not list.
 ## REST (api)
 - GET /health: `{ status: "ok" }`, HealthResponse in packages/shared
 - POST /auth/login, GET /me
-- GET /feed?cursor=
+- GET /feed?cursor=: the current user's FeedCard[] with relevance above 0, newest item first. Relevance 0 items are stored only to mark the event scored for that user (SPEC.md decision log, T05) and never appear in a feed list. The user comes from the auth context only. The route lands in T06 with login; T05 ships the contract and feedCardsFor in apps/api/src/feed/cards.ts.
 - POST /events/:eventId/investigate
 - GET /runs/:runId
 - POST /mcp: MCP over stateless Streamable HTTP (see MCP tools), with `Authorization: Bearer <run token>`. A missing, malformed, badly signed or expired token gets 401 with `WWW-Authenticate: Bearer error="invalid_token"` before the SDK sees the request. A malformed JSON body gets 400.
-- POST /dev/replay/:sourceId (development only, not mounted in production): sourceId is an Alpaca news id, not a Source._id. Replays the recording `recordings/alpaca/<sourceId>.json` through the pipeline (pre filter, injection screen, extraction) in replay mode. Returns ReplayResponse in packages/shared, where the ids are the stored Source and MarketEvent:
-  - `{ outcome: "processed", sourceId, eventId, sourceCreated, eventCreated }`: the item now has an extraction. The flags are false when the replay resumed an item stored earlier.
+- POST /dev/replay/:sourceId (development only, not mounted in production): sourceId is an Alpaca news id, not a Source._id. Replays the recording `recordings/alpaca/<sourceId>.json` through the pipeline (pre filter, injection screen, extraction, relevance) in replay mode. Returns ReplayResponse in packages/shared, where the ids are the stored Source and MarketEvent:
+  - `{ outcome: "processed", sourceId, eventId, sourceCreated, eventCreated }`: the item now has an extraction and a FeedItem for every user. The flags are false when the replay resumed an item stored earlier.
   - `{ outcome: "dropped", reason: "not_in_universe" }`: nothing is stored.
-  - `{ outcome: "dropped", reason: "duplicate" | "update", sourceId, eventId }`: the item was already processed; nothing is extracted again. A second replay of the same item returns duplicate with the same ids.
+  - `{ outcome: "dropped", reason: "duplicate" | "update", sourceId, eventId }`: the item was already processed (extracted and scored for every user); nothing is extracted or scored again. A second replay of the same item returns duplicate with the same ids.
   - 400 when sourceId is not all digits, 404 when there is no recording, 503 when a needed model key is missing (the body names it) or both model providers are rate limited. After a 503 the item is stored without an extraction and resumes on the next replay.
 
+## FeedCard
+The read model for one feed card, FeedCard in packages/shared, assembled on the server from stored documents (assembleCards, feedCard and feedCardsFor in apps/api/src/feed/cards.ts). Nothing in it is written by a model.
+- item: the FeedItem. relevance, path and confidence are computed by code.
+- event: the MarketEvent with its extraction, without the embedding.
+- source: the event's first Source: _id, provider, kind, tier, externalId, url, publisher, title, publishedAt, injectionScreen. The body text stays on the server; it is untrusted data.
+- evidence: one entry per hop of the path whose edge is reviewed, in path order: relationshipId, from, to, type, quote, filingDate, url, reviewed, and the filing (sourceId, filer symbol, title, form, tier). The form is the filer's annual form. A hop without reviewed evidence has no entry. A direct holding has none.
+- priceReaction: null until T13.
+
+"Why you" is not a field. Clients render it from item.path with whyYou in packages/shared, the same templates the api uses. Relevance bands come from relevanceBand in packages/shared: high from 0.8, medium above 0, none at 0 (placeholders until T16).
+
+Over JSON and Socket.IO, dates travel as ISO 8601 strings; the client turns them back into dates before parsing with FeedCard.
+
 ## Socket.IO events, server to client
-- feed:item: a new FeedItem for the current user
-- feed:update: a FeedItem changed (status, confidence, research state)
+- feed:item: a FeedCard for a new FeedItem of the current user
+- feed:update: a FeedCard whose FeedItem changed (status, confidence, research state)
 - run:step: a new step in the AgentRun being viewed
