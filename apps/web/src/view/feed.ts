@@ -91,6 +91,8 @@ export interface FeedView {
 
 function eventCompany(event: MarketEvent, item: FeedItem): UniverseSymbol | null {
   if (item.path) return item.path.eventCompany;
+  // Without a path, the extracted company only names the first station. It is display only:
+  // relevance and the path were already decided by code.
   const symbol = event.extraction?.companies[0]?.symbol;
   return symbol && symbol in SHORT_NAME ? (symbol as UniverseSymbol) : null;
 }
