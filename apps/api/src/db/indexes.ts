@@ -38,6 +38,10 @@ export const INDEXES: Record<CollectionName, IndexDescription[]> = {
   filing_chunks: [
     { name: 'source_chunk_unique', key: { sourceId: 1, chunkIndex: 1 }, unique: true },
   ],
+  // One counter per UTC day, mode and drop reason; incremented with $inc.
+  ingest_counters: [
+    { name: 'day_mode_reason_unique', key: { day: 1, mode: 1, reason: 1 }, unique: true },
+  ],
 };
 
 const embeddingField = {

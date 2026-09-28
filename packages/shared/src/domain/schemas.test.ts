@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FeedItem, MarketEvent } from './event';
 import { FilingChunk } from './filing';
+import { IngestCounter } from './ingest';
 import { AgentRun, Claim } from './research';
 import { Source } from './source';
 import { User } from './user';
@@ -288,5 +289,28 @@ describe('FilingChunk', () => {
   it('rejects another dimension and an oversized text', () => {
     expect(FilingChunk.safeParse({ ...chunk, embedding: vector(768) }).success).toBe(false);
     expect(FilingChunk.safeParse({ ...chunk, text: 'x'.repeat(2001) }).success).toBe(false);
+  });
+});
+
+describe('IngestCounter', () => {
+  const counter = {
+    _id: id(11),
+    day: '2026-09-28',
+    mode: 'replay',
+    reason: 'duplicate',
+    count: 1,
+    updatedAt: at,
+  };
+
+  it('accepts a count per day, mode and reason', () => {
+    expect(IngestCounter.safeParse(counter).success).toBe(true);
+  });
+
+  it('rejects a timestamp as the day, an unknown reason and a zero count', () => {
+    expect(IngestCounter.safeParse({ ...counter, day: '2026-09-28T00:00:00Z' }).success).toBe(
+      false,
+    );
+    expect(IngestCounter.safeParse({ ...counter, reason: 'spam' }).success).toBe(false);
+    expect(IngestCounter.safeParse({ ...counter, count: 0 }).success).toBe(false);
   });
 });

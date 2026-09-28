@@ -1,26 +1,36 @@
 # State
 
-Updated: 28 Sep 2026, T03 done
+Updated: 28 Sep 2026, T04 done
 
 ## Where we are
-T00 to T03 are done.
+T00 to T04 are done.
 
-T03 added the first pipeline entry:
-- POST /dev/replay/:sourceId takes an Alpaca news id, loads recordings/alpaca/<id>.json, and passes it through ingestItem (apps/api/src/ingest/ingest.ts). This is the one path that T10 live items will use too.
-- ingestItem upserts the Source on provider and externalId, then creates one MarketEvent for it. Status is deterministic: confirmed unless the tier is 3. Extraction and embedding stay null until T04.
-- The injection screen, extraction and createdAt are written only on insert, so a replay never erases them. A replay returns the same ids with sourceCreated and eventCreated set to false, and E11000 races are retried.
-- On Atlas, replaying 38062166 twice left exactly one Source and one MarketEvent.
+T04 added the pipeline in front of relevance. Every item enters through processItem (apps/api/src/ingest/process.ts), in SPEC.md order:
+- Pre filter, code only. An item passes only when its provider symbols include a demo universe company; SPY and SMH alone and items with no symbols are dropped. A dropped item is not stored at all.
+- An item counts as processed once its event has an extraction. Sent again unchanged it is a duplicate; with changed provider fields it is an update, logged with field names only. Neither calls a model. ingestItem is now insert only, so the stored text always matches its screen and extraction.
+- Drops are counted in the new ingest_counters collection, one document per UTC day, mode (live or replay) and reason.
+- Injection screen: Groq prompt guard over chunks of at most 1,200 characters, highest score, flagged at 0.5 (FLAG_THRESHOLD). It fails open: a screen that does not finish leaves injectionScreen null, never flagged: false, and extraction still runs.
+- Extraction: one structured call on Groq openai/gpt-oss-120b with low reasoning effort and no tools, the item quoted inside <article>. Code keeps only valid tickers.
+- A step that already ran is skipped, so an item whose extraction failed resumes on the next replay.
 
-Source now has text:
-- It holds the untrusted item body, normalized with normalizeText in packages/shared. That function is the spike htmlToText with a single entity pass.
-- text is null for filings, whose text lives in FilingChunk.
-- The seed was rerun on Atlas to backfill text: null on the 4 filing sources. Any other database needs `npm run seed` again.
+The model client is apps/api/src/llm/client.ts:
+- A sliding window limiter per provider and model, with the console limits from SPIKE.md. A 429 releases its reservation and blocks that model until retry-after.
+- generateSingle falls back to Gemini gemini-3.5-flash-lite per call on a 429.
+- pickRunProvider(budgetTokens) is ready for T08.
+- Keys are read lazily. The api starts without GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY; replay answers 503 naming a missing key only when a model is needed.
 
-Recordings are committed JSON files holding the raw provider item without the full article content.
-- `npm run record -- --id <id> --symbol <ticker> --date <YYYY-MM-DD>` records one historical Alpaca item. The history endpoint has no id filter, so the recorder searches one symbol and one day and selects by id.
-- The demo item 38062166 is recorded, with a summary and author "Benzinga Neuro".
+POST /dev/replay/:sourceId now returns ReplayResponse as a processed or dropped outcome (INTERFACES.md).
 
-server.ts now loads the root .env and connects to Atlas, then ensures collections and indexes. It mounts dev routes unless NODE_ENV is production, so `npm run dev` now needs MONGODB_URI. createApp takes { db, devRoutes, logError }. redact lives in apps/api/src/config/redact.ts. 144 tests are green.
+Tests never call a provider. `npm run record:models -- --id <id>` records the real answers once to recordings/models/<id>.json, and tests replay them through mock models from ai/test. The demo item's recording gives TSM, negative, natural_disaster, importance 4, at 846 tokens.
+
+On Atlas, replaying 38062166 resumed the T03 Source. It stored injectionScreen flagged false (score 0.0004) and an extraction of TSM negative with importance 4. A second replay returned duplicate with the same ids, and ingest_counters shows replay/duplicate 1. 205 tests are green.
+
+Work happens on a branch per task. The branch is pushed and a PR opened to main titled with the task id; the user merges it after CI passes. Never push to main.
+
+From T03:
+- POST /dev/replay/:sourceId loads recordings/alpaca/<id>.json by Alpaca id; `npm run record` records an item by searching one symbol and one day and selecting by id.
+- Source.text holds the untrusted body, normalized with normalizeText, and is null for filings. The seed was rerun on Atlas to backfill it; any other database needs `npm run seed` again.
+- server.ts loads the root .env, connects to Atlas and ensures collections and indexes; redact lives in apps/api/src/config/redact.ts.
 
 From T02:
 - packages/shared holds strict zod schemas for every SPEC.md entity. Every _id is a string UUID.
@@ -38,15 +48,18 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. T04, thin extraction:
-   - The pre filter goes into ingestItem. Decide whether a dropped item is still stored as a Source, and where the drop counters live.
-   - The injection screen and extraction read Source.text. See the T03 notes in BACKLOG.md.
+1. T05, relevance, thin. BACKLOG.md T05 now carries the UI track notes:
+   - a FeedCard read model in shared, with GET /feed and the socket events carrying it;
+   - Source.publisher;
+   - the "Why you" templates moved into shared;
+   - placeholder relevance bands.
+   The extraction on the demo event is ready on Atlas.
 2. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
    - The first npm run test downloads mongod 8.0.32, about 100 MB.
-   - Atlas is already reseeded, so no seed run is needed there.
-3. Check that CI passes on Ubuntu and Windows.
+   - Replay needs GROQ_API_KEY in that machine's .env.
+3. Check that CI passes on Ubuntu and Windows for the T04 PR.
 
 Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now.
 
@@ -59,6 +72,7 @@ The UI language is settled by docs/UI.md: English interface, with Hebrew summari
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 28 Sep 2026, macOS (Mac mini), T04: pre filter with ingest_counters, injection screen that fails open to null, extraction on Groq with a per call Gemini fallback and a limiter, processItem behind replay; on Atlas the demo item extracted TSM, importance 4, and a second replay counted a duplicate; 205 tests green; T04 done.
 - 28 Sep 2026, macOS (Mac mini), T03: POST /dev/replay/:sourceId through a shared ingestItem, Source.text, committed recordings and npm run record; on Atlas, replaying 38062166 twice left one Source and one MarketEvent; 144 tests green; T03 done.
 - 28 Sep 2026, macOS (Mac mini), T02: shared domain schemas, Mongo layer, and an idempotent seed with 6 user reviewed 10-K edges; seed run twice on Atlas, the second run modified 0; vector indexes READY; 110 tests green; T02 done.
 - 28 Sep 2026, macOS (Mac mini), T01: monorepo scaffold, GET /health, web terminal frame with the UI.md tokens, CI green on Ubuntu and Windows; T01 done.

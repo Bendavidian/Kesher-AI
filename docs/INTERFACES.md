@@ -40,7 +40,11 @@ The MCP server rejects any call to a tool that the token does not list.
 - GET /feed?cursor=
 - POST /events/:eventId/investigate
 - GET /runs/:runId
-- POST /dev/replay/:sourceId (development only, not mounted in production): sourceId is an Alpaca news id, not a Source._id. Replays the recording `recordings/alpaca/<sourceId>.json` through the ingest path and returns `{ sourceId, eventId, sourceCreated, eventCreated }`, ReplayResponse in packages/shared, where the ids are the stored Source and MarketEvent. A second replay returns the same ids with both flags false. 400 when sourceId is not all digits, 404 when there is no recording.
+- POST /dev/replay/:sourceId (development only, not mounted in production): sourceId is an Alpaca news id, not a Source._id. Replays the recording `recordings/alpaca/<sourceId>.json` through the pipeline (pre filter, injection screen, extraction) in replay mode. Returns ReplayResponse in packages/shared, where the ids are the stored Source and MarketEvent:
+  - `{ outcome: "processed", sourceId, eventId, sourceCreated, eventCreated }`: the item now has an extraction. The flags are false when the replay resumed an item stored earlier.
+  - `{ outcome: "dropped", reason: "not_in_universe" }`: nothing is stored.
+  - `{ outcome: "dropped", reason: "duplicate" | "update", sourceId, eventId }`: the item was already processed; nothing is extracted again. A second replay of the same item returns duplicate with the same ids.
+  - 400 when sourceId is not all digits, 404 when there is no recording, 503 when a needed model key is missing (the body names it) or both model providers are rate limited. After a 503 the item is stored without an extraction and resumes on the next replay.
 
 ## Socket.IO events, server to client
 - feed:item: a new FeedItem for the current user

@@ -143,6 +143,7 @@ Outline only. T02 turns it into types, zod schemas, collections and indexes.
 - Report: run, sections with claim ids, open questions.
 - Claim: report, type, text, sources with quotes, premises, status, check results.
 - FilingChunk: source, symbol, form, section, text (at most 256 tokens), embedding.
+- IngestCounter: UTC day, mode (live or replay), drop reason (not in universe, duplicate, update), count. The dropped items themselves are not stored.
 
 The Atlas free tier allows 3 search indexes: event vectors, filing chunk vectors (both 384 dimensions, cosine), and one text index for hybrid search. Vector scores only rank results; they never act as a threshold that decides anything.
 
@@ -198,3 +199,7 @@ Thesis guardian, BullMQ and Redis, full PWA, fund look through exposure, Israeli
 - 28 Sep 2026 (T02): The three personas share one public demo password, since the persona switcher is a demo control (docs/UI.md). Only its scrypt hash is stored.
 - 28 Sep 2026 (T03): Source keeps the item body in text, normalized the way the seeded quotes are (packages/shared normalizeText), so the injection screen, extraction and the quote checks read one field by source id. Filings keep text null; their text lives in FilingChunk.
 - 28 Sep 2026 (T03): Recordings are committed JSON files, recordings/<provider>/<id>.json, holding the raw provider item without the full article content. Replay reads them by id, so the demo and the evals never depend on a provider being up. The Alpaca history endpoint has no id filter, so `npm run record` looks the item up in one symbol's news for one day and selects it by id. T10 decides whether live recordings on the deployed instance use the same files or a collection.
+- 28 Sep 2026 (T04): An item dropped as not in universe is not stored at all, neither Source nor MarketEvent; only its counter grows. Drop counters live in the ingest_counters collection, one document per UTC day, mode and reason. Mode is live or replay, so replays never inflate the savings.
+- 28 Sep 2026 (T04): An item counts as processed once its event has an extraction. Sent again unchanged it is a duplicate; sent with changed provider fields it is an update, logged with the field names only and counted. The stored Source is never overwritten (ingestItem is insert only), so its text always matches its injection screen and extraction. An item whose screen or extraction did not finish resumes on the next try and is not counted.
+- 28 Sep 2026 (T04): The injection screen flags at a prompt guard score of 0.5 or more (FLAG_THRESHOLD, tuned in T16), taking the highest score over chunks of at most 1,200 characters. It fails open: if prompt guard fails, the Source keeps no label, the failure is logged, and extraction still runs, because a screen that decides nothing must not gate through its outages either.
+- 28 Sep 2026 (T04): Model keys are read lazily. The api starts without GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY; a call that needs a missing key fails naming it, and POST /dev/replay answers 503. Dropped and already processed items need no key. Replay runs the pipeline inline; T10 adds the job queue for live items.
