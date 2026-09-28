@@ -63,6 +63,7 @@ Notes from T05:
 - FeedCard dates arrive as ISO strings over JSON and Socket.IO; convert them before FeedCard.parse on the web.
 - Replace the web fixtures with FeedCards. Render "Why you" with whyYou and the bands with relevanceBand from packages/shared; the web view already uses both.
 - The seed ran `backfillPublishers`; run `npm run seed` on each machine's database once before T06.
+- The feed and every FeedCard list hide relevance 0 (SPEC.md decision log, T05). The stored relevance 0 items only mark the event scored for that user. feedCardsFor still returns them, and its comment says so: filter on relevance above 0 there. Emit no feed:item or feed:update for a relevance 0 item.
 
 ### [x] T07 MCP server, thin
 packages/mcp with get_event and search_news, and run token verification with user and tool scopes.

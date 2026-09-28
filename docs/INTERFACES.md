@@ -55,7 +55,7 @@ The MCP server rejects any call to a tool that the token does not list.
 ## REST (api)
 - GET /health: `{ status: "ok" }`, HealthResponse in packages/shared
 - POST /auth/login, GET /me
-- GET /feed?cursor=: the current user's FeedCard[], newest item first, relevance 0 included. The user comes from the auth context only. The route lands in T06 with login; T05 ships the contract and feedCardsFor in apps/api/src/feed/cards.ts.
+- GET /feed?cursor=: the current user's FeedCard[] with relevance above 0, newest item first. Relevance 0 items are stored only to mark the event scored for that user (SPEC.md decision log, T05) and never appear in a feed list. The user comes from the auth context only. The route lands in T06 with login; T05 ships the contract and feedCardsFor in apps/api/src/feed/cards.ts.
 - POST /events/:eventId/investigate
 - GET /runs/:runId
 - POST /mcp: MCP over stateless Streamable HTTP (see MCP tools), with `Authorization: Bearer <run token>`. A missing, malformed, badly signed or expired token gets 401 with `WWW-Authenticate: Bearer error="invalid_token"` before the SDK sees the request. A malformed JSON body gets 400.
