@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react';
 import { fetchHealth, type ApiStatus } from './api/health';
-import { EmptyState, Panel } from './components/Panel';
+import { EventDetail } from './components/EventDetail';
+import { FeedList } from './components/FeedList';
+import { PersonaSwitcher } from './components/PersonaSwitcher';
+import { ScoresPanel } from './components/ScoresPanel';
 import { TickerFooter } from './components/TickerFooter';
 import { TopBar } from './components/TopBar';
+import { DEMO_STORE, PERSONAS } from './fixtures';
+import { buildFeedView } from './view/feed';
+import type { PersonaKey } from './view/types';
 
 export function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
+  const [personaKey, setPersonaKey] = useState<PersonaKey>('A');
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -17,28 +25,36 @@ export function App() {
     };
   }, []);
 
+  // Fixtures only until the T06 wiring step; the persona is local state, not a login.
+  const persona = PERSONAS.find((p) => p.key === personaKey) ?? PERSONAS[0]!;
+  const store = DEMO_STORE;
+  const feed = buildFeedView(persona, store, selectedEventId);
+  const replayed = store.events.find((event) => event._id === store.replayedEventId);
+
   // Desktop first: three panels from 1280px (xl). Below that they stack as feed, event, scores.
   return (
     <div className="flex min-h-screen flex-col xl:h-screen">
-      <TopBar apiStatus={apiStatus} />
+      <TopBar replayAt={replayed?.publishedAt ?? null}>
+        <PersonaSwitcher personas={PERSONAS} value={personaKey} onChange={setPersonaKey} />
+      </TopBar>
       <main className="flex flex-1 flex-col gap-3 p-3 xl:min-h-0 xl:flex-row">
-        <Panel id="feed" title="Your feed" className="xl:w-[360px] xl:shrink-0">
-          <EmptyState>No events yet.</EmptyState>
-        </Panel>
-        <Panel id="event" title="Event" className="xl:min-w-0 xl:flex-1">
-          <EmptyState>Select an event from your feed.</EmptyState>
-        </Panel>
-        <Panel
-          as="aside"
-          id="scores"
-          title="Scores"
-          label="Scores and evidence"
-          className="xl:w-[340px] xl:shrink-0"
-        >
-          <EmptyState>Scores and evidence appear for the selected event.</EmptyState>
-        </Panel>
+        <FeedList
+          persona={persona}
+          visible={feed.visible}
+          hidden={feed.hidden}
+          selectedEventId={feed.selected?.event._id ?? null}
+          onSelect={setSelectedEventId}
+          className="xl:w-[360px] xl:shrink-0"
+        />
+        <EventDetail
+          view={feed.selected}
+          reaction={store.priceReaction}
+          replayKey={personaKey}
+          className="xl:min-w-0 xl:flex-1 xl:overflow-y-auto"
+        />
+        <ScoresPanel view={feed.selected} className="xl:w-[340px] xl:shrink-0" />
       </main>
-      <TickerFooter />
+      <TickerFooter reaction={store.priceReaction} apiStatus={apiStatus} />
     </div>
   );
 }
