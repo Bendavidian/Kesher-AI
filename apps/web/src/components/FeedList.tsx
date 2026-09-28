@@ -9,7 +9,7 @@ const PILL = {
   None: 'bg-border px-2 py-[3px] text-text-2',
 } as const;
 
-function RelevancePill({ relevance }: { relevance: number }) {
+export function RelevancePill({ relevance }: { relevance: number }) {
   const band = relevanceBand(relevance);
   return (
     <span className={`rounded-chip text-[11px] font-extrabold tabular-nums ${PILL[band]}`}>

@@ -19,7 +19,7 @@ export const DEMO_NEWS_SOURCE: NewsSourceView = {
 };
 
 // The NVIDIA 10-K that holds the TSMC quote (apps/api/src/seed/config.ts, FILINGS.NVDA).
-const NVDA_10K_SOURCE_ID = '9a3d6c1e-2b4f-4e5a-8c7d-0e1f2a3b4c02';
+export const NVDA_10K_SOURCE_ID = '9a3d6c1e-2b4f-4e5a-8c7d-0e1f2a3b4c02';
 
 export const FILINGS: FilingView[] = [
   { sourceId: NVDA_10K_SOURCE_ID, company: 'NVDA', form: '10-K', tier: 1 },
