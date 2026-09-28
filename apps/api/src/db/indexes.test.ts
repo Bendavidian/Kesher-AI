@@ -19,6 +19,7 @@ describe('indexes', () => {
     expect(uniqueKeys('feed_items')).toEqual([['userId', 'eventId']]);
     expect(uniqueKeys('reports')).toEqual([['runId']]);
     expect(uniqueKeys('filing_chunks')).toEqual([['sourceId', 'chunkIndex']]);
+    expect(uniqueKeys('ingest_counters')).toEqual([['day', 'mode', 'reason']]);
   });
 
   it('names every index', () => {

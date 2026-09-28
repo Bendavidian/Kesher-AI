@@ -56,6 +56,7 @@ describe('POST /dev/replay/:sourceId', () => {
 
     expect(response.status).toBe(200);
     const body = ReplayResponse.parse(await response.json());
+    if (body.outcome !== 'processed') throw new Error(`dropped: ${body.reason}`);
     expect(body).toMatchObject({ sourceCreated: true, eventCreated: true });
     expect(await counts()).toEqual({ sources: 1, events: 1 });
 

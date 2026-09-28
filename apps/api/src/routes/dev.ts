@@ -23,7 +23,7 @@ export function devRouter(db: Db): Router {
       return;
     }
     const result = await ingestItem(db, toIncomingItem(recording.item));
-    res.json(ReplayResponse.parse(result));
+    res.json(ReplayResponse.parse({ outcome: 'processed', ...result }));
   });
 
   return router;

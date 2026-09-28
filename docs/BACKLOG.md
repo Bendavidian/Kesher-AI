@@ -36,7 +36,7 @@ Notes from T03 for later tasks:
 - T04: every item enters through ingestItem (apps/api/src/ingest/ingest.ts), which stores the Source and creates its MarketEvent. Put the pre filter there. Decide whether a dropped item is still stored as a Source; its counters need somewhere to live. ingestItem already reports sourceCreated, which the duplicate and update reasons can use. The screen and extraction read Source.text, which is null when the provider sent no summary; the demo item has one.
 - T10: live Alpaca items map through toIncomingItem, the same as replay. Provider symbols must pass the Ticker schema, or the whole item fails validation; filter bad symbols before ingest. An item with an empty url fails Source.url. Decide where live recordings go on the deployed instance: the recordings files or a collection.
 
-### [ ] T04 Extraction, thin
+### [~] T04 Extraction, thin
 Order: pre filter, then the injection screen, then extraction.
 Pre filter, code only: an item passes only when its provider symbols (Alpaca news symbols, EDGAR filer CIK) include a demo universe company. SPY and SMH alone do not pass, and items with no symbols are dropped. A source id that was already processed is not extracted again; an update to it is logged. Every dropped item is counted by reason: not in universe, duplicate, update.
 Injection screen: untrusted text goes through Groq meta-llama/llama-prompt-guard-2-86m, long texts in short chunks, and the result is stored on the Source. Flagged items get a label and stay visible; the screen never decides relevance, gating or writes.
@@ -47,11 +47,17 @@ Done when: a unit test on a recorded model response extracts TSM from the TSMC i
 ### [ ] T05 Relevance, thin
 Graph propagation up to 2 hops with $graphLookup, scoring per SPEC.md, the path saved on the FeedItem, "Why you" rendered from templates.
 Done when: a deterministic test gives the TSMC event high relevance for persona B (direct), high for persona A (supplier path) and none for persona C, and a second test proves traversal in both directions: news about AMD reaches persona A through NVDA competitor_of, and news about NVDA reaches a TSM holder through customer_of.
+Notes from the UI track (contract gap: feed:item carries only a FeedItem with ids, but the feed screen needs the full card):
+- Define a FeedCard read model in packages/shared, assembled on the server. It holds the FeedItem, the MarketEvent with its extraction, the Source (publisher, tier, externalId), the evidence for each hop (quote, filing name and form), and the price reaction, which stays null until T13. GET /feed returns FeedCard[], and feed:item and feed:update carry a FeedCard. Update INTERFACES.md.
+- Add a nullable publisher field to Source, filled from the Alpaca item (for example "Benzinga"). The seed sets it to null for filings.
+- Move the "Why you" path templates from apps/web/src/view/path.ts into packages/shared, so the server and the web render the same wording.
+- Set the relevance bands. The UI uses High from 0.8, Medium above 0 and None at 0 as placeholders; T16 calibrates them.
 
 ### [ ] T06 Live feed with persona switcher
 Web feed with cards pushed over Socket.IO, and login as any of the three personas.
 Build to docs/UI.md, including the one column layout below 1280px. docs/design/feed.dc.html is markup reference only; it needs the design canvas runtime and does not run on its own. The real spike values shown in the design (the demo headline, the 10-K quote and the anchored price moves) are fixtures for the replay demo and its tests.
 Done when: replaying the TSMC event updates three open browser sessions with three different cards.
+Note from the UI track: login for the persona switcher needs a PublicUser type in shared and POST /auth/login with the demo password; the switcher logs in as the chosen persona.
 
 ### [ ] T07 MCP server, thin
 packages/mcp with get_event and search_news, and run token verification with user and tool scopes.
