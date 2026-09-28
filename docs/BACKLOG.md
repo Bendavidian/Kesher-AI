@@ -36,7 +36,7 @@ Notes from T03 for later tasks:
 - T04: every item enters through ingestItem (apps/api/src/ingest/ingest.ts), which stores the Source and creates its MarketEvent. Put the pre filter there. Decide whether a dropped item is still stored as a Source; its counters need somewhere to live. ingestItem already reports sourceCreated, which the duplicate and update reasons can use. The screen and extraction read Source.text, which is null when the provider sent no summary; the demo item has one.
 - T10: live Alpaca items map through toIncomingItem, the same as replay. Provider symbols must pass the Ticker schema, or the whole item fails validation; filter bad symbols before ingest. An item with an empty url fails Source.url. Decide where live recordings go on the deployed instance: the recordings files or a collection.
 
-### [~] T04 Extraction, thin
+### [x] T04 Extraction, thin
 Order: pre filter, then the injection screen, then extraction.
 Pre filter, code only: an item passes only when its provider symbols (Alpaca news symbols, EDGAR filer CIK) include a demo universe company. SPY and SMH alone do not pass, and items with no symbols are dropped. A source id that was already processed is not extracted again; an update to it is logged. Every dropped item is counted by reason: not in universe, duplicate, update.
 Injection screen: untrusted text goes through Groq meta-llama/llama-prompt-guard-2-86m, long texts in short chunks, and the result is stored on the Source. Flagged items get a label and stay visible; the screen never decides relevance, gating or writes.
