@@ -14,6 +14,11 @@ export interface FilingPassage {
   text: string;
 }
 
+export interface NewsFilter {
+  symbols?: readonly string[];
+  since?: Date;
+}
+
 export interface SearchBackend {
   // The query vector from the same local model as the stored vectors.
   embedQuery(text: string): Promise<number[]>;
@@ -23,4 +28,8 @@ export interface SearchBackend {
     vector: readonly number[],
     limit: number,
   ): Promise<FilingPassage[]>;
+  // News Source ids matching the query words, filtered, best first.
+  newsText(query: string, filter: NewsFilter, limit: number): Promise<string[]>;
+  // MarketEvent ids nearest to the vector, best first.
+  eventVectors(vector: readonly number[], limit: number): Promise<string[]>;
 }

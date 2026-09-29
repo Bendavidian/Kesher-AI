@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { PriceReactionError, type PriceSymbol } from '@kesher/shared';
 import { REACTION } from './testing';
 import { TOOLS } from './registry';
-import { getPriceReaction, priceReactionJson, queryTerms, rankNews, type ToolDeps } from './tools';
+import { getPriceReaction, priceReactionJson, type ToolDeps } from './tools';
 
 // Any argument that could name a user. Identity comes from the run token only (principle 5).
 const USER_LIKE = /user|owner|sub|account|persona|holder|email|identity/i;
@@ -58,31 +58,6 @@ describe('tool inputs', () => {
       expect(tool.inputSchema.safeParse({ ...args, userId }).success).toBe(false);
       expect(tool.inputSchema.safeParse({ ...args, user_id: userId }).success).toBe(false);
     }
-  });
-});
-
-describe('search_news query terms', () => {
-  it('lowercases, dedupes and caps the terms', () => {
-    expect(queryTerms('  TSMC  tsmc Earthquake ')).toEqual(['tsmc', 'earthquake']);
-    expect(queryTerms('a b c d e f g h i j')).toHaveLength(8);
-  });
-});
-
-describe('rankNews', () => {
-  const doc = (title: string, text: string | null, iso: string) => ({
-    _id: randomUUID(),
-    title,
-    text,
-    publishedAt: new Date(iso),
-  });
-
-  it('ranks by distinct terms matched, then by recency, and caps the list', () => {
-    const both = doc('TSMC halts production', 'after an earthquake', '2024-04-03T03:00:00Z');
-    const oneNew = doc('TSMC shares', null, '2024-04-05T00:00:00Z');
-    const oneOld = doc('Quake hits Taiwan', 'earthquake', '2024-04-02T00:00:00Z');
-    const ranked = rankNews([oneOld, oneNew, both], ['tsmc', 'earthquake'], 2);
-    expect(ranked.map((hit) => hit.doc)).toEqual([both, oneNew]);
-    expect(ranked.map((hit) => hit.matchedTerms)).toEqual([2, 1]);
   });
 });
 

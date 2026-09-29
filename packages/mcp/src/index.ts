@@ -16,5 +16,6 @@ export {
   type MintInput,
 } from './token';
 export { TOOLS } from './registry';
-export type { FilingPassage, SearchBackend } from './search';
+export { matchedTerms, queryTerms } from './news';
+export type { FilingPassage, NewsFilter, SearchBackend } from './search';
 export type { ToolDeps } from './tools';

@@ -22,6 +22,7 @@ import { loadModelRecording } from '../llm/recordings';
 import { DEMO_SOURCE_ID, PERSONAS } from '../seed/config';
 import { mockModel, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
+import { memorySearch } from '../test/search';
 import { runResearch } from './agent';
 import { loadResearchRecording, type ResearchRecording } from './recordings';
 
@@ -104,7 +105,12 @@ describe('research replay of the demo item', () => {
     await collection(mongo.db, 'sources').insertOne(source);
     await collection(mongo.db, 'market_events').insertOne(event);
     await collection(mongo.db, 'feed_items').insertOne(item);
-    server = createApp({ db: mongo.db, devRoutes: false, mcp: { secret: SECRET } }).listen(0);
+    server = createApp({
+      db: mongo.db,
+      devRoutes: false,
+      mcp: { secret: SECRET },
+      search: memorySearch(mongo.db),
+    }).listen(0);
     await new Promise<void>((resolve) => server.once('listening', resolve));
     mcpUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/mcp`;
   }, MONGO_START_TIMEOUT_MS);

@@ -72,6 +72,22 @@ const filing = source({
   tier: 1,
   publishedAt: new Date('2024-04-05T00:00:00Z'),
 });
+// Found by meaning only: none of its words are in the query, but its event is the nearest.
+const OUTAGE_QUERY = 'plant outage';
+const meaningOnly = source({
+  title: 'Fab shutdown hits supply',
+  publishedAt: new Date('2024-04-06T00:00:00Z'),
+});
+const meaningEvent: MarketEvent = {
+  _id: randomUUID(),
+  sourceIds: [meaningOnly._id],
+  headline: meaningOnly.title,
+  publishedAt: meaningOnly.publishedAt,
+  status: 'confirmed',
+  extraction: null,
+  embedding: oneHot(OUTAGE_QUERY),
+  createdAt: new Date('2024-04-06T00:00:00Z'),
+};
 const filler = Array.from({ length: 12 }, (_, i) =>
   source({
     title: `TSMC daily note ${i}`,
@@ -201,6 +217,7 @@ describe('POST /mcp', () => {
       older,
       filing,
       nvidia10k,
+      meaningOnly,
       ...filler,
     ]);
     await collection(mongo.db, 'relationships').insertMany([
@@ -214,7 +231,7 @@ describe('POST /mcp', () => {
         edge('AVGO', to, 'competitor_of', `${to} ${'is a long quoted sentence. '.repeat(40)}`),
       ),
     ]);
-    await collection(mongo.db, 'market_events').insertOne(event);
+    await collection(mongo.db, 'market_events').insertMany([event, meaningEvent]);
     await collection(mongo.db, 'filing_chunks').insertMany([
       chunk(0, 'Our business is accelerated computing for data centers and gaming.'),
       chunk(1, FOUNDRY_TEXT),
@@ -252,6 +269,15 @@ describe('POST /mcp', () => {
       priceReactions,
       search: {
         ...search,
+        // A text index that is still building, and both lists down.
+        newsText: (query, filter, limit) =>
+          query.includes('building') || query.includes('down')
+            ? Promise.reject(new Error('sources_text is not READY'))
+            : search.newsText(query, filter, limit),
+        embedQuery: (text) =>
+          text.includes('down')
+            ? Promise.reject(new Error('model file missing'))
+            : search.embedQuery(text),
         filingPassages: (symbol, vector, limit) =>
           symbol === 'KO'
             ? Promise.reject(new Error('filing_chunks_vector is not READY'))
@@ -548,9 +574,10 @@ describe('POST /mcp', () => {
       return (result.structuredContent as { items: Hit[] }).items;
     }
 
-    it('ranks by words matched, then recency, links the event and caps at 10', async () => {
+    it('fuses the word and meaning lists, links the event and caps at 10', async () => {
       const items = await search({ query: 'TSMC earthquake' });
       expect(items).toHaveLength(10);
+      // First in both lists.
       expect(items[0]).toMatchObject({
         sourceId: demo._id,
         eventId: event._id,
@@ -558,20 +585,49 @@ describe('POST /mcp', () => {
         injectionFlagged: false,
       });
       expect(items[0]?.excerpt).toHaveLength(500);
-      expect(items[1]).toMatchObject({ sourceId: later._id, eventId: null, matchedTerms: 1 });
+      // The word list keeps its order among the items it found.
+      const byWords = items.filter((item) => item.matchedTerms > 0);
+      expect(byWords[1]).toMatchObject({ sourceId: later._id, eventId: null, matchedTerms: 1 });
+      // No score cuts the meaning list: the other event is second in it and ties with later's
+      // second place in the word list, and the newer item wins the tie.
+      expect(items[1]).toMatchObject({ sourceId: meaningOnly._id, matchedTerms: 0 });
       expect(items.map((item) => item.sourceId)).not.toContain(filing._id);
     });
 
-    it('filters by symbols and since', async () => {
+    it('filters both lists by symbols and since', async () => {
       const bySymbol = await search({ query: 'earthquake', symbols: ['ASML'] });
       expect(bySymbol.map((item) => item.sourceId)).toEqual([older._id]);
 
       const recent = await search({ query: 'TSMC earthquake', since: '2024-04-01T00:00:00Z' });
-      expect(recent.map((item) => item.sourceId)).toEqual([demo._id, later._id]);
+      expect(recent.map((item) => item.sourceId)).toEqual([demo._id, meaningOnly._id, later._id]);
     });
 
     it('treats the query as plain words', async () => {
-      expect(await search({ query: '.* (TSMC|' })).toEqual([]);
+      const items = await search({ query: '.* (TSMC|' });
+      // Only the vector list can find anything; no word of the pattern matches.
+      expect(items.every((item) => item.matchedTerms === 0)).toBe(true);
+    });
+
+    it('finds an item by meaning alone, through its event vector', async () => {
+      const items = await search({ query: OUTAGE_QUERY });
+      expect(items[0]).toMatchObject({
+        sourceId: meaningOnly._id,
+        eventId: meaningEvent._id,
+        matchedTerms: 0,
+      });
+    });
+
+    it('answers from the other list when one fails, and logs the failure', async () => {
+      logged.length = 0;
+      const items = await search({ query: 'TSMC index building' });
+      expect(items.map((item) => item.sourceId)).toContain(demo._id);
+      expect(String(logged[0])).toContain('sources_text is not READY');
+
+      const client = await connect(['search_news']);
+      const down = await client.callTool({ name: 'search_news', arguments: { query: 'all down' } });
+      expect(down.isError).toBe(true);
+      expect(JSON.stringify(down.content)).toContain('News search is unavailable');
+      expect(JSON.stringify(down.content)).not.toContain('READY');
     });
 
     it('returns the same results whoever the token names', async () => {

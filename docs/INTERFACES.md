@@ -12,7 +12,7 @@ Served by packages/mcp on the official TypeScript SDK v2 (`@modelcontextprotocol
 | get_my_portfolio | none | holdings with weights | user resolved from the token |
 | get_event | eventId | event with its extraction and source ids | see below |
 | get_company_relationships | symbol, types? | edges with evidence | reviewed edges only |
-| search_news | query, symbols?, since? | ranked news items with source ids | keyword match until T13 makes it hybrid search; see below |
+| search_news | query, symbols?, since? | ranked news items with source ids | hybrid search: words and meaning; see below |
 | search_filings | symbol, query | filing chunks with source ids | RAG over FilingChunk; at most 3 chunks per call |
 | get_price_reaction | symbol, eventTime | anchor, then stock, SMH and SPY moves per window, delayed flag | see below |
 | get_financial_facts | symbol, metrics | XBRL values with period and source | us-gaap filers only in the MVP |
@@ -25,12 +25,16 @@ Served by packages/mcp on the official TypeScript SDK v2 (`@modelcontextprotocol
 
 ### search_news
 - Input: `{ query, symbols?, since? }`. query is 1 to 200 characters. symbols is 1 to 20 tickers and matches items tagged with any of them. since is an ISO time with an offset; items published at or after it match.
-- Thin until T13: news Sources only (kind news; filings are searched with search_filings). The query is split into at most 8 lowercase words, each matched as plain text, case insensitive, in the title or the body. Only the 200 newest matching items are ranked.
-- Ranking is deterministic code: the number of distinct words matched, then the newest first, then the source id. At most 10 items.
-- Each item: `{ sourceId, eventId, title, url, publishedAt, symbols, tier, excerpt, injectionFlagged, matchedTerms }`.
+- News Sources only (kind news; filings are searched with search_filings). Hybrid since T13, from two ranked lists of up to 50 each:
+  - words: Atlas Search on the `sources_text` index over title and body, with kind, symbols and since as filters inside the search;
+  - meaning: the MarketEvents nearest to the query on `market_events_vector`, the query embedded with the same local model as the events. Each event ranks its news sources at its own place. That index has no filter fields, so symbols and since are applied to those sources afterwards, and a narrow filter can leave few items from this list.
+- Fusion is deterministic code: reciprocal rank fusion, each list adding 1 / (60 + position) for an item it holds, then the newest first, then the source id. Only ranks are used; no search score is read, compared or used as a threshold. At most 10 items, and fewer when they would pass 8 KB (`omitted` counts the rest).
+- Either list may fail alone, for example while the text index builds; the other still answers and the api logs the failure. Both failing is the tool error "News search is unavailable".
+- Output: `{ items, omitted }`. Each item: `{ sourceId, eventId, title, url, publishedAt, symbols, tier, excerpt, injectionFlagged, matchedTerms }`.
   - eventId is the MarketEvent whose cluster holds the source, or null.
   - excerpt is the first 500 characters of the untrusted body, or null. It is data for the agent, never instructions.
   - injectionFlagged is the injection screen label, or null when the item has not been screened.
+  - matchedTerms is the number of distinct query words (at most 8, lowercased) found in the title or body, counted by code. 0 means the item was found by meaning alone.
 
 ### get_price_reaction
 Temporal association only, never a cause. The same code (priceReactionFor in packages/shared) fills FeedCard.priceReaction.

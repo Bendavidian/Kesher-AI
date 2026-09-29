@@ -19,6 +19,7 @@ import { createModelClient, MODELS } from '../llm/client';
 import type { Clock } from '../llm/limiter';
 import { mockModel, rateLimitError, resolveMocks, type ModelReply } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
+import { memorySearch } from '../test/search';
 import { runResearch, type ResearchRequest } from './agent';
 import { RESEARCH_TOOLS, TOKEN_REFRESH_AFTER_MS } from './mcp';
 
@@ -171,7 +172,12 @@ describe('runResearch', () => {
     await collection(mongo.db, 'sources').insertOne(demo);
     await collection(mongo.db, 'market_events').insertOne(event);
     await collection(mongo.db, 'feed_items').insertOne(feedItem);
-    server = createApp({ db: mongo.db, devRoutes: false, mcp: { secret: SECRET } }).listen(0);
+    server = createApp({
+      db: mongo.db,
+      devRoutes: false,
+      mcp: { secret: SECRET },
+      search: memorySearch(mongo.db),
+    }).listen(0);
     await new Promise<void>((resolve) => server.once('listening', resolve));
     mcpUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/mcp`;
   }, MONGO_START_TIMEOUT_MS);
