@@ -1,9 +1,23 @@
 # State
 
-Updated: 28 Sep 2026, T05 done
+Updated: 29 Sep 2026, T06 done
 
 ## Where we are
-T00 to T05 and T07 are done. T06 is next. The UI track part 2 (PR 6) added the web report and agent run screens on fixtures; their wiring notes are under T08, T09 and T14 in BACKLOG.md.
+T00 to T07 are done: phase 1 is complete up to research. T08 is next. The UI track part 2 (PR 6) added the web report and agent run screens on fixtures; their wiring notes are under T08, T09 and T14 in BACKLOG.md.
+
+T06 made the feed live (PR 8, CI green on Ubuntu and Windows):
+- Sign in: POST /auth/login, POST /auth/logout and GET /me. The session is an HS256 JWT in the httpOnly SameSite=Lax cookie kesher_session, 12 hours, signed with JWT_SECRET, which is separate from MCP_TOKEN_SECRET (apps/api/src/auth/session.ts). The api does not start without JWT_SECRET of at least 32 characters. Routes read the user with requireUser and currentUser, never from a parameter. The persona switcher is that login with the public demo password; DEMO_PERSONAS, DEMO_PASSWORD and DEMO_SOURCE_ID now live in shared.
+- GET /feed returns the user's FeedCards above 0, newest first; feedCardsFor filters relevance 0.
+- GET /events/:eventId/explain computes the user's relevance and path on request with loadScoringContext and scoreFor (apps/api/src/relevance/feed.ts) and writes nothing. Persona C's None comes from it.
+- Socket.IO on the api's HTTP server (apps/api/src/realtime/socket.ts). The handshake needs the cookie and each socket joins its user's room. feed:item goes out for inserted items and feed:update for updated ones, above 0 only, then event:scored { eventId } to everyone. A socket closes on logout or at session expiry. scoreEvent returns { item, created }, and processItem's onScored hook feeds publishScored, so T10's live items push with no extra work.
+- POST /dev/reset/:sourceId (dev only) deletes only the event's FeedItems. The web's Replay demo event button runs reset, then replay, so every open session sees the event arrive with no model call.
+- Web:
+  - apps/web/src/api/client.ts and decode.ts turn ISO dates back into Dates before the shared schemas.
+  - live/useLiveFeed.ts signs in, loads the feed, upserts pushed cards by event and explains a scored event with no card.
+  - The fixtures remain as FeedCards for the tests.
+  - A null price reaction shows "No price reaction yet".
+  - Investigate stays disabled until T08.
+- Proof: a three socket integration test, and by hand against Atlas with three sessions on separate hosts (localhost, [::1] and persona-c.localhost on :5173). One Replay gave A High 0.80 through the supplier path, B High 1.00 and C None 0.00. Checked at 1440px and 1279px. 405 tests are green.
 
 T05 added propagation and relevance after extraction. processItem now runs pre filter, injection screen, extraction, then scoreEvent (apps/api/src/relevance):
 - loadEdges: one $graphLookup per event from the start companies, maxDepth 1 (2 hops), reviewed edges only.
@@ -69,19 +83,18 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. T06, live feed with persona switcher. Read the T05 notes under T06 in BACKLOG.md:
-   - mount GET /feed with feedCardsFor, the user from the auth context only, and filter out relevance 0;
-   - emit feed:item and feed:update with feedCard for each FeedItem scoreEvent writes, never for relevance 0;
-   - decode ISO dates before FeedCard.parse on the web, and replace the web fixtures with FeedCards;
-   - decide how persona C sees "none" (DoD point 8, the Hidden for you list) once relevance 0 never reaches the feed.
+1. T08, research agent, thin. Read the T07, T06 and UI track notes under T08 in BACKLOG.md:
+   - mint a run token per run with mintRunToken, the user from currentUser only;
+   - connect the SDK client to POST /mcp;
+   - wire the disabled Investigate button to POST /events/:eventId/investigate;
+   - push the research state with feed:update (the web already upserts by event).
 2. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
+   - Add JWT_SECRET of at least 32 characters to that machine's .env; the api does not start without it. It also needs MCP_TOKEN_SECRET, and replay needs GROQ_API_KEY.
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
    - The first npm run test downloads mongod 8.0.32, about 100 MB.
-   - Replay needs GROQ_API_KEY, and the api needs MCP_TOKEN_SECRET of at least 32 characters, in that machine's .env.
-   - Run `npm run seed` once if that machine uses its own database, so older Sources get publisher.
-3. Check that CI passes on Ubuntu and Windows for the T05 PR.
-4. T08 builds on T07 and T05: mint a run token per run with mintRunToken, connect the SDK client to POST /mcp, and follow the UI track notes under T08.
+   - Run `npm run seed` once if that machine uses its own database.
+3. Hardening before any real accounts, listed under T06 in BACKLOG.md: require NODE_ENV, add an Origin allowlist on the socket handshake and a login rate limit.
 
 Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now.
 
@@ -94,6 +107,7 @@ The UI language is settled by docs/UI.md: English interface, with Hebrew summari
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 29 Sep 2026, macOS (Mac mini), T06: cookie sign in with the persona switcher, GET /feed above 0, explain on request for None, Socket.IO pushes with event:scored, dev reset plus replay; one Replay updated three browser sessions to A 0.80, B 1.00, C None on Atlas; reviewer found no blockers and the socket now closes on logout and expiry; 405 tests green, CI green; T06 done.
 - 28 Sep 2026, macOS (Mac mini), T05: $graphLookup propagation, relevance, confidence and one FeedItem per user after extraction; start nodes limited to provider tagged companies; FeedCard read model and assembler; Source.publisher with a seed backfill; Why you templates and bands in shared; rebased on T07 and the UI track part 2; on Atlas the demo event scored A 0.8, B 1, C 0 and a second replay was a duplicate; 347 tests green; T05 done.
 - 28 Sep 2026, macOS (Mac mini), T07: packages/mcp on MCP SDK v2 with get_event and a thin search_news, HS256 run tokens with user and tool scopes, POST /mcp in the api; a token without search_news is rejected and no tool accepts a user id, proven in memory and over HTTP; checked against Atlas; rebased on T04; 262 tests green; T07 done.
 - 28 Sep 2026, macOS (Mac mini), T04: pre filter with ingest_counters, injection screen that fails open to null, extraction on Groq with a per call Gemini fallback and a limiter, processItem behind replay; on Atlas the demo item extracted TSM, importance 4, and a second replay counted a duplicate; 205 tests green; T04 done.

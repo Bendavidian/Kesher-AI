@@ -53,7 +53,7 @@ Notes from the UI track (contract gap: feed:item carries only a FeedItem with id
 - Move the "Why you" path templates from apps/web/src/view/path.ts into packages/shared, so the server and the web render the same wording.
 - Set the relevance bands. The UI uses High from 0.8, Medium above 0 and None at 0 as placeholders; T16 calibrates them.
 
-### [~] T06 Live feed with persona switcher
+### [x] T06 Live feed with persona switcher
 Web feed with cards pushed over Socket.IO, and login as any of the three personas.
 Build to docs/UI.md, including the one column layout below 1280px. docs/design/feed.dc.html is markup reference only; it needs the design canvas runtime and does not run on its own. The real spike values shown in the design (the demo headline, the 10-K quote and the anchored price moves) are fixtures for the replay demo and its tests.
 Done when: replaying the TSMC event updates three open browser sessions with three different cards.
