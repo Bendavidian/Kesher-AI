@@ -1,0 +1,81 @@
+{
+  "queries": [
+    {
+      "id": "q01",
+      "query": "foundry dependency",
+      "symbol": "NVDA",
+      "status": "proposed",
+      "relevant": []
+    },
+    {
+      "id": "q02",
+      "query": "TSMC foundry dependency",
+      "symbol": "NVDA",
+      "status": "proposed",
+      "relevant": []
+    },
+    {
+      "id": "q03",
+      "query": "export controls on sales of AI chips to China",
+      "symbol": "NVDA",
+      "status": "proposed",
+      "relevant": []
+    },
+    {
+      "id": "q04",
+      "query": "export restrictions on data center GPUs to China",
+      "symbol": "AMD",
+      "status": "proposed",
+      "relevant": []
+    },
+    {
+      "id": "q05",
+      "query": "export regulations on semiconductor equipment sales to China",
+      "symbol": "LRCX",
+      "status": "proposed",
+      "relevant": []
+    },
+    {
+      "id": "q06",
+      "query": "largest customers and customer concentration",
+      "symbol": "AVGO",
+      "status": "proposed",
+      "relevant": []
+    },
+    {
+      "id": "q07",
+      "query": "data center capacity and power constraints for AI and cloud",
+      "symbol": "MSFT",
+      "status": "proposed",
+      "relevant": []
+    },
+    {
+      "id": "q08",
+      "query": "talc litigation and bankruptcy proceedings",
+      "symbol": "JNJ",
+      "status": "proposed",
+      "relevant": []
+    },
+    {
+      "id": "q09",
+      "query": "bottling partners and the franchise system",
+      "symbol": "KO",
+      "status": "proposed",
+      "relevant": []
+    },
+    {
+      "id": "q10",
+      "query": "Pioneer Natural Resources acquisition and Permian Basin production",
+      "symbol": "XOM",
+      "status": "proposed",
+      "relevant": []
+    },
+    {
+      "id": "q11",
+      "query": "earthquakes in Taiwan disrupting semiconductor supply",
+      "symbol": null,
+      "status": "proposed",
+      "relevant": []
+    }
+  ]
+}
