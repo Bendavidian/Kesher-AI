@@ -1,0 +1,25 @@
+{
+  "symbol": "MSFT",
+  "recordedAt": "2026-09-29T10:22:25.867Z",
+  "peers": [
+    "MSFT",
+    "ORCL",
+    "PANW",
+    "CRWD",
+    "NOW",
+    "FTNT",
+    "ZS",
+    "RBRK",
+    "GEN",
+    "FROG",
+    "S",
+    "GTLB"
+  ],
+  "profile": {
+    "name": "Microsoft Corp",
+    "ticker": "MSFT",
+    "exchange": "NASDAQ NMS - GLOBAL MARKET",
+    "country": "US",
+    "finnhubIndustry": "Technology"
+  }
+}

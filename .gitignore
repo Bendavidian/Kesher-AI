@@ -7,5 +7,7 @@ coverage/
 .claude/worktrees/
 spike/output/
 .cache/
+# Half written output of an interrupted graph job run.
+*.part
 *.log
 .DS_Store

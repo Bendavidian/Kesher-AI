@@ -1,0 +1,12 @@
+{
+  "symbol": "MU",
+  "recordedAt": "2026-09-29T10:22:43.483Z",
+  "peers": ["NVDA", "AVGO", "MU", "AMD", "INTC", "TXN", "MRVL", "QCOM", "ADI", "MPWR", "ALAB"],
+  "profile": {
+    "name": "Micron Technology Inc",
+    "ticker": "MU",
+    "exchange": "NASDAQ NMS - GLOBAL MARKET",
+    "country": "US",
+    "finnhubIndustry": "Semiconductors"
+  }
+}

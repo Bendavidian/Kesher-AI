@@ -1,0 +1,13 @@
+{
+  "accession": "0000804328-25-000085",
+  "recordedAt": "2026-09-29T10:26:05.074Z",
+  "batches": [
+    {
+      "inputHash": "4da70f7f9432417af5adeb85078cfee3edc063216f6ac77c5228d87ffb45d6f5",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "text": "{\n  \"answers\": [\n    {\n      \"sentence\": 1,\n      \"company\": \"TSM\",\n      \"role\": \"supplies_filer\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 2,\n      \"company\": \"NVDA\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": true\n    },\n    {\n      \"sentence\": 2,\n      \"company\": \"AVGO\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": true\n    }\n  ]\n}",
+      "usage": { "inputTokens": 751, "outputTokens": 232, "totalTokens": 983 }
+    }
+  ]
+}

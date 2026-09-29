@@ -1,0 +1,825 @@
+{
+  "source": "research/edges/review.ts, docs/research/edge-candidates.md",
+  "decisions": {
+    "0540ca26d9": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Trademark or disclosure boilerplate"
+    },
+    "08d98b428b": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AMD",
+          "pick": false
+        }
+      ]
+    },
+    "0aabf5c317": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Partnership or equity investment, not a supplier, customer or competitor role",
+      "note": "NVIDIA and Intel partnership, reported by AMD."
+    },
+    "0ca04db66e": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Role implied by the context, not stated in the sentence",
+      "note": "Competitive conduct without the role word."
+    },
+    "0fcad54851": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Platform or software dependency, not a supplier, customer or competitor role"
+    },
+    "12207e5125": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "AMD",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": false
+        },
+        {
+          "from": "QCOM",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": false
+        },
+        {
+          "from": "NVDA",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": false
+        }
+      ]
+    },
+    "13e9b71520": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "INTC",
+          "pick": false
+        },
+        {
+          "from": "TSM",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": false
+        }
+      ]
+    },
+    "1913cc92b7": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "AMAT",
+          "type": "competitor_of",
+          "to": "LRCX",
+          "pick": true
+        }
+      ]
+    },
+    "1d9350c456": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Platform or software dependency, not a supplier, customer or competitor role"
+    },
+    "1da833708e": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": false
+        }
+      ]
+    },
+    "1fb410878e": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Executive biography, not a company relationship"
+    },
+    "225a74d672": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": true
+        }
+      ]
+    },
+    "269737d0e4": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Platform or software dependency, not a supplier, customer or competitor role"
+    },
+    "2ec4b89669": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "INTC",
+          "type": "competitor_of",
+          "to": "AMD",
+          "pick": false
+        }
+      ]
+    },
+    "2eec092823": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AMD",
+          "pick": false
+        }
+      ]
+    },
+    "3886a1cbbf": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AVGO",
+          "pick": false
+        }
+      ]
+    },
+    "418950dd29": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "ASML",
+          "type": "supplier_of",
+          "to": "INTC",
+          "pick": true
+        }
+      ]
+    },
+    "4266823b7c": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "States a relationship between the company and third parties, not the filer"
+    },
+    "43cc8f6869": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "AVGO",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": true
+        }
+      ]
+    },
+    "49d065c365": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Names the company without a supplier, customer or competitor role"
+    },
+    "4c15d2a9a1": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "AMD",
+          "type": "competitor_of",
+          "to": "NVDA",
+          "pick": true
+        },
+        {
+          "from": "INTC",
+          "type": "competitor_of",
+          "to": "NVDA",
+          "pick": true
+        },
+        {
+          "from": "GOOGL",
+          "type": "competitor_of",
+          "to": "NVDA",
+          "pick": true
+        },
+        {
+          "from": "AMZN",
+          "type": "competitor_of",
+          "to": "NVDA",
+          "pick": true
+        },
+        {
+          "from": "MSFT",
+          "type": "competitor_of",
+          "to": "NVDA",
+          "pick": true
+        },
+        {
+          "from": "AVGO",
+          "type": "competitor_of",
+          "to": "NVDA",
+          "pick": true
+        },
+        {
+          "from": "QCOM",
+          "type": "competitor_of",
+          "to": "NVDA",
+          "pick": true
+        }
+      ],
+      "note": "One list sentence; the lead-in \"Our current competitors include:\" covers every bullet."
+    },
+    "4e04e84893": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Platform or software dependency, not a supplier, customer or competitor role"
+    },
+    "4f33b85a06": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AMD",
+          "pick": false
+        }
+      ]
+    },
+    "500180bb5c": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Role implied by the context, not stated in the sentence"
+    },
+    "5416c83b0a": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Executive biography, not a company relationship"
+    },
+    "57f6c1b3b2": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AMD",
+          "pick": false
+        }
+      ]
+    },
+    "5ad1f2dd86": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Executive biography, not a company relationship"
+    },
+    "5b4c5b141c": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "MU",
+          "type": "supplier_of",
+          "to": "NVDA",
+          "pick": true
+        }
+      ]
+    },
+    "65bdbc93d0": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Trademark or disclosure boilerplate"
+    },
+    "677468a5bb": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Names the company without a supplier, customer or competitor role"
+    },
+    "6be4ee7083": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Executive biography, not a company relationship"
+    },
+    "6c879fdfe6": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Executive biography, not a company relationship"
+    },
+    "6d57c189c8": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Platform or software dependency, not a supplier, customer or competitor role"
+    },
+    "70b20aab09": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "ASML",
+          "type": "supplier_of",
+          "to": "INTC",
+          "pick": false
+        }
+      ]
+    },
+    "720eca0b6d": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "AVGO",
+          "type": "competitor_of",
+          "to": "QCOM",
+          "pick": true
+        },
+        {
+          "from": "NVDA",
+          "type": "competitor_of",
+          "to": "QCOM",
+          "pick": true
+        }
+      ],
+      "quote": "Companies that provide on-device AI, high-performance and low-power computing and wireless connectivity-based integrated circuit products and/or software are generally competitors or potential competitors. Examples (some of which are strategic partners of ours in other areas) include Broadcom, HiSilicon, MediaTek, Mobileye, Nvidia, NXP Semiconductors, Qorvo, Samsung, Skyworks, Texas Instruments and UNISOC.",
+      "note": "The role is in the sentence before the list, so the quote spans both sentences."
+    },
+    "7529aba220": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "QCOM",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": true
+        }
+      ]
+    },
+    "774f158772": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Names the company without a supplier, customer or competitor role"
+    },
+    "78fec076b6": {
+      "decision": "borderline",
+      "edges": [
+        {
+          "from": "AMD",
+          "type": "supplier_of",
+          "to": "MSFT",
+          "pick": false
+        }
+      ],
+      "note": "AMD semi-custom SoCs power the Microsoft Xbox; no supplier or customer word."
+    },
+    "7ebeaf8824": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "INTC",
+          "pick": true
+        }
+      ]
+    },
+    "81b888dd13": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "States a relationship between the company and third parties, not the filer"
+    },
+    "84cf17bca5": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Role implied by the context, not stated in the sentence",
+      "note": "Names TSMC as able to make the nodes, not as making them."
+    },
+    "85d8ab3701": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Executive biography, not a company relationship"
+    },
+    "866949f63b": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Role implied by the context, not stated in the sentence",
+      "note": "Competitive conduct without the role word."
+    },
+    "874ee71399": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AMD",
+          "pick": false
+        }
+      ]
+    },
+    "8bd625f387": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AMD",
+          "pick": false
+        }
+      ]
+    },
+    "8f79f8b6e9": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Role implied by the context, not stated in the sentence"
+    },
+    "9ff417b958": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AMD",
+          "pick": true
+        }
+      ]
+    },
+    "a135f1d4fb": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Role implied by the context, not stated in the sentence"
+    },
+    "a1d0e5f880": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "INTC",
+          "type": "competitor_of",
+          "to": "AMD",
+          "pick": false
+        },
+        {
+          "from": "NVDA",
+          "type": "competitor_of",
+          "to": "AMD",
+          "pick": true
+        }
+      ]
+    },
+    "a3ac28ddd5": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Platform or software dependency, not a supplier, customer or competitor role"
+    },
+    "aa7d3d8a85": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "INTC",
+          "pick": false
+        }
+      ]
+    },
+    "aef96b1462": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "MU",
+          "type": "customer_of",
+          "to": "LRCX",
+          "pick": true
+        },
+        {
+          "from": "TSM",
+          "type": "customer_of",
+          "to": "LRCX",
+          "pick": true
+        }
+      ]
+    },
+    "b04d5cc8ef": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Conditional future arrangement, not a current relationship"
+    },
+    "b08f9b513f": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Platform or software dependency, not a supplier, customer or competitor role"
+    },
+    "b3a8caa5ef": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "AMAT",
+          "type": "competitor_of",
+          "to": "LRCX",
+          "pick": false
+        }
+      ]
+    },
+    "b675e7981b": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Platform or software dependency, not a supplier, customer or competitor role"
+    },
+    "b67ea326b9": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Names the company without a supplier, customer or competitor role"
+    },
+    "b7c4121dc8": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "NVDA",
+          "type": "competitor_of",
+          "to": "AMD",
+          "pick": false
+        },
+        {
+          "from": "INTC",
+          "type": "competitor_of",
+          "to": "AMD",
+          "pick": false
+        }
+      ]
+    },
+    "c210aa3285": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Platform or software dependency, not a supplier, customer or competitor role"
+    },
+    "c755a28b2e": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AMD",
+          "pick": false
+        }
+      ]
+    },
+    "cab24d9884": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AVGO",
+          "pick": true
+        }
+      ]
+    },
+    "cbcea53c9b": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Platform or software dependency, not a supplier, customer or competitor role"
+    },
+    "d07e3ae817": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "INTC",
+          "type": "competitor_of",
+          "to": "AMD",
+          "pick": true
+        }
+      ]
+    },
+    "d0c3a85345": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Role implied by the context, not stated in the sentence"
+    },
+    "d2605fafb3": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AVGO",
+          "pick": false
+        }
+      ]
+    },
+    "d7abd1d937": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "GOOGL",
+          "type": "competitor_of",
+          "to": "META",
+          "pick": true
+        }
+      ],
+      "note": "\"competitive products\" integrated with Android."
+    },
+    "d8353a4179": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Role implied by the context, not stated in the sentence"
+    },
+    "da56129d81": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "AMD",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": true
+        }
+      ]
+    },
+    "dab6d95ce4": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "INTC",
+          "pick": false
+        },
+        {
+          "from": "TSM",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": false
+        }
+      ]
+    },
+    "db72569071": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Platform or software dependency, not a supplier, customer or competitor role"
+    },
+    "dcf9b1aa67": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Executive biography, not a company relationship"
+    },
+    "e10a588e77": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "AMD",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": false
+        },
+        {
+          "from": "NVDA",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": true
+        },
+        {
+          "from": "AMZN",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": true
+        },
+        {
+          "from": "GOOGL",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": true
+        },
+        {
+          "from": "META",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": true
+        },
+        {
+          "from": "MSFT",
+          "type": "competitor_of",
+          "to": "INTC",
+          "pick": true
+        }
+      ],
+      "note": "Hyperscalers are named as competitors for their custom silicon."
+    },
+    "e276628934": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Conditional future arrangement, not a current relationship"
+    },
+    "e3fb789e23": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Names the company without a supplier, customer or competitor role"
+    },
+    "e71289304a": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AVGO",
+          "pick": false
+        }
+      ]
+    },
+    "e828933020": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "States a relationship between the company and third parties, not the filer"
+    },
+    "eb26478ad4": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "AVGO",
+          "pick": false
+        }
+      ]
+    },
+    "eef07e7249": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "NVDA",
+          "pick": true
+        }
+      ]
+    },
+    "f00255d0eb": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Partnership or equity investment, not a supplier, customer or competitor role"
+    },
+    "f1e6d6228f": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "AVGO",
+          "type": "competitor_of",
+          "to": "AMD",
+          "pick": true
+        },
+        {
+          "from": "QCOM",
+          "type": "competitor_of",
+          "to": "AMD",
+          "pick": true
+        },
+        {
+          "from": "NVDA",
+          "type": "competitor_of",
+          "to": "AMD",
+          "pick": false
+        }
+      ]
+    },
+    "f3c2a3fba9": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "INTC",
+          "pick": false
+        }
+      ]
+    },
+    "f97c3b0576": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Executive biography, not a company relationship"
+    },
+    "fdb86daf0a": {
+      "decision": "borderline",
+      "edges": [
+        {
+          "from": "AMD",
+          "type": "supplier_of",
+          "to": "MSFT",
+          "pick": false
+        }
+      ],
+      "note": "Consoles \"for Sony and Microsoft\" in the semi-custom pipeline; no role word."
+    },
+    "fe73db4da4": {
+      "decision": "accept",
+      "edges": [
+        {
+          "from": "TSM",
+          "type": "supplier_of",
+          "to": "QCOM",
+          "pick": true
+        }
+      ]
+    },
+    "ff9b691167": {
+      "decision": "reject",
+      "edges": [],
+      "reason": "Partnership or equity investment, not a supplier, customer or competitor role"
+    }
+  }
+}
