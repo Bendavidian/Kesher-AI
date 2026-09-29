@@ -8,8 +8,9 @@ const news: SeenSource = {
   _id: randomUUID(),
   title: 'TSMC Suspends Chip Production After Taiwan Rocked By Strongest Tremor In 25 Years',
   text: 'Taiwan Semiconductor Manufacturing Co evacuated some fabs after the quake. Output at most lines resumed within hours.',
+  passages: [],
 };
-const filing: SeenSource = { _id: randomUUID(), title: 'NVIDIA 10-K', text: null };
+const filing: SeenSource = { _id: randomUUID(), title: 'NVIDIA 10-K', text: null, passages: [] };
 
 const reportId = randomUUID();
 const now = new Date('2026-09-29T10:00:00Z');
@@ -31,6 +32,39 @@ const fact = (overrides: Partial<DraftClaim> = {}): DraftClaim => ({
   sources: [{ sourceId: news._id, quote: 'evacuated some fabs after the quake' }],
   premises: [],
   ...overrides,
+});
+
+const TSMC_QUOTE =
+  'We utilize foundries, such as Taiwan Semiconductor Manufacturing Company Limited, or TSMC, and Samsung Electronics Co., Ltd., or Samsung, to produce our semiconductor wafers.';
+
+describe('quotes from a filing', () => {
+  const filingFact = (quote: string): DraftClaim =>
+    fact({ text: 'NVIDIA uses TSMC as a foundry.', sources: [{ sourceId: filing._id, quote }] });
+
+  it('keeps a fact whose quote is in filing text a tool returned in this run', () => {
+    // An evidence quote or a search_filings passage; whitespace is normalized as for news.
+    const read: SeenSource = { ...filing, passages: [`Item 1A. Risk Factors\n${TSMC_QUOTE}`] };
+    const { claims } = check(
+      [filingFact('such as Taiwan Semiconductor  Manufacturing Company')],
+      [news, read],
+    );
+    expect(claims[0]?.status).toBe('unverified');
+  });
+
+  it('removes a filing fact when no filing text came back in this run', () => {
+    const { claims, removedBy } = check([filingFact('such as Taiwan Semiconductor Manufacturing')]);
+    expect(claims[0]?.status).toBe('removed');
+    expect(removedBy.quote_verbatim).toEqual([claims[0]?._id]);
+  });
+
+  it('never counts text returned for another source', () => {
+    const other: SeenSource = { ...news, passages: [TSMC_QUOTE] };
+    const { claims } = check(
+      [filingFact('such as Taiwan Semiconductor Manufacturing')],
+      [other, filing],
+    );
+    expect(claims[0]?.status).toBe('removed');
+  });
 });
 
 describe('checkDraft', () => {

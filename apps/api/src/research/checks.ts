@@ -11,6 +11,9 @@ export interface SeenSource {
   title: string;
   // null for filings, whose text lives in FilingChunk.
   text: string | null;
+  // Filing text a tool returned for this source in this run: search_filings passages and the
+  // reviewed evidence quotes of get_company_relationships (SPEC.md decision log, T13).
+  passages: readonly string[];
 }
 
 export interface CheckContext {
@@ -39,7 +42,8 @@ export function quoteFound(quote: string, source: SeenSource): boolean {
   if (wanted.length < MIN_QUOTE_CHARS) return false;
   return (
     normalizeText(source.title).includes(wanted) ||
-    (source.text !== null && normalizeText(source.text).includes(wanted))
+    (source.text !== null && normalizeText(source.text).includes(wanted)) ||
+    source.passages.some((passage) => normalizeText(passage).includes(wanted))
   );
 }
 

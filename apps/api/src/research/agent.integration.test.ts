@@ -99,6 +99,25 @@ const feedItem: FeedItem = {
   updatedAt: new Date(),
 };
 
+const TSMC_QUOTE =
+  'We utilize foundries, such as Taiwan Semiconductor Manufacturing Company Limited, or TSMC, and Samsung Electronics Co., Ltd., or Samsung, to produce our semiconductor wafers.';
+
+// Filing Sources keep text null; their text reaches the agent through tools only.
+const nvidia10k: Source = {
+  ...demo,
+  _id: randomUUID(),
+  provider: 'sec_edgar',
+  kind: 'filing',
+  tier: 1,
+  externalId: '0001045810-26-000021',
+  url: 'https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm',
+  publisher: null,
+  title: 'NVIDIA 10-K for the fiscal year ended 2026-01-25',
+  text: null,
+  symbols: ['NVDA'],
+  injectionScreen: null,
+};
+
 const request: ResearchRequest = {
   userId: user._id,
   eventId: event._id,
@@ -172,7 +191,22 @@ describe('runResearch', () => {
     await ensureCollections(mongo.db);
     await ensureIndexes(mongo.db);
     await collection(mongo.db, 'users').insertOne(user);
-    await collection(mongo.db, 'sources').insertOne(demo);
+    await collection(mongo.db, 'sources').insertMany([demo, nvidia10k]);
+    await collection(mongo.db, 'relationships').insertOne({
+      _id: randomUUID(),
+      from: 'NVDA',
+      to: 'TSM',
+      type: 'customer_of',
+      weight: 0.8,
+      evidence: {
+        sourceId: nvidia10k._id,
+        quote: TSMC_QUOTE,
+        filingDate: '2026-02-25',
+        url: nvidia10k.url,
+        reviewed: true,
+      },
+      createdAt: new Date('2026-09-29T00:00:00Z'),
+    });
     await collection(mongo.db, 'market_events').insertOne(event);
     await collection(mongo.db, 'feed_items').insertOne(feedItem);
     const { reaction } = await loadReactionFixture(DEMO_SOURCE_ID);
@@ -456,6 +490,44 @@ describe('runResearch', () => {
     expect(stored).toHaveLength(1);
     expect(stored[0]).toMatchObject({ _id: sourceId, provider: 'alpaca', tier: 1 });
     expect(stored[0]?.text).toContain('TSM: base');
+  });
+
+  it("keeps a fact quoting the NVIDIA 10-K through a relationship's evidence", async () => {
+    const relationships: ModelReply = {
+      toolCalls: [{ toolName: 'get_company_relationships', input: { symbol: 'NVDA' } }],
+    };
+    const cite = (quote: string): ModelReply => ({
+      toolCalls: [
+        {
+          toolName: 'submit_report',
+          input: {
+            claims: [
+              {
+                key: 'c1',
+                type: 'fact',
+                text: "NVIDIA's 10-K names TSMC as a foundry for its wafers.",
+                sources: [{ sourceId: nvidia10k._id, quote }],
+                premises: [],
+              },
+            ],
+            openQuestions: [],
+          },
+        },
+      ],
+    });
+
+    const kept = await setup([getEvent, relationships, cite(TSMC_QUOTE)]).run();
+    const keptClaims = await collection(mongo.db, 'claims')
+      .find({ reportId: kept.reportId! })
+      .toArray();
+    expect(keptClaims.map((c) => c.status)).toEqual(['unverified']);
+
+    // The same quote without the tool call that returned it is removed.
+    const unread = await setup([getEvent, cite(TSMC_QUOTE)]).run();
+    const removed = await collection(mongo.db, 'claims')
+      .find({ reportId: unread.reportId! })
+      .toArray();
+    expect(removed.map((c) => c.status)).toEqual(['removed']);
   });
 
   it('forces the report early when the token budget binds first', async () => {

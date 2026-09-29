@@ -18,7 +18,7 @@ import { REPORT_DRAFT_JSON_SCHEMA, ReportDraft } from './draft';
 import { openToolbox, type TokenIssued, type Toolbox } from './mcp';
 import { capStepOutput } from './output';
 import { buildBrief, quoteToolOutput, REPORT_TOOL, RESEARCH_SYSTEM } from './prompt';
-import { storeToolSources } from './toolSources';
+import { collectPassages, storeToolSources } from './toolSources';
 import type { RecordedTurn } from './recordings';
 
 // The research agent (SPEC.md Research agent). The model reads and proposes; code runs every tool
@@ -289,6 +289,7 @@ export async function runResearch(
     ];
 
     const seen = new Set<string>();
+    const passages = new Map<string, string[]>();
     let toolCallsUsed = 0;
     let reportAttempts = 0;
     let mustReport = false;
@@ -459,7 +460,11 @@ export async function runResearch(
           continue;
         }
         const outcome = await toolbox.call(call.toolName, call.input);
-        if (outcome.ok) collectSourceIds(outcome.output, seen);
+        if (outcome.ok) {
+          collectSourceIds(outcome.output, seen);
+          // The same output the model reads below; tools keep it within 8 KB, so nothing is cut.
+          collectPassages(call.toolName, outcome.output, passages);
+        }
         const stored = outcome.ok
           ? await storeToolSources(db, call.toolName, outcome.output, new Date(now())).catch(
               (error: unknown) => error,
@@ -501,7 +506,7 @@ export async function runResearch(
       .toArray();
     const reportId = newId();
     const checked = checkDraft(draft, {
-      seen: new Map(sources.map((s) => [s._id, s])),
+      seen: new Map(sources.map((s) => [s._id, { ...s, passages: passages.get(s._id) ?? [] }])),
       reportId,
       newId,
       now: new Date(checksStarted),

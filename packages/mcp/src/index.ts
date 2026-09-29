@@ -24,7 +24,9 @@ export {
   type ConceptFacts,
   type XbrlFact,
 } from './facts';
+export { SearchFilingsOutput } from './filings';
 export { matchedTerms, queryTerms } from './news';
+export { GetCompanyRelationshipsOutput } from './relationships';
 export type { FilingPassage, NewsFilter, SearchBackend } from './search';
 export { nameUuid, sourceIdFor, sourceIdName } from './sourceIds';
 export {

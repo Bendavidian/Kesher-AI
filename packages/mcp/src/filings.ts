@@ -25,7 +25,7 @@ const Passage = z.strictObject({
   url: z.string().nullable(),
 });
 
-const SearchFilingsOutput = z.strictObject({
+export const SearchFilingsOutput = z.strictObject({
   passages: z.array(Passage).max(MAX_FILING_PASSAGES),
   // Passages left out to keep the output within 8 KB.
   omitted: z.int().min(0),

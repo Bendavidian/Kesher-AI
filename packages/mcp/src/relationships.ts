@@ -34,7 +34,7 @@ const Edge = z.strictObject({
   sourceTitle: z.string().nullable(),
 });
 
-const GetCompanyRelationshipsOutput = z.strictObject({
+export const GetCompanyRelationshipsOutput = z.strictObject({
   edges: z.array(Edge),
   // Edges left out to keep the output within 8 KB; asking for fewer types shows other edges.
   omitted: z.int().min(0),
