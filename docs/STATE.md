@@ -1,9 +1,37 @@
 # State
 
-Updated: 29 Sep 2026, T12 done, merged with T09 and T13 part 1
+Updated: 29 Sep 2026, T10 built and merged with T12; the live Benzinga proof on Atlas is still open
 
 ## Where we are
-T00 to T09 and T12 are done; T09 completed the walking skeleton. T13 part 1, the price reaction, is done too; T13 stays [~] until part 2, which waits for T11 (BACKLOG.md T13, SPEC.md decision log T13). T13 part 1 was built in parallel with T08 part 2 and T09, rebased on T08 part 2 and then merged with main after T09. T12 was built in parallel with T09 and T13 part 1 and merged with main after both.
+T00 to T09 and T12 are done; T09 completed the walking skeleton. T10, live ingestion, is built and merged with main after T12, and stays [~] until a real Benzinga item is seen on Atlas (see Next). T13 part 1, the price reaction, is done too; T13 stays [~] until part 2, which waits for T11 (BACKLOG.md T13, SPEC.md decision log T13). T13 part 1 was built in parallel with T08 part 2 and T09, rebased on T08 part 2 and then merged with main after T09. T12 was built in parallel with T09 and T13 part 1 and merged with main after both.
+
+T10 adds live ingestion and recording (apps/api/src/ingest):
+- Runs in the api process only where LIVE_INGEST is true. With it on, the api does not start without the Alpaca keys and SEC_USER_AGENT (parseLiveEnv in config/env.ts).
+- Alpaca news stream (alpacaStream.ts): Node's global WebSocket, auth, subscribe to all news, so the pre filter counts what it drops.
+  - It reconnects with a doubling wait from 5 s to 5 minutes, also on 406 connection limit, which it logs every time as a hint that another machine may be live.
+  - It stops for good on 402 (keys) or 409 (plan).
+  - Items published while it is down are lost (T19).
+- EDGAR poller (edgar.ts, edgarPoller.ts): every 5 minutes, the submissions of the 17 universe companies.
+  - Forms 8-K, 10-Q, 10-K, 20-F and 6-K, no amendments, accepted in the last 24 hours, 150 ms between requests.
+  - A filing becomes a Tier 1 Source with the filer's symbol from its CIK, text null, and a title written by code from the company name, the form and the 8-K item labels. Only well formed item codes pass the schema.
+  - A filing seen in this process, or already processed, is skipped before processItem; one stored but not processed is handed over again after a restart.
+- live.ts: an item outside the universe goes straight to processItem and is only counted. One that passes is recorded, then queued.
+  - The ingest queue (queue.ts) runs one item at a time, merges a waiting item's newer version, and retries a rate limited item up to 3 times after the provider's wait.
+  - A scored live item takes the same after scoring hook as replay: createApi (app.ts) returns afterScoring (the pushes, then the research gate), and server.ts hands it to the live ingester. The gate only queues research, so the ingest queue never waits for a run.
+- Recordings: the recordings collection (LiveRecording in shared) holds the raw item as the provider sent it, without the article body or images, only for items that passed the pre filter; the first version is kept.
+  - POST /dev/replay/:sourceId and /dev/reset/:sourceId take an Alpaca news id or an EDGAR accession number; replay reads the committed file first, then the collection.
+  - `npm run recording:export -- --id <id>` writes a file for an item picked for the demo or the evals.
+  - Live price bars are not recorded; a replay computes the reaction again from Alpaca's history.
+- toIncomingItem drops provider symbols that fail Ticker instead of failing the item. AlpacaNewsItem moved to shared.
+- On Atlas, with LIVE_INGEST on:
+  - The poller's first pass brought a real AMD 8-K (0000002488-26-000182, "Unregistered Sales of Equity Securities") to persona A's feed with no manual action, through AMD supplies MSFT.
+  - Reset and replay by accession then answered processed from the recordings collection with no model call, and a second replay answered duplicate.
+  - The stream subscribed each time, but no Benzinga item passed the pre filter in the windows it ran (about 35 minutes, then 4, early afternoon Israel time, before the US open).
+- In CI, a fake WebSocket delivers a TSMC item under a fresh id: persona A gets feed:item with no HTTP call, and the item is recorded without its body. The item outside the universe is counted live.
+  - The gate starts an auto run for the live card.
+  - Reset and replay work from the collection alone.
+- The reviewer found no blockers in either pass. Its majors were fixed: resume unprocessed filings, validate item codes, retry on 406. The remaining points are in T19.
+- 673 tests are green.
 
 T12 added the research gate and automatic research, so a card goes out as soon as it is scored and research attaches to it later:
 - The gate (apps/api/src/research/gate.ts, auto.ts) runs after each scoring run has pushed its cards, for every FeedItem above relevance 0. Code only, in this order:
@@ -20,7 +48,7 @@ T12 added the research gate and automatic research, so a card goes out as soon a
   - every change is pushed as feed:update;
   - the 15 minute takeover now covers queued as well as running.
 - Investigate answers 202 with the card queued, and 429 with "Today's research budget is spent (30 of 30 runs). It resets at 00:00 UTC." once the day is spent; a 429 changes nothing.
-- createApp composes the hook that runs after scoring: first the socket push (a failed push is logged), then autoResearch. Only replay uses it today; T10 must route live items through it.
+- createApp composes the hook that runs after scoring: first the socket push (a failed push is logged), then autoResearch. Replay and, since T10, live ingestion use it.
 - AUTO_RESEARCH env flag: true or false, on when unset, any other value stops the api at startup. Off, the gate stores a skip with condition auto_research_off for every card, calls no model and reserves no budget. Investigate is unchanged.
 - The web needed no change: queued shows the same line as running, and the 429 text shows under the button.
 - On Atlas, with the browser:
@@ -196,21 +224,23 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. Check that CI passes on Ubuntu and Windows for the PR "T12: gate policy and automatic research", then merge it.
-2. On each machine, once: `npm run record:bars -- --event 38062166 --symbols TSM,NVDA`. It fills the gitignored bar cache so the demo card and the local SPIKE.md test read no Alpaca at runtime. Without it, the api asks Alpaca when the keys are set, and the local test skips.
+1. Finish T10's proof. Turn LIVE_INGEST on for the Mac during US market hours (news is dense after 15:30 Israel time), run `npm run dev`, and wait for a Benzinga item with a universe symbol. Then check three things: the card in the feed, its document in recordings, and the live row in ingest_counters. Then `POST /dev/reset/<id>` and `POST /dev/replay/<id>` should answer processed from the collection. After that, mark T10 [x], turn LIVE_INGEST off again, and merge the PR "T10: live ingestion and recording" once CI passes on Ubuntu and Windows.
+   - With AUTO_RESEARCH on, a live card that passes the gate starts a real Gemini run from the shared budget (20 automatic runs a day).
+2. On each machine, once: `npm run record:bars -- --event 38062166 --symbols TSM,NVDA`. It fills the gitignored bar cache so the demo card and the local SPIKE.md test read no Alpaca at runtime.
 3. Phase 2 continues. Pick the next task from BACKLOG.md:
-   - T11 needs the three open decisions below first; T13 part 2 follows it (notes under T13 in BACKLOG.md).
-   - T10 must route live items through the after scoring hook that runs the gate (notes under T12 in BACKLOG.md).
+   - T11 needs the three open decisions below first; T13 part 2 follows it (notes under T13 in BACKLOG.md). Live filings carry only a code written title until filing text exists (T10 notes).
    - T14 adds the verifier; its steps and removals appear in the run screen with no screen change, since checks turn red from removedClaimIds. A metric claim can check its numbers against the same PriceReaction.
+   - T19, live ingestion hardening, before LIVE_INGEST runs all day. Its pieces are a REST gap fill after a reconnect, a daily cap on live extraction, a stall check on the socket, a cap on the ingest queue, and backoff on EDGAR 429 or 403.
 4. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
    - The first npm run test downloads mongod 8.0.32, about 100 MB.
    - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay, Investigate and research:dev, MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start.
    - Run `npm run seed` once if that machine uses its own database, so older Sources get publisher and older FeedItems get research.reportId.
-   - Both machines share one daily research budget on Atlas (30 runs, automatic runs stop at 20). Set AUTO_RESEARCH=false in a machine's .env if it should not start automatic runs; the research_budget collection is created when the api starts.
+   - Both machines share one daily research budget on Atlas (30 runs, automatic runs stop at 20). Set AUTO_RESEARCH=false in a machine's .env if it should not start automatic runs.
+   - Keep LIVE_INGEST=false there: the free Alpaca plan allows one live WebSocket. The recordings collection is created when the api starts.
 
-Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now. AUTO_RESEARCH is optional (on when unset).
+Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. LIVE_INGEST is false on both machines except while proving T10; with it true the api also needs the Alpaca keys and SEC_USER_AGENT. AUTO_RESEARCH is optional (on when unset).
 
 ## Open decisions
 For T11, listed under T11 in BACKLOG.md:
@@ -221,6 +251,7 @@ The UI language is settled by docs/UI.md: English interface, with Hebrew summari
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 29 Sep 2026, macOS (Mac mini), T10: Alpaca news stream and EDGAR poller behind LIVE_INGEST, an ingest queue one item at a time with 429 retries, live recordings in a recordings collection without article bodies, replay and reset by Alpaca id or accession from file or collection, recording:export, live items through the same after scoring hook as replay (merged main after T12); on Atlas a real AMD 8-K reached persona A's feed and replayed from the collection, no Benzinga item passed the pre filter while live was on; reviewer found no blockers; T19 added; 673 tests green; T10 stays [~].
 - 29 Sep 2026, macOS (Mac mini), T12: research gate after scoring (relevance 0.6, importance 4, active, recent run in 24 hours with the report attached), skipped runs stored with their reason, daily budget of 30 runs with 20 for automatic runs in research_budget, one FIFO research queue for the gate and Investigate (202 queued, 429 once spent), AUTO_RESEARCH flag on by default; on Atlas B got a real auto run and a second Replay attached both reports with no model call; reviewer found no blockers; merged main with T09 and T13 part 1; 627 tests green, 1 skipped; T12 done.
 - 29 Sep 2026, macOS (Mac mini), T13 part 1: T13 split in two under one id; price reaction in shared anchored to the regular session through the market calendar, get_price_reaction over MCP and FeedCard.priceReaction from the same function, Alpaca calendar and SIP bars behind a file-first market data layer with a gitignored bar cache and npm run record:bars, the web market table and open gap bars on live values; the demo reproduces SPIKE.md check 3 exactly; WEB_PORT and API_PORT with api-alt and web-alt; rebased on T08 part 2; merged main after T09; reviewer found no blockers; 595 tests green; T13 stays [~].
 - 29 Sep 2026, macOS (Mac mini), T09: GET /runs and GET /runs/:runId for the signed in user only, run:step and run:end to the run's user only, run screen on the api with live steps, text only step output, token scope from the run's own step, Recent runs selector and /runs opening the newest run; a real Investigate on Atlas streamed 3, 5, 7, 10 steps to Completed; reviewer found no blockers; 526 tests green; T09 done.
