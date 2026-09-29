@@ -3,7 +3,8 @@ import { direction, formatPercent } from '../view/format';
 import type { PriceReaction } from '../view/types';
 import { Move } from './Move';
 
-function spoken(value: number): string {
+function spoken(value: number | null): string {
+  if (value === null) return 'not available yet';
   const sign = { up: 'plus ', down: 'minus ', flat: '' }[direction(value)];
   return `${sign}${Math.abs(value).toFixed(2)} percent`;
 }
@@ -12,11 +13,11 @@ function spoken(value: number): string {
 function note(reaction: PriceReaction, subject: string): string | null {
   const first = (symbol: string) => reaction.rows.find((row) => row.symbol === symbol)?.moves[0];
   const value = first(subject);
-  if (value === undefined) return null;
-  // Benchmarks in table order.
-  const benchmarks = reaction.rows
-    .filter((row) => BENCHMARKS.some((symbol) => symbol === row.symbol))
-    .map((row) => `${row.symbol} ${formatPercent(row.moves[0] ?? 0)}`);
+  if (value === undefined || value === null) return null;
+  // Benchmarks in table order; the sentence waits until each has its move.
+  const rows = reaction.rows.filter((row) => BENCHMARKS.some((symbol) => symbol === row.symbol));
+  if (rows.some((row) => row.moves[0] === null || row.moves[0] === undefined)) return null;
+  const benchmarks = rows.map((row) => `${row.symbol} ${formatPercent(row.moves[0]!)}`);
   const others = `${benchmarks.join(', ')} in the same window.`;
   return reaction.anchor.kind === 'previous_close'
     ? `${subject} opened ${formatPercent(value)} from its previous close; ${others}`
@@ -30,8 +31,8 @@ interface Props {
 }
 
 export function OpenGapBars({ reaction, subject }: Props) {
-  const first = reaction.rows.map((row) => ({ symbol: row.symbol, value: row.moves[0] ?? 0 }));
-  const scale = Math.max(...first.map((row) => Math.abs(row.value)), 0.01);
+  const first = reaction.rows.map((row) => ({ symbol: row.symbol, value: row.moves[0] ?? null }));
+  const scale = Math.max(...first.map((row) => Math.abs(row.value ?? 0)), 0.01);
   const title =
     reaction.anchor.kind === 'previous_close'
       ? `${reaction.windows[0] ?? 'Open gap'} against the previous close`
@@ -47,8 +48,8 @@ export function OpenGapBars({ reaction, subject }: Props) {
         className="flex flex-col gap-[7px]"
       >
         {first.map((row) => {
-          const width = `${Math.round((Math.abs(row.value) / scale) * 100)}%`;
-          const dir = direction(row.value);
+          const width = `${Math.round((Math.abs(row.value ?? 0) / scale) * 100)}%`;
+          const dir = row.value === null ? 'flat' : direction(row.value);
           return (
             <div
               key={row.symbol}

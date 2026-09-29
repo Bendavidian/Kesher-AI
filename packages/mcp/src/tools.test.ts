@@ -1,7 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { TOOLS, queryTerms, rankNews } from './tools';
+import { PriceReactionError, type PriceSymbol } from '@kesher/shared';
+import { REACTION } from './testing';
+import {
+  TOOLS,
+  getPriceReaction,
+  priceReactionJson,
+  queryTerms,
+  rankNews,
+  type ToolDeps,
+} from './tools';
 
 // Any argument that could name a user. Identity comes from the run token only (principle 5).
 const USER_LIKE = /user|owner|sub|account|persona|holder|email|identity/i;
@@ -18,8 +27,12 @@ function propertyNames(schema: unknown): string[] {
 }
 
 describe('tool inputs', () => {
-  it('registers the T07 tools', () => {
-    expect(TOOLS.map((tool) => tool.name)).toEqual(['get_event', 'search_news']);
+  it('registers the implemented tools', () => {
+    expect(TOOLS.map((tool) => tool.name)).toEqual([
+      'get_event',
+      'search_news',
+      'get_price_reaction',
+    ]);
   });
 
   it.each(TOOLS.map((tool) => [tool.name, tool] as const))(
@@ -36,6 +49,7 @@ describe('tool inputs', () => {
     const valid: Record<string, object> = {
       get_event: { eventId: randomUUID() },
       search_news: { query: 'TSMC earthquake' },
+      get_price_reaction: { symbol: 'TSM', eventTime: '2024-04-03T03:57:09Z' },
     };
     for (const tool of TOOLS) {
       const args = valid[tool.name];
@@ -68,5 +82,54 @@ describe('rankNews', () => {
     const ranked = rankNews([oneOld, oneNew, both], ['tsmc', 'earthquake'], 2);
     expect(ranked.map((hit) => hit.doc)).toEqual([both, oneNew]);
     expect(ranked.map((hit) => hit.matchedTerms)).toEqual([2, 1]);
+  });
+});
+
+describe('get_price_reaction', () => {
+  const deps = (priceReaction: ToolDeps['priceReaction']) =>
+    ({ events: {}, sources: {}, priceReaction }) as unknown as ToolDeps;
+  const ctx = { claims: {} } as Parameters<typeof getPriceReaction.run>[2];
+  const input = { symbol: 'TSM', eventTime: '2024-04-03T03:57:09Z' } as const;
+
+  it('accepts demo universe companies only, with a time that has an offset', () => {
+    const parse = (args: object) => getPriceReaction.inputSchema.safeParse(args).success;
+    expect(parse(input)).toBe(true);
+    expect(parse({ symbol: 'NVDA', eventTime: '2024-04-02T23:57:09-04:00' })).toBe(true);
+    expect(parse({ ...input, symbol: 'SPY' })).toBe(false);
+    expect(parse({ ...input, symbol: 'AAPL' })).toBe(false);
+    expect(parse({ ...input, eventTime: '2024-04-03' })).toBe(false);
+    expect(parse({ ...input, eventTime: '2024-04-03T03:57:09' })).toBe(false);
+  });
+
+  it('asks for the symbol at the headline time and returns ISO times', async () => {
+    const asked: { subjects: readonly PriceSymbol[]; headline: Date }[] = [];
+    const outcome = await getPriceReaction.run(
+      input,
+      deps((subjects, headline) => {
+        asked.push({ subjects, headline });
+        return Promise.resolve(REACTION);
+      }),
+      ctx,
+    );
+    expect(asked).toEqual([{ subjects: ['TSM'], headline: new Date('2024-04-03T03:57:09Z') }]);
+    expect(outcome).toEqual({ ok: true, output: priceReactionJson(REACTION) });
+    if (!outcome.ok) throw new Error('expected output');
+    expect(outcome.output.anchor.baseTime).toBe('2024-04-02T20:00:00.000Z');
+    expect(outcome.output.rows[0]!.moves[2]).toEqual({ pct: null, barTime: null });
+    expect(getPriceReaction.outputSchema.safeParse(outcome.output).success).toBe(true);
+  });
+
+  it('passes the reaction reasons on and hides provider errors', async () => {
+    const failing = (error: Error) => deps(() => Promise.reject(error));
+    expect(
+      await getPriceReaction.run(
+        input,
+        failing(new PriceReactionError('the headline time is in the future')),
+        ctx,
+      ),
+    ).toEqual({ ok: false, error: 'the headline time is in the future' });
+    expect(
+      await getPriceReaction.run(input, failing(new Error('Alpaca bars answered 403')), ctx),
+    ).toEqual({ ok: false, error: 'Market data is unavailable' });
   });
 });

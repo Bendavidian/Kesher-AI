@@ -8,3 +8,5 @@ coverage/
 spike/output/
 *.log
 .DS_Store
+# Raw SIP bars: exchange data under Alpaca's data terms. A local cache that npm run record:bars fills.
+recordings/alpaca-bars/

@@ -3,6 +3,7 @@ import express, { type ErrorRequestHandler, type Express } from 'express';
 import type { Db } from 'mongodb';
 import type { ProcessDeps } from './ingest/process';
 import type { InvestigateDeps } from './research/investigate';
+import type { PriceReactions } from './market/reactions';
 import { createModelClient, resolveFromKeys, type ModelClient } from './llm/client';
 import { authRouter, type AuthOptions } from './routes/auth';
 import { devRouter } from './routes/dev';
@@ -34,6 +35,9 @@ export interface AppDeps {
   // Get each stored run step and each run's end; the server passes run:step and run:end.
   onRunStep?: InvestigateDeps['onStep'];
   onRunEnd?: InvestigateDeps['onEnd'];
+  // The price reaction over the api's market data (createPriceReactions), for get_price_reaction
+  // and FeedCard.priceReaction. Without it cards carry null and the tool answers unavailable.
+  priceReactions?: PriceReactions;
 }
 
 const logMessage = (error: unknown) =>
@@ -54,6 +58,7 @@ export function createApp({
   onResearch,
   onRunStep,
   onRunEnd,
+  priceReactions,
 }: AppDeps): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -62,10 +67,12 @@ export function createApp({
     res.json(HealthResponse.parse({ status: 'ok' }));
   });
 
-  if (mcp) app.use(mcpRouter(db, mcp.secret, logError));
+  if (mcp) app.use(mcpRouter(db, mcp.secret, logError, priceReactions));
   if (auth) {
     app.use(authRouter(db, auth));
-    app.use(feedRouter(db, auth.secret));
+    // Every card the api sends carries the same price reaction.
+    const market = priceReactions && { priceReaction: priceReactions, logError };
+    app.use(feedRouter(db, auth.secret, market));
     if (mcp && research) {
       const deps: InvestigateDeps = {
         db,
@@ -83,7 +90,7 @@ export function createApp({
         ...(onRunStep ? { onStep: onRunStep } : {}),
         ...(onRunEnd ? { onEnd: onRunEnd } : {}),
       };
-      app.use(researchRouter(deps, auth.secret));
+      app.use(researchRouter(deps, auth.secret, market));
     }
   }
   if (devRoutes) app.use(devRouter(db, models, log, onScored));

@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { MIN_SECRET_LENGTH } from '@kesher/shared';
 import { z } from 'zod';
+import type { AlpacaKeys } from '../ingest/alpaca';
 import type { ModelKeys } from '../llm/client';
 
 // The repo root .env, from apps/api/src/config.
@@ -14,7 +15,8 @@ const Env = z.object({
 });
 export type Env = z.infer<typeof Env>;
 
-// Only the recorder needs Alpaca; the api itself replays from recordings.
+// The recorders need Alpaca. The api replays news from recordings and reads price data from the
+// local cache first, so it starts without the keys (loadAlpacaKeys).
 const AlpacaEnv = z.object({
   ALPACA_API_KEY_ID: z.string().min(1),
   ALPACA_API_SECRET_KEY: z.string().min(1),
@@ -53,6 +55,19 @@ export function loadEnv(): Env {
 
 export function loadAlpacaEnv(): AlpacaEnv {
   return load(AlpacaEnv);
+}
+
+// Optional for the api: market data not in the local cache fails naming the keys when they are
+// missing (MissingAlpacaKeysError), and everything else works without them.
+const OptionalAlpacaEnv = z.object({
+  ALPACA_API_KEY_ID: z.string().min(1).optional().catch(undefined),
+  ALPACA_API_SECRET_KEY: z.string().min(1).optional().catch(undefined),
+});
+
+export function loadAlpacaKeys(): AlpacaKeys | undefined {
+  const env = load(OptionalAlpacaEnv);
+  if (!env.ALPACA_API_KEY_ID || !env.ALPACA_API_SECRET_KEY) return undefined;
+  return { keyId: env.ALPACA_API_KEY_ID, secretKey: env.ALPACA_API_SECRET_KEY };
 }
 
 // Model keys are optional: the api starts without them, and only a call that needs a provider

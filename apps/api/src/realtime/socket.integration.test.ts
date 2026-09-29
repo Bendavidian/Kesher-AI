@@ -1,17 +1,21 @@
 import {
+  DEMO_PERSONAS,
   DEMO_SOURCE_ID,
   EventExplain,
   EventScored,
   FeedCard,
+  FeedItem,
   ReplayResponse,
   ResetResponse,
   SOCKET_EVENTS,
   type PersonaKey,
 } from '@kesher/shared';
 import { io as connect, type Socket } from 'socket.io-client';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createModelClient, MODELS } from '../llm/client';
+import { collection } from '../db/collections';
 import { loadModelRecording } from '../llm/recordings';
+import { loadReactionFixture } from '../market/fixture';
 import { scoreEvent } from '../relevance/feed';
 import { runSeed } from '../seed/seed';
 import { signIn, startApi, type TestApi } from '../test/api';
@@ -91,7 +95,12 @@ describe('live feed over Socket.IO, on mongod', () => {
       resolve: resolveMocks({ [guard.modelId]: guard, [groq.modelId]: groq }),
     });
     modelCalls = () => guard.doGenerateCalls.length + groq.doGenerateCalls.length;
-    api = await startApi(mongo.db, { models: () => client });
+    // The committed demo reaction stands in for market data; the computation is tested in market.
+    const { reaction } = await loadReactionFixture(DEMO_SOURCE_ID);
+    api = await startApi(mongo.db, {
+      models: () => client,
+      priceReactions: () => Promise.resolve(reaction),
+    });
 
     for (const key of PERSONAS) {
       const cookie = await signIn(api.url, key);
@@ -211,6 +220,18 @@ describe('live feed over Socket.IO, on mongod', () => {
     expect(sessions.B.updates.map((c) => c.item.relevance)).toEqual([1]);
     expect(sessions.C.updates).toEqual([]);
     expect(sessions.A.items).toEqual([]);
+    // Every pushed card carries the price reaction, so an update never clears the market table.
+    expect(sessions.A.updates[0]?.priceReaction?.anchor.kind).toBe('previous_close');
+  });
+
+  it('a research state push keeps the price reaction on the card', async () => {
+    const email = DEMO_PERSONAS.find((persona) => persona.key === 'A')!.email;
+    const user = await collection(mongo.db, 'users').findOne({ email });
+    const stored = await collection(mongo.db, 'feed_items').findOne({ userId: user!._id });
+    await api.realtime.publishItem(FeedItem.parse(stored));
+    await vi.waitFor(() => expect(sessions.A.updates).toHaveLength(1));
+    const { reaction } = await loadReactionFixture(DEMO_SOURCE_ID);
+    expect(sessions.A.updates[0]?.priceReaction).toEqual(reaction);
   });
 
   it('closes the sockets of a user who signs out, and no longer pushes to them', async () => {

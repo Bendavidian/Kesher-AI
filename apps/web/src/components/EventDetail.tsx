@@ -44,14 +44,15 @@ function WhyYou({ view, replayKey }: { view: EventView; replayKey: string }) {
   );
 }
 
-// The market table's place while an event has no price reaction (FeedCard.priceReaction is null
-// until market data is wired). No number is shown that the api did not send.
+// The market table's place when the api sent no price reaction: an explained event outside the
+// feed, or market data the api could not read. No number is shown that the api did not send.
 function NoReaction() {
   return (
     <div className="flex flex-col gap-2.5">
       <h3 className="text-[13px] font-extrabold text-text-2">Market around the headline</h3>
       <p className="rounded-panel border border-dashed border-border-strong px-4 py-4 text-[13px] leading-normal text-text-3">
-        No price reaction yet. The moves appear here next to the benchmarks once market data is in.
+        No price reaction for this event. The moves appear here next to the benchmarks when market
+        data is available.
       </p>
     </div>
   );

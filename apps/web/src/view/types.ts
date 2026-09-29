@@ -40,8 +40,8 @@ export interface FilingView {
   tier: Tier;
 }
 
-// The price reaction from SPEC.md, Price reaction. Moves are percentages, in the order of
-// the windows. T13 computes these; until then they come from the fixtures.
+// The price reaction from SPEC.md, Price reaction, as the screens show it (priceReactionView maps
+// the api's). Moves are percentages in the order of the windows; null while a window is not ready.
 export interface PriceReaction {
   anchor: {
     kind: 'headline' | 'previous_close';
@@ -49,7 +49,7 @@ export interface PriceReaction {
     tradingDay: Date;
   };
   windows: string[];
-  rows: { symbol: UniverseSymbol | Benchmark; moves: number[] }[];
+  rows: { symbol: UniverseSymbol | Benchmark; moves: (number | null)[] }[];
   delayNote: string;
 }
 

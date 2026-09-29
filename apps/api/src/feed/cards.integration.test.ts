@@ -1,4 +1,4 @@
-import { FeedCard, FeedItem } from '@kesher/shared';
+import { FeedCard, FeedItem, type PriceSymbol } from '@kesher/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { collection } from '../db/collections';
 import { toIncomingItem } from '../ingest/alpaca';
@@ -6,11 +6,12 @@ import { processItem } from '../ingest/process';
 import { loadRecording } from '../ingest/recordings';
 import { createModelClient, MODELS } from '../llm/client';
 import { loadModelRecording } from '../llm/recordings';
+import { loadReactionFixture } from '../market/fixture';
 import { DEMO_SOURCE_ID, FILINGS, PERSONAS } from '../seed/config';
 import { runSeed } from '../seed/seed';
 import { mockModel, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
-import { feedCard, feedCardsFor } from './cards';
+import { feedCard, feedCardsFor, type CardMarket } from './cards';
 
 const now = new Date('2026-09-28T12:00:00Z');
 
@@ -97,6 +98,67 @@ describe('FeedCards for the replayed demo event, on mongod', () => {
     } finally {
       await edges.updateOne({ _id: edgeId }, { $set: { 'evidence.reviewed': true } });
     }
+  });
+
+  it('adds the price reaction of the path, from the headline time, next to the benchmarks', async () => {
+    const { reaction } = await loadReactionFixture(DEMO_SOURCE_ID);
+    const asked: { subjects: readonly PriceSymbol[]; headline: Date }[] = [];
+    const market: CardMarket = {
+      priceReaction: (subjects, headline) => {
+        asked.push({ subjects, headline });
+        return Promise.resolve(reaction);
+      },
+      logError: () => {
+        throw new Error('nothing should fail');
+      },
+    };
+    const [a] = await feedCardsFor(mongo.db, await userId(0), { market });
+    const [b] = await feedCardsFor(mongo.db, await userId(1), { market });
+
+    expect(a?.priceReaction).toEqual(reaction);
+    expect(FeedCard.parse(a)).toEqual(a);
+    const headline = new Date('2024-04-03T03:57:09Z');
+    // A: the event company, then the holding. B holds the event company itself.
+    expect(asked).toEqual([
+      { subjects: ['TSM', 'NVDA'], headline },
+      { subjects: ['TSM'], headline },
+    ]);
+    expect(b?.priceReaction).toEqual(reaction);
+  });
+
+  it('keeps the card with a null price reaction when market data fails, and logs it', async () => {
+    const logged: unknown[] = [];
+    const market: CardMarket = {
+      priceReaction: () => Promise.reject(new Error('Alpaca bars answered 500')),
+      logError: (error) => logged.push(error),
+    };
+    const [card] = await feedCardsFor(mongo.db, await userId(0), { market });
+    expect(card?.item.relevance).toBe(0.8);
+    expect(card?.priceReaction).toBeNull();
+    expect(logged).toHaveLength(1);
+  });
+
+  it('gives up on a reaction that does not arrive in time', async () => {
+    const logged: unknown[] = [];
+    const market: CardMarket = {
+      priceReaction: () => new Promise(() => {}),
+      logError: (error) => logged.push(error),
+      timeoutMs: 20,
+    };
+    const [card] = await feedCardsFor(mongo.db, await userId(0), { market });
+    expect(card?.priceReaction).toBeNull();
+    expect(String(logged[0])).toContain('took longer than 20 ms');
+  });
+
+  it('asks nothing for a relevance 0 item, which has no path', async () => {
+    const stored = await collection(mongo.db, 'feed_items').findOne({ userId: await userId(2) });
+    const market: CardMarket = {
+      priceReaction: () => Promise.reject(new Error('not asked')),
+      logError: () => {
+        throw new Error('not asked');
+      },
+    };
+    expect((await feedCard(mongo.db, FeedItem.parse(stored), market))?.priceReaction).toBeNull();
   });
 
   it("returns only the given user's cards, and none for a user without items", async () => {

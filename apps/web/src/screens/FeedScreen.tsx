@@ -134,8 +134,7 @@ export function FeedScreen({ personaKey, onPersonaChange, lastScoredEventId, onS
         />
         <EventDetail
           view={selected}
-          // FeedCard.priceReaction stays null until market data is wired.
-          reaction={null}
+          reaction={selected?.reaction ?? null}
           replayKey={personaKey}
           className="xl:min-w-0 xl:flex-1 xl:overflow-y-auto"
         />
@@ -154,7 +153,7 @@ export function FeedScreen({ personaKey, onPersonaChange, lastScoredEventId, onS
           className="xl:w-[340px] xl:shrink-0"
         />
       </main>
-      <TickerFooter reaction={null} apiStatus={apiStatus} />
+      <TickerFooter reaction={selected?.reaction ?? null} apiStatus={apiStatus} />
     </div>
   );
 }

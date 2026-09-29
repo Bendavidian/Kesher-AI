@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { createMcpFetch } from '@kesher/mcp';
+import { createMcpFetch, type ToolDeps } from '@kesher/mcp';
+import { PriceReactionError } from '@kesher/shared';
 import express, {
   Router,
   type ErrorRequestHandler,
@@ -41,11 +42,30 @@ const onBadJson: ErrorRequestHandler = (error: { type?: string }, _req, res, nex
   next(error);
 };
 
+// Without market data, get_price_reaction answers so, and nothing is logged as a failure.
+const noMarketData: ToolDeps['priceReaction'] = () =>
+  Promise.reject(new PriceReactionError('market data is not configured'));
+
 // POST /mcp (docs/INTERFACES.md): stateless MCP over HTTP, authorized by the run token alone.
-export function mcpRouter(db: Db, secret: string, onError?: (error: Error) => void): Router {
+export function mcpRouter(
+  db: Db,
+  secret: string,
+  onError?: (error: Error) => void,
+  priceReaction: ToolDeps['priceReaction'] = noMarketData,
+): Router {
   const serve = createMcpFetch({
     secret,
-    deps: { events: collection(db, 'market_events'), sources: collection(db, 'sources') },
+    deps: {
+      events: collection(db, 'market_events'),
+      sources: collection(db, 'sources'),
+      // A provider failure is logged here and rethrown on purpose: the tool turns it into
+      // "Market data is unavailable", so the agent never sees the provider's message.
+      priceReaction: (subjects, headline) =>
+        priceReaction(subjects, headline).catch((error: unknown) => {
+          if (!(error instanceof PriceReactionError) && error instanceof Error) onError?.(error);
+          throw error;
+        }),
+    },
     ...(onError ? { onError } : {}),
   });
   const router = Router();

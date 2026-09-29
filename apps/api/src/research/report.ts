@@ -1,7 +1,7 @@
 import { ReportDetail, type ReportSource, type Source } from '@kesher/shared';
 import type { Db } from 'mongodb';
 import { collection } from '../db/collections';
-import { feedCard } from '../feed/cards';
+import { feedCard, type CardMarket } from '../feed/cards';
 
 const PROVIDER_LABEL: Record<Source['provider'], string> = {
   alpaca: 'Alpaca',
@@ -39,6 +39,7 @@ export async function reportDetail(
   db: Db,
   userId: string,
   reportId: string,
+  market?: CardMarket,
 ): Promise<ReportDetail | null> {
   const report = await collection(db, 'reports').findOne({ _id: reportId });
   const run = report && (await collection(db, 'agent_runs').findOne({ _id: report.runId, userId }));
@@ -52,7 +53,7 @@ export async function reportDetail(
       .toArray(),
     collection(db, 'feed_items').findOne({ userId, eventId: run.eventId }),
   ]);
-  const card = item && item.relevance > 0 ? await feedCard(db, item) : null;
+  const card = item && item.relevance > 0 ? await feedCard(db, item, market) : null;
   const byId = new Map(sources.map((source) => [source._id, reportSourceFor(source)]));
 
   return ReportDetail.parse({

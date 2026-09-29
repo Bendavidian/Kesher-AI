@@ -2,12 +2,21 @@ import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mintRunToken, type ToolName } from '@kesher/mcp';
-import { EMBEDDING_DIMENSIONS, type MarketEvent, type Source } from '@kesher/shared';
+import {
+  EMBEDDING_DIMENSIONS,
+  PriceReactionError,
+  type MarketEvent,
+  type PriceSymbol,
+  type Source,
+} from '@kesher/shared';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import { collection } from '../db/collections';
 import { ensureCollections, ensureIndexes } from '../db/indexes';
+import { loadReactionFixture } from '../market/fixture';
+import type { PriceReactions } from '../market/reactions';
+import { DEMO_SOURCE_ID } from '../seed/config';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 
 const SECRET = 'integration-secret-that-is-long-enough';
@@ -94,6 +103,8 @@ describe('POST /mcp', () => {
   let server: Server;
   let baseUrl: string;
   const clients: Client[] = [];
+  const asked: { subjects: readonly PriceSymbol[]; headline: Date }[] = [];
+  const logged: unknown[] = [];
 
   beforeAll(async () => {
     mongo = await startTestMongo('kesher_mcp_test');
@@ -101,7 +112,23 @@ describe('POST /mcp', () => {
     await ensureIndexes(mongo.db);
     await collection(mongo.db, 'sources').insertMany([demo, later, older, filing, ...filler]);
     await collection(mongo.db, 'market_events').insertOne(event);
-    server = createApp({ db: mongo.db, devRoutes: false, mcp: { secret: SECRET } }).listen(0);
+    const { reaction } = await loadReactionFixture(DEMO_SOURCE_ID);
+    // The committed demo reaction for any past headline; the real computation is tested in market.
+    const priceReactions: PriceReactions = (subjects, headline) => {
+      asked.push({ subjects, headline });
+      if (headline.getTime() > Date.now()) {
+        return Promise.reject(new PriceReactionError('the headline time is in the future'));
+      }
+      if (subjects[0] === 'KO') return Promise.reject(new Error('Alpaca bars answered 500'));
+      return Promise.resolve(reaction);
+    };
+    server = createApp({
+      db: mongo.db,
+      devRoutes: false,
+      mcp: { secret: SECRET },
+      priceReactions,
+      logError: (error) => logged.push(error),
+    }).listen(0);
     baseUrl = await listen(server);
   }, MONGO_START_TIMEOUT_MS);
 
@@ -273,6 +300,63 @@ describe('POST /mcp', () => {
     it('returns the same results whoever the token names', async () => {
       const args = { query: 'TSMC earthquake' };
       expect(await search(args, personaB)).toEqual(await search(args, personaA));
+    });
+  });
+  describe('get_price_reaction', () => {
+    const call = (client: Client, args: Record<string, unknown>) =>
+      client.callTool({ name: 'get_price_reaction', arguments: args });
+
+    it('returns the demo reaction for the symbol at the headline time, as JSON', async () => {
+      const client = await connect(['get_price_reaction']);
+      asked.length = 0;
+      const result = await call(client, { symbol: 'TSM', eventTime: '2024-04-02T23:57:09-04:00' });
+      expect(result.isError).toBeFalsy();
+      expect(asked).toEqual([{ subjects: ['TSM'], headline: new Date('2024-04-03T03:57:09Z') }]);
+      const output = result.structuredContent as {
+        anchor: { kind: string; baseTime: string; tradingDay: string };
+        rows: { symbol: string; moves: { pct: number | null }[] }[];
+        delayed: boolean;
+      };
+      expect(output.anchor).toEqual({
+        kind: 'previous_close',
+        baseTime: '2024-04-02T20:00:00.000Z',
+        tradingDay: '2024-04-03',
+      });
+      expect(output.rows.map((row) => row.symbol)).toEqual(['TSM', 'NVDA', 'SMH', 'SPY']);
+      expect(output.rows[0]!.moves.map((move) => move.pct)).toEqual([-1.16, -0.38, 1.31, 1.25]);
+      expect(output.delayed).toBe(true);
+    });
+
+    it('gives the reason for a future time, and hides a provider error but logs it', async () => {
+      const client = await connect(['get_price_reaction']);
+      const future = await call(client, { symbol: 'TSM', eventTime: '2999-01-01T00:00:00Z' });
+      expect(future.isError).toBe(true);
+      expect(JSON.stringify(future.content)).toContain('the headline time is in the future');
+
+      logged.length = 0;
+      const failed = await call(client, { symbol: 'KO', eventTime: '2024-04-03T03:57:09Z' });
+      expect(failed.isError).toBe(true);
+      expect(JSON.stringify(failed.content)).toContain('Market data is unavailable');
+      expect(JSON.stringify(failed.content)).not.toContain('Alpaca');
+      expect(logged).toHaveLength(1);
+    });
+
+    it('rejects a benchmark or a symbol outside the universe', async () => {
+      const client = await connect(['get_price_reaction']);
+      for (const symbol of ['SPY', 'AAPL']) {
+        const result = await call(client, { symbol, eventTime: '2024-04-03T03:57:09Z' });
+        expect(result.isError, symbol).toBe(true);
+      }
+    });
+
+    it('is missing for a token that does not list it', async () => {
+      const client = await connect(['get_event', 'search_news']);
+      expect((await client.listTools()).tools.map((tool) => tool.name)).not.toContain(
+        'get_price_reaction',
+      );
+      await expect(
+        call(client, { symbol: 'TSM', eventTime: '2024-04-03T03:57:09Z' }),
+      ).rejects.toThrow(/get_price_reaction/);
     });
   });
 });

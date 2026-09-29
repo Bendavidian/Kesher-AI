@@ -4,7 +4,8 @@ import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createKesherServer } from './server';
 import { mintRunToken, verifyRunToken, type ToolName } from './token';
-import type { ToolDeps } from './tools';
+import { priceReactionJson, type ToolDeps } from './tools';
+import { REACTION } from './testing';
 
 const SECRET = 'test-secret-that-is-at-least-32-chars';
 
@@ -12,6 +13,7 @@ const SECRET = 'test-secret-that-is-at-least-32-chars';
 const deps = {
   events: { findOne: () => Promise.resolve(null) },
   sources: {},
+  priceReaction: () => Promise.resolve(REACTION),
 } as unknown as ToolDeps;
 
 let client: Client | undefined;
@@ -54,8 +56,21 @@ describe('createKesherServer', () => {
   });
 
   it('serves no tool that the server has not implemented', async () => {
-    const future = await connect(['get_price_reaction']);
+    const future = await connect(['get_financial_facts']);
     expect((await future.listTools()).tools).toEqual([]);
+  });
+
+  it('serves get_price_reaction to a token that lists it, as structured content', async () => {
+    const scoped = await connect(['get_price_reaction']);
+    expect((await scoped.listTools()).tools.map((tool) => tool.name)).toEqual([
+      'get_price_reaction',
+    ]);
+    const result = await scoped.callTool({
+      name: 'get_price_reaction',
+      arguments: { symbol: 'TSM', eventTime: '2024-04-03T03:57:09Z' },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toEqual(priceReactionJson(REACTION));
   });
 
   it('marks every tool read only', async () => {
