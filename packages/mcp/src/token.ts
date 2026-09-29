@@ -1,4 +1,4 @@
-import { AgentName, Id } from '@kesher/shared';
+import { AgentName, Id, MIN_SECRET_LENGTH } from '@kesher/shared';
 import { SignJWT, jwtVerify } from 'jose';
 import { z } from 'zod';
 
@@ -17,7 +17,7 @@ export type ToolName = z.infer<typeof ToolName>;
 
 // Fixed by the contract; callers cannot choose a longer lifetime.
 export const RUN_TOKEN_TTL_SECONDS = 300;
-export const MIN_SECRET_LENGTH = 32;
+export { MIN_SECRET_LENGTH };
 
 // The only source of identity and permissions on the server (principle 5).
 export const RunTokenClaims = z

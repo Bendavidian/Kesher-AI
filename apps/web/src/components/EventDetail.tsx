@@ -44,9 +44,23 @@ function WhyYou({ view, replayKey }: { view: EventView; replayKey: string }) {
   );
 }
 
+// The market table's place while an event has no price reaction (FeedCard.priceReaction is null
+// until market data is wired). No number is shown that the api did not send.
+function NoReaction() {
+  return (
+    <div className="flex flex-col gap-2.5">
+      <h3 className="text-[13px] font-extrabold text-text-2">Market around the headline</h3>
+      <p className="rounded-panel border border-dashed border-border-strong px-4 py-4 text-[13px] leading-normal text-text-3">
+        No price reaction yet. The moves appear here next to the benchmarks once market data is in.
+      </p>
+    </div>
+  );
+}
+
 interface Props {
   view: EventView | null;
-  reaction: PriceReaction;
+  // null until the event has a price reaction.
+  reaction: PriceReaction | null;
   // Changes with the persona, so the connection path replays.
   replayKey: string;
   className?: string;
@@ -68,7 +82,7 @@ export function EventDetail({ view, reaction, replayKey, className = '' }: Props
 
   const { event, source } = view;
   const subject =
-    reaction.rows.find((row) => view.held.some((symbol) => symbol === row.symbol))?.symbol ??
+    reaction?.rows.find((row) => view.held.some((symbol) => symbol === row.symbol))?.symbol ??
     view.path.stations[0].title;
 
   return (
@@ -79,7 +93,8 @@ export function EventDetail({ view, reaction, replayKey, className = '' }: Props
       <div className="flex flex-col gap-2.5">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-text-3">
           <span className="font-bold text-text-2">
-            {source.wire} via {PROVIDER_LABEL[source.provider]}
+            {source.wire ? `${source.wire} via ` : ''}
+            {PROVIDER_LABEL[source.provider]}
           </span>
           <span className="rounded-chip bg-border px-2 py-0.5 font-bold text-text-2">
             {TIER_LABEL[source.tier]}
@@ -92,8 +107,14 @@ export function EventDetail({ view, reaction, replayKey, className = '' }: Props
       </div>
 
       <WhyYou view={view} replayKey={replayKey} />
-      <MarketTable reaction={reaction} held={view.held} />
-      <OpenGapBars reaction={reaction} subject={subject} />
+      {reaction ? (
+        <>
+          <MarketTable reaction={reaction} held={view.held} />
+          <OpenGapBars reaction={reaction} subject={subject} />
+        </>
+      ) : (
+        <NoReaction />
+      )}
     </section>
   );
 }

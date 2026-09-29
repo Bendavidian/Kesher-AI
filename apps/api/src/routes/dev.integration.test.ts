@@ -1,6 +1,6 @@
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { ReplayResponse } from '@kesher/shared';
+import { ReplayResponse, ResetResponse } from '@kesher/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import { collection } from '../db/collections';
@@ -163,5 +163,60 @@ describe('POST /dev/replay/:sourceId', () => {
 
   it('is not mounted when dev routes are off', async () => {
     expect((await replay(DEMO_SOURCE_ID, prodUrl)).status).toBe(404);
+  });
+
+  describe('POST /dev/reset/:sourceId', () => {
+    const reset = (id: string, url = baseUrl) =>
+      fetch(`${url}/dev/reset/${id}`, { method: 'POST' });
+
+    it('deletes only the FeedItems of the replayed event', async () => {
+      const replayed = ReplayResponse.parse(await (await replay(DEMO_SOURCE_ID)).json());
+      if (replayed.outcome !== 'processed') throw new Error('expected processed');
+      const items = collection(mongo.db, 'feed_items');
+      const other = {
+        _id: '88888888-8888-4888-8888-888888888888',
+        userId: '99999999-9999-4999-8999-999999999999',
+        eventId: '77777777-7777-4777-8777-777777777777',
+        relevance: 0,
+        path: null,
+        confidence: 'low' as const,
+        status: 'unconfirmed' as const,
+        research: { state: 'none' as const, runId: null },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      await items.insertMany([
+        { ...other, _id: '88888888-8888-4888-8888-888888888889', eventId: replayed.eventId },
+        other,
+      ]);
+      try {
+        const response = await reset(DEMO_SOURCE_ID);
+        expect(response.status).toBe(200);
+        expect(ResetResponse.parse(await response.json())).toEqual({
+          sourceId: replayed.sourceId,
+          eventId: replayed.eventId,
+          deleted: 1,
+        });
+        expect(await items.countDocuments({ eventId: replayed.eventId })).toBe(0);
+        expect(await items.countDocuments({ _id: other._id })).toBe(1);
+        const event = await collection(mongo.db, 'market_events').findOne({
+          _id: replayed.eventId,
+        });
+        expect(event?.extraction).not.toBeNull();
+      } finally {
+        await items.deleteMany({});
+      }
+    });
+
+    it('answers 400 for a bad id and 404 for an item never replayed', async () => {
+      expect((await reset('abc')).status).toBe(400);
+      const response = await reset('999');
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ error: 'Alpaca news 999 has not been replayed' });
+    });
+
+    it('is not mounted when dev routes are off', async () => {
+      expect((await reset(DEMO_SOURCE_ID, prodUrl)).status).toBe(404);
+    });
   });
 });

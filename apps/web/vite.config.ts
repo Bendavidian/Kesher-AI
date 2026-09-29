@@ -12,6 +12,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': { target: API_URL, rewrite: (path) => path.replace(/^\/api/, '') },
+      // Socket.IO keeps its own path; the session cookie rides on the proxied handshake.
+      '/socket.io': { target: API_URL, ws: true },
     },
   },
   test: {

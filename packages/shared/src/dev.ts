@@ -30,3 +30,12 @@ export const ReplayResponse = z.discriminatedUnion('outcome', [
   ReplayDropped,
 ]);
 export type ReplayResponse = z.infer<typeof ReplayResponse>;
+
+// POST /dev/reset/:sourceId (development only): deletes the FeedItems of the item's event and
+// nothing else, so the next replay scores it again with no model call and pushes it as new.
+export const ResetResponse = z.strictObject({
+  sourceId: Id,
+  eventId: Id,
+  deleted: z.int().min(0),
+});
+export type ResetResponse = z.infer<typeof ResetResponse>;

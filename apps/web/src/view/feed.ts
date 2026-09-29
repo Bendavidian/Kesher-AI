@@ -1,19 +1,21 @@
 import {
   relevanceBand,
   SHORT_NAME,
-  type Company,
   type Confidence,
-  type FeedItem,
+  type EventExplain,
+  type FeedCard,
+  type FeedCardEvent,
+  type FeedCardSource,
+  type FeedEvidence,
+  type FeedPath,
   type Importance,
-  type MarketEvent,
   type RelevanceBand,
-  type Relationship,
   type Tier,
   type UniverseSymbol,
 } from '@kesher/shared';
 import { formatDay } from './format';
 import { buildPathView, type PathView } from './path';
-import type { FilingView, NewsSourceView, Persona, PriceReaction } from './types';
+import type { NewsSourceView, Persona } from './types';
 
 export type RelevanceLabel = 'High' | 'Medium' | 'None';
 
@@ -64,22 +66,22 @@ export interface EvidenceView {
   url: string;
 }
 
-export interface FeedEntry {
-  item: FeedItem;
-  event: MarketEvent;
-  path: PathView;
-  replayed: boolean;
+// What code decided for this investor: from the FeedItem, or from explain for an event that no
+// feed list carries.
+export interface Score {
+  relevance: number;
+  path: FeedPath | null;
+  confidence: Confidence;
 }
 
-export interface FixtureStore {
-  events: MarketEvent[];
-  newsSources: NewsSourceView[];
-  companies: Company[];
-  relationships: Relationship[];
-  filings: FilingView[];
-  feedItems: FeedItem[];
-  priceReaction: PriceReaction;
-  replayedEventId: string;
+export interface FeedEntry {
+  // The FeedItem id, or the event id for an explained event with no FeedItem in the feed.
+  key: string;
+  score: Score;
+  event: FeedCardEvent;
+  path: PathView;
+  // The event the last replay scored.
+  replayed: boolean;
 }
 
 export interface EventView extends FeedEntry {
@@ -95,81 +97,125 @@ export interface FeedView {
   selected: EventView | null;
 }
 
-function eventCompany(event: MarketEvent, item: FeedItem): UniverseSymbol | null {
-  if (item.path) return item.path.eventCompany;
+// What the feed screen shows: the user's FeedCards (relevance above 0, from GET /feed and the
+// socket) and the explanations of scored events that stay out of the feed.
+export interface FeedInput {
+  cards: readonly FeedCard[];
+  explains: readonly EventExplain[];
+  replayedEventId: string | null;
+}
+
+function sourceView(source: FeedCardSource): NewsSourceView {
+  return {
+    _id: source._id,
+    provider: source.provider,
+    tier: source.tier,
+    externalId: source.externalId,
+    publishedAt: source.publishedAt,
+    wire: source.publisher,
+  };
+}
+
+function eventCompany(event: FeedCardEvent, path: FeedPath | null): UniverseSymbol | null {
+  if (path) return path.eventCompany;
   // Without a path, the extracted company only names the first station. It is display only:
   // relevance and the path were already decided by code.
   const symbol = event.extraction?.companies[0]?.symbol;
   return symbol && symbol in SHORT_NAME ? (symbol as UniverseSymbol) : null;
 }
 
-function relevanceNote(item: FeedItem): string {
-  const band = relevanceLabel(item.relevance);
-  if (!item.path) return `${band}. No path to your holdings.`;
-  if (item.path.hops.length === 0) return `${band}. You hold the company.`;
+function relevanceNote(score: Score): string {
+  const band = relevanceLabel(score.relevance);
+  if (!score.path) return `${band}. No path to your holdings.`;
+  if (score.path.hops.length === 0) return `${band}. You hold the company.`;
   return `${band}. Measured along the path.`;
 }
 
-function evidenceFor(item: FeedItem, store: FixtureStore): EvidenceView[] {
-  return (item.path?.hops ?? []).flatMap((hop) => {
-    const edge = store.relationships.find((r) => r._id === hop.relationshipId);
-    // No evidence, no edge: a hop without a reviewed relationship is never shown as backed.
-    if (!edge?.evidence.reviewed) return [];
-    const filing = store.filings.find((f) => f.sourceId === edge.evidence.sourceId);
-    if (!filing) return [];
-    return [
-      {
-        quote: edge.evidence.quote,
-        filingLabel: `${SHORT_NAME[filing.company]} ${filing.form}, filed ${formatDay(edge.evidence.filingDate)}`,
-        tier: filing.tier,
-        reviewed: edge.evidence.reviewed,
-        url: edge.evidence.url,
-      },
-    ];
-  });
+// The server sends only reviewed evidence (no evidence, no edge); this only labels it.
+function evidenceView(evidence: FeedEvidence): EvidenceView {
+  return {
+    quote: evidence.quote,
+    filingLabel: `${SHORT_NAME[evidence.filing.symbol]} ${evidence.filing.form}, filed ${formatDay(evidence.filingDate)}`,
+    tier: evidence.filing.tier,
+    reviewed: evidence.reviewed,
+    url: evidence.url,
+  };
+}
+
+interface Candidate {
+  key: string;
+  score: Score;
+  event: FeedCardEvent;
+  source: FeedCardSource;
+  evidence: FeedEvidence[];
 }
 
 export function buildFeedView(
   persona: Persona,
-  store: FixtureStore,
+  { cards, explains, replayedEventId }: FeedInput,
   selectedEventId: string | null,
 ): FeedView {
-  const entries = store.feedItems
-    .filter((item) => item.userId === persona._id)
-    .flatMap((item): FeedEntry[] => {
-      const event = store.events.find((e) => e._id === item.eventId);
-      const company = event ? eventCompany(event, item) : null;
-      if (!event || !company) return [];
+  const carded = new Set(cards.map((card) => card.event._id));
+  const candidates: Candidate[] = [
+    ...cards.map((card) => ({
+      key: card.item._id,
+      score: card.item,
+      event: card.event,
+      source: card.source,
+      evidence: card.evidence,
+    })),
+    // An explanation only fills in an event the feed does not carry.
+    ...explains
+      .filter((explain) => !carded.has(explain.event._id))
+      .map((explain) => ({
+        key: explain.event._id,
+        score: explain,
+        event: explain.event,
+        source: explain.source,
+        evidence: explain.evidence,
+      })),
+  ];
+
+  const byKey = new Map(candidates.map((candidate) => [candidate.key, candidate]));
+  const entries = candidates
+    .flatMap((candidate): FeedEntry[] => {
+      const company = eventCompany(candidate.event, candidate.score.path);
+      if (!company) return [];
       return [
         {
-          item,
-          event,
-          path: buildPathView(item.path, company, persona),
-          replayed: event._id === store.replayedEventId,
+          key: candidate.key,
+          score: {
+            relevance: candidate.score.relevance,
+            path: candidate.score.path,
+            confidence: candidate.score.confidence,
+          },
+          event: candidate.event,
+          path: buildPathView(candidate.score.path, company, persona),
+          replayed: candidate.event._id === replayedEventId,
         },
       ];
     })
     .sort((a, b) => b.event.publishedAt.getTime() - a.event.publishedAt.getTime());
 
-  const visible = entries.filter((entry) => entry.item.relevance > 0);
-  const hidden = entries.filter((entry) => entry.item.relevance === 0);
+  const visible = entries.filter((entry) => entry.score.relevance > 0);
+  const hidden = entries.filter((entry) => entry.score.relevance === 0);
 
   const chosen =
     entries.find((entry) => entry.event._id === selectedEventId) ??
     entries.find((entry) => entry.replayed) ??
     entries[0];
-  const source = chosen && store.newsSources.find((s) => s._id === chosen.event.sourceIds[0]);
+  const candidate = chosen && byKey.get(chosen.key);
 
   return {
     visible,
     hidden,
     selected:
-      chosen && source
+      chosen && candidate
         ? {
             ...chosen,
-            source,
-            evidence: evidenceFor(chosen.item, store),
-            relevanceNote: relevanceNote(chosen.item),
+            source: sourceView(candidate.source),
+            evidence: candidate.evidence.map(evidenceView),
+            relevanceNote: relevanceNote(chosen.score),
             held: persona.holdings.map((holding) => holding.symbol),
           }
         : null,

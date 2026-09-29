@@ -53,7 +53,7 @@ Notes from the UI track (contract gap: feed:item carries only a FeedItem with id
 - Move the "Why you" path templates from apps/web/src/view/path.ts into packages/shared, so the server and the web render the same wording.
 - Set the relevance bands. The UI uses High from 0.8, Medium above 0 and None at 0 as placeholders; T16 calibrates them.
 
-### [ ] T06 Live feed with persona switcher
+### [~] T06 Live feed with persona switcher
 Web feed with cards pushed over Socket.IO, and login as any of the three personas.
 Build to docs/UI.md, including the one column layout below 1280px. docs/design/feed.dc.html is markup reference only; it needs the design canvas runtime and does not run on its own. The real spike values shown in the design (the demo headline, the 10-K quote and the anchored price moves) are fixtures for the replay demo and its tests.
 Done when: replaying the TSMC event updates three open browser sessions with three different cards.
@@ -64,6 +64,12 @@ Notes from T05:
 - Replace the web fixtures with FeedCards. Render "Why you" with whyYou and the bands with relevanceBand from packages/shared; the web view already uses both.
 - The seed ran `backfillPublishers`; run `npm run seed` on each machine's database once before T06.
 - The feed and every FeedCard list hide relevance 0 (SPEC.md decision log, T05). The stored relevance 0 items only mark the event scored for that user. feedCardsFor still returns them, and its comment says so: filter on relevance above 0 there. Emit no feed:item or feed:update for a relevance 0 item.
+
+Notes from T06 for later tasks:
+- T08: the Investigate button in apps/web/src/components/ScoresPanel.tsx stays disabled; wire it to POST /events/:eventId/investigate and take the user from the session (currentUser in apps/api/src/auth/session.ts). feed:update is already pushed for a changed FeedItem, and the web upserts by event.
+- T10: live items reach the sockets through processItem's onScored hook, which server.ts wires to publishScored. Nothing else is needed for live pushes.
+- T13: FeedCard.priceReaction is still null; EventDetail and TickerFooter already render a reaction when one arrives (view type PriceReaction in apps/web/src/view/types.ts).
+- Hardening before real accounts: NODE_ENV unset counts as development (dev routes on, cookie not Secure); consider requiring it, an Origin allowlist on the socket handshake, and a login rate limit.
 
 ### [x] T07 MCP server, thin
 packages/mcp with get_event and search_news, and run token verification with user and tool scopes.

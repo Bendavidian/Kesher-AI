@@ -54,8 +54,11 @@ The MCP server rejects any call to a tool that the token does not list.
 
 ## REST (api)
 - GET /health: `{ status: "ok" }`, HealthResponse in packages/shared
-- POST /auth/login, GET /me
-- GET /feed?cursor=: the current user's FeedCard[] with relevance above 0, newest item first. Relevance 0 items are stored only to mark the event scored for that user (SPEC.md decision log, T05) and never appear in a feed list. The user comes from the auth context only. The route lands in T06 with login; T05 ships the contract and feedCardsFor in apps/api/src/feed/cards.ts.
+- POST /auth/login: body LoginRequest `{ email, password }` (packages/shared; strict, so a user id is rejected). Returns PublicUser (the User without passwordHash and createdAt) and sets the session cookie. A wrong password and an unknown email get the same 401 `{ error: "email or password is wrong" }`; a malformed body gets 400. The persona switcher signs in as a seeded persona with the public demo password.
+- POST /auth/logout: clears the session cookie and disconnects that user's sockets; 204.
+- GET /me: the signed in user's PublicUser, or 401.
+- GET /feed: the signed in user's FeedCard[] with relevance above 0, newest item first (createdAt descending, then _id), at most 50. No cursor yet; the order is stable enough to add one. Relevance 0 items are stored only to mark the event scored for that user (SPEC.md decision log, T05) and never appear in a feed list. 401 without a session.
+- GET /events/:eventId/explain: EventExplain in packages/shared, `{ event, source, relevance, path, confidence, evidence }`, for the signed in user. Computed on request by the same code that scores the feed (loadScoringContext and scoreFor in apps/api/src/relevance/feed.ts); it writes nothing, not even a FeedItem. It is how the web shows None for an event no feed list carries. 400 for an id that is not a UUID, 404 for an unknown or unextracted event, 401 without a session.
 - POST /events/:eventId/investigate
 - GET /runs/:runId
 - POST /mcp: MCP over stateless Streamable HTTP (see MCP tools), with `Authorization: Bearer <run token>`. A missing, malformed, badly signed or expired token gets 401 with `WWW-Authenticate: Bearer error="invalid_token"` before the SDK sees the request. A malformed JSON body gets 400.
@@ -64,6 +67,13 @@ The MCP server rejects any call to a tool that the token does not list.
   - `{ outcome: "dropped", reason: "not_in_universe" }`: nothing is stored.
   - `{ outcome: "dropped", reason: "duplicate" | "update", sourceId, eventId }`: the item was already processed (extracted and scored for every user); nothing is extracted or scored again. A second replay of the same item returns duplicate with the same ids.
   - 400 when sourceId is not all digits, 404 when there is no recording, 503 when a needed model key is missing (the body names it) or both model providers are rate limited. After a 503 the item is stored without an extraction and resumes on the next replay.
+  - A replay that scores the event pushes the Socket.IO events below.
+- POST /dev/reset/:sourceId (development only, not mounted in production): deletes the FeedItems of that Alpaca item's event, for every user, research state included, and nothing else: the Source, the event and its extraction stay. The next replay then scores the event again with no model call and pushes feed:item as a new arrival. Returns ResetResponse `{ sourceId, eventId, deleted }`. 400 when sourceId is not all digits, 404 when the item was never replayed. The web's Replay control calls reset, then replay.
+
+## Auth
+Every route except /health, /auth/login, /auth/logout and /mcp, and every socket, takes the user from the session cookie only; no route, query or socket event names a user.
+- Cookie `kesher_session`: httpOnly, SameSite=Lax, Path=/, Secure when NODE_ENV is production, 12 hours.
+- Its value is an HS256 JWT signed with JWT_SECRET (at least 32 characters, separate from MCP_TOKEN_SECRET), audience `kesher-web`, claims sub (user id), aud, iat and exp only. A run token never passes as a session: it has another secret and no audience.
 
 ## FeedCard
 The read model for one feed card, FeedCard in packages/shared, assembled on the server from stored documents (assembleCards, feedCard and feedCardsFor in apps/api/src/feed/cards.ts). Nothing in it is written by a model.
@@ -78,6 +88,8 @@ The read model for one feed card, FeedCard in packages/shared, assembled on the 
 Over JSON and Socket.IO, dates travel as ISO 8601 strings; the client turns them back into dates before parsing with FeedCard.
 
 ## Socket.IO events, server to client
-- feed:item: a FeedCard for a new FeedItem of the current user
-- feed:update: a FeedCard whose FeedItem changed (status, confidence, research state)
+The handshake needs the session cookie; without a valid one it fails with `connect_error` "sign in required". Each socket joins its user's room, and closes when the session expires or the user signs out. Only FeedItems with relevance above 0 are pushed as cards (SOCKET_EVENTS in packages/shared).
+- feed:item: a FeedCard for a FeedItem that scoring inserted, for its user only
+- feed:update: a FeedCard whose FeedItem scoring updated in place (and later its status, confidence or research state). Clients upsert by event, so a card that rose from 0 arrives as an update too.
+- event:scored: `{ eventId }` (EventScored), to every signed in socket, after the cards of that scoring run. It carries nothing about any user; a client with no card for the event may ask GET /events/:eventId/explain.
 - run:step: a new step in the AgentRun being viewed

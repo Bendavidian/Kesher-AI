@@ -4,7 +4,7 @@ import { describeError } from '../config/redact';
 import { collection } from '../db/collections';
 import { extractSource } from '../extract/extraction';
 import { MissingModelKeyError, type ModelClient } from '../llm/client';
-import { isScored, scoreEvent } from '../relevance/feed';
+import { isScored, scoreEvent, type ScoredItem } from '../relevance/feed';
 import { screenInput, screenText } from '../screen/injection';
 import { countDrop } from './counters';
 import { ingestItem } from './ingest';
@@ -17,6 +17,9 @@ export interface ProcessDeps {
   models: () => ModelClient;
   now?: () => Date;
   log?: (message: string) => void;
+  // Gets what a scoring run wrote, for the socket pushes. Its failure is logged and never undoes
+  // or repeats the processing.
+  onScored?: (eventId: string, scored: ScoredItem[]) => Promise<void>;
 }
 
 export type ProcessResult = ReplayResponse;
@@ -28,7 +31,7 @@ export type ProcessResult = ReplayResponse;
 export async function processItem(
   db: Db,
   item: IncomingItem,
-  { mode, models, now = () => new Date(), log = console.log }: ProcessDeps,
+  { mode, models, now = () => new Date(), log = console.log, onScored }: ProcessDeps,
 ): Promise<ProcessResult> {
   if (!passesUniverse(item.symbols)) {
     await countDrop(db, 'not_in_universe', mode, now());
@@ -80,7 +83,14 @@ export async function processItem(
   }
 
   // Code only: the graph, relevance and one FeedItem per user. A card never waits for research.
-  if (!(await isScored(db, ingested.eventId))) await scoreEvent(db, ingested.eventId, now());
+  if (!(await isScored(db, ingested.eventId))) {
+    const scored = await scoreEvent(db, ingested.eventId, now());
+    try {
+      await onScored?.(ingested.eventId, scored);
+    } catch (error) {
+      log(`push for event ${ingested.eventId} failed: ${describeError(error)}`);
+    }
+  }
 
   return { outcome: 'processed', ...ingested };
 }

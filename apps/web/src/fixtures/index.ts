@@ -1,4 +1,5 @@
-import type { FixtureStore } from '../view/feed';
+import type { Company, FeedItem, MarketEvent, Relationship } from '@kesher/shared';
+import type { FilingView, NewsSourceView, PriceReaction } from '../view/types';
 import {
   COMPANIES,
   DEMO_EVENT,
@@ -17,9 +18,22 @@ import {
   DEMO_TOKEN_SCOPE,
 } from './research';
 
-export { PERSONAS } from './personas';
+export { PERSONAS, PUBLIC_USERS } from './personas';
+export { DEMO_CARDS, DEMO_EXPLAINS } from './cards';
 
-// Everything the feed screen reads until T06 wiring replaces it with the api and Socket.IO.
+// The demo event's documents, for the report and agent run screens until T08 and T09 read them
+// from the api. The feed screen reads the api and Socket.IO.
+export interface FixtureStore {
+  events: MarketEvent[];
+  newsSources: NewsSourceView[];
+  companies: Company[];
+  relationships: Relationship[];
+  filings: FilingView[];
+  feedItems: FeedItem[];
+  priceReaction: PriceReaction;
+  replayedEventId: string;
+}
+
 export const DEMO_STORE: FixtureStore = {
   events: [DEMO_EVENT],
   newsSources: [DEMO_NEWS_SOURCE],

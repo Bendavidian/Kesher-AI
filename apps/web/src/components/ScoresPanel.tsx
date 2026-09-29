@@ -63,7 +63,7 @@ export function ScoresPanel({
   className?: string;
 }) {
   const importance = view?.event.extraction?.importance;
-  const canInvestigate = view !== null && view.item.relevance > 0;
+  const canInvestigate = view !== null && view.score.relevance > 0;
 
   let evidence: ReactNode = null;
   if (view?.path.kind === 'none') {
@@ -92,7 +92,7 @@ export function ScoresPanel({
             <Score
               label="Relevance"
               by="code"
-              value={formatScore(view.item.relevance)}
+              value={formatScore(view.score.relevance)}
               valueClass="text-you"
               note={view.relevanceNote}
               testId="relevance-value"
@@ -111,9 +111,9 @@ export function ScoresPanel({
             <Score
               label="Confidence"
               by="code"
-              value={CONFIDENCE_LABEL[view.item.confidence]}
+              value={CONFIDENCE_LABEL[view.score.confidence]}
               valueClass="text-code"
-              note={CONFIDENCE_NOTE[view.item.confidence]}
+              note={CONFIDENCE_NOTE[view.score.confidence]}
             />
             <p className="border-b border-border px-4 py-2.5 text-[11px] leading-normal text-text-3">
               Relevance changes with each investor. Importance and confidence belong to the event.
