@@ -155,12 +155,18 @@ Part 1 is done (29 Sep 2026). Notes for part 2 and later tasks:
 - T10: decide how live reactions persist (no collection stores bars or reactions yet), and whether live bars feed the local cache.
 - T14: a metric claim can check its numbers against the same PriceReaction (numbers_match).
 
-### [ ] T14 Full verification
+### [~] T14 Full verification
 Typed claims (fact, metric, inference), deterministic checks, an independent verifier agent. Unsupported facts are dropped, and inferences appear only with supported premises.
 The research report screen is completed to docs/UI.md: claim type chips, statuses, the supported and removed bar, the removed claim block and the sources panel. docs/design/report.dc.html is markup reference only; it needs the design canvas runtime and does not run on its own.
 Done when: every planted error in a fixture report is caught, and the rendered report contains only supported claims.
 Note from the UI track: check steps record the ids of the claims they removed, so the run screen colors only the check that removed a claim. Use the check names defined once in packages/shared (see the T08 notes).
 Note from T08: nothing in code screens claim text or open questions for advice (buy, sell, hold) or causal wording yet; only the research prompt forbids them. Add it to the checks or the verifier here (principles 7 and 8). Premise cycles between inferences also pass the T08 checks.
+Also in T14, from the T12 notes: a skipped run is labeled as skipped with the gate's reason, and the Agent runs tab opens the newest run that was not skipped.
+Notes from T14 for later tasks:
+- T16: grow the planted set in apps/api/src/research/planted.ts (19 claims, 16 planted errors today, all caught by the recorded verifier). Measure the no_advice word list on clean reports: it fails closed, so a fact that says a fund "holds" shares is removed. The verifier supported a hedged causal inference on the demo ("could have contributed to negative opening gaps"); decide whether hedged causal wording should pass. Tune VERIFIER_TOKEN_CAP (6,000) and VERIFIER_CALL_TOKENS (4,000) in verifier.ts; the demo used about 1,900.
+- T13 part 2: a metric about financial facts has no figures and stays unverified; numbers_match needs an XBRL branch once get_financial_facts exists. The research token already lists get_price_reaction.
+- Gemini rejects the research request when the draft's nested figures array has maxItems next to the other tools, so the draft has none; Claim caps figures at 12. Keep that in mind when a tool schema grows.
+- Atlas keeps one market_data Source from before the last change of its key (externalId sip-bars:<eventId> without symbols); it is dev data and harmless.
 
 ### [ ] T16 Evals
 20 recorded events × 3 personas labeled high, medium or none. Planted errors for the verifier. Poisoned press releases and posts. An eval runner that prints label agreement, catch rate, injection success rate with and without the injection screen, cost and latency. Tune the research token budgets, 20,000 tokens per run in deep mode and 12,000 in auto since T08.
