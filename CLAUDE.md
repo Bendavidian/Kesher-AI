@@ -36,6 +36,7 @@ Created in T01. Keep this list current when scripts change.
 - npm run seed: personas, demo universe, filing sources and reviewed edges into Atlas (MONGODB_URI), then any missing vector search indexes; safe to rerun
 - npm run record -- --id <alpaca news id> --symbol <ticker> --date <YYYY-MM-DD>: records one historical Alpaca news item to recordings/alpaca/<id>.json for replay (needs the Alpaca keys; --force to record again)
 - npm run record:models -- --id <alpaca news id>: runs the injection screen and the extraction for real, once, on a recorded item and writes the raw answers to recordings/models/<id>.json; tests replay them and never call a provider (needs the model keys; --force to record again)
+- npm run research:dev -- [--mode deep|auto] [--record] [--force]: development only; runs the research agent once for persona A on the demo event against Atlas through an in process MCP server on 127.0.0.1 and prints the run (needs MONGODB_URI, MCP_TOKEN_SECRET and the model keys). --record writes the raw model turns to recordings/research/<id>.json; tests replay them and never call a provider
 - npm run typecheck
 - npm run lint: ESLint, then a Prettier check
 - npm run format: Prettier write
