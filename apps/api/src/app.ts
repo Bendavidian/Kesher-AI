@@ -51,6 +51,8 @@ export interface AppDeps {
 export interface Api {
   app: Express;
   afterScoring: ProcessDeps['onScored'];
+  // Resolves once every research job queued so far has run. For tests.
+  idle: () => Promise<void>;
 }
 
 const logMessage = (error: unknown) =>
@@ -87,6 +89,8 @@ export function createApi({
   // After a scoring run: the cards go out first, then the gate decides on research, so a card
   // never waits for it (SPEC.md Pipeline).
   let afterScoring = onScored;
+  // One queue for automatic runs and Investigate: one research run at a time.
+  const queue = createQueue({ logError });
 
   if (mcp) app.use(mcpRouter(db, mcp.secret, logError, priceReactions));
   if (auth) {
@@ -108,8 +112,7 @@ export function createApi({
         redact: research.redact,
         // numbers_match reads the same price reaction the cards and get_price_reaction use.
         ...(priceReactions ? { priceReactions } : {}),
-        // One queue for automatic runs and Investigate: one research run at a time.
-        queue: createQueue({ logError }),
+        queue,
         logError,
         ...(onResearch ? { onResearch } : {}),
         ...(onRunStep ? { onStep: onRunStep } : {}),
@@ -141,5 +144,5 @@ export function createApi({
   };
   app.use(onError);
 
-  return { app, afterScoring };
+  return { app, afterScoring, idle: () => queue.idle() };
 }
