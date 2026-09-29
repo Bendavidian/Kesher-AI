@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FeedItem, MarketEvent } from './event';
 import { FilingChunk } from './filing';
 import { IngestCounter } from './ingest';
-import { AgentRun, Claim, MAX_STEP_OUTPUT_BYTES } from './research';
+import { AgentRun, Claim, MAX_STEP_OUTPUT_BYTES, ResearchBudgetDay } from './research';
 import { Source } from './source';
 import { User } from './user';
 
@@ -361,5 +361,22 @@ describe('IngestCounter', () => {
     );
     expect(IngestCounter.safeParse({ ...counter, reason: 'spam' }).success).toBe(false);
     expect(IngestCounter.safeParse({ ...counter, count: 0 }).success).toBe(false);
+  });
+});
+
+describe('ResearchBudgetDay', () => {
+  const budget = { _id: id(12), day: '2026-09-29', runs: 0, updatedAt: at };
+
+  it('accepts the runs reserved on one UTC day, from 0', () => {
+    expect(ResearchBudgetDay.safeParse(budget).success).toBe(true);
+    expect(ResearchBudgetDay.safeParse({ ...budget, runs: 30 }).success).toBe(true);
+  });
+
+  it('rejects a timestamp as the day and a negative or fractional count', () => {
+    expect(ResearchBudgetDay.safeParse({ ...budget, day: '2026-09-29T00:00:00Z' }).success).toBe(
+      false,
+    );
+    expect(ResearchBudgetDay.safeParse({ ...budget, runs: -1 }).success).toBe(false);
+    expect(ResearchBudgetDay.safeParse({ ...budget, runs: 1.5 }).success).toBe(false);
   });
 });

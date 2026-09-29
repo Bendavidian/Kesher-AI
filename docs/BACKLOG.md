@@ -137,9 +137,14 @@ Open decisions and notes from T02:
 - XOM now maps to CIK 0002115436 (ExxonMobil Holdings Corp). Keep the SEC value; when fetching XOM filings, fall back to the old CIK 0000034088 if the new one has no 10-K yet.
 - Finnhub sectors put AMZN in retail and GOOGL and META in media. Keep them as data, but do not score relevance on sector without checking this; themes from our taxonomy are likely the better signal.
 
-### [ ] T12 Gate policy and automatic research
+### [x] T12 Gate policy and automatic research
 The gate from SPEC.md: relevance threshold, importance of at least 4, dedupe per event cluster, daily budget. Cards appear immediately and research attaches asynchronously.
 Done when: tests cover every gate condition, and a card is visible before its research completes.
+Notes from T12 for later tasks:
+- Web, after T09 (new item): the run list and GET /runs now hold skipped runs (trigger gate, status skipped, startedAt null, one Gate check step with the condition and reason). The run summary in apps/web/src/view/run.ts says "Started by the research gate" for every gate run, a skipped one too; show "Skipped by the research gate" with AgentRun.gate.reason instead. The Agent runs tab opens the newest run, which after a Replay is often a skip; consider opening the newest run that was not skipped. A queued card has research.runId before its AgentRun exists, for longer than before, since the queue runs one run at a time; the run screen already loads on the first run:step.
+- T10: live items must go through the same after scoring hook as replay: createApp in apps/api/src/app.ts composes onScored with autoResearch (afterScoring). Expose it to the live ingester rather than passing server.ts's onScored alone, or live cards get no automatic research.
+- T16: a failed run counts as recent, so the gate does not retry it for 24 hours; only Investigate does. Decide whether failed runs should leave the recent check. A queue that keeps a job waiting past 15 minutes lets the next Investigate take the card over, and the waiting job's reserved run stays counted.
+- T16: tune GATE_MIN_RELEVANCE, GATE_MIN_IMPORTANCE and RECENT_RUN_MS (apps/api/src/research/gate.ts) and DAILY_RUN_LIMIT and AUTO_RUN_LIMIT (dailyBudget.ts). The research_budget collection shows the runs reserved per day.
 
 ### [~] T13 Full MCP tool set
 Every tool in INTERFACES.md, a tool set per agent, and get_price_reaction with benchmarks and the delayed flag. Windows are anchored to the regular session through the Alpaca market calendar, and the result states its anchor. search_filings returns at most 3 chunks per call.

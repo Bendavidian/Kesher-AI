@@ -9,6 +9,7 @@ import {
   MarketEvent,
   Relationship,
   Report,
+  ResearchBudgetDay,
   Source,
   User,
 } from '@kesher/shared';
@@ -29,6 +30,7 @@ export const SCHEMA_BY_COLLECTION = {
   filing_chunks: FilingChunk,
   ingest_counters: IngestCounter,
   recordings: LiveRecording,
+  research_budget: ResearchBudgetDay,
 } as const;
 
 export type CollectionName = keyof typeof SCHEMA_BY_COLLECTION;

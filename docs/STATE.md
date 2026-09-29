@@ -1,9 +1,33 @@
 # State
 
-Updated: 29 Sep 2026, T09 done; T13 part 1 done (price reaction), T13 stays [~] until part 2
+Updated: 29 Sep 2026, T12 done, merged with T09 and T13 part 1
 
 ## Where we are
-T00 to T09 are done, which completes the walking skeleton. T13 part 1, the price reaction, is done too; T13 stays [~] until part 2, which waits for T11 (BACKLOG.md T13, SPEC.md decision log T13). T13 part 1 was built in parallel with T08 part 2 and T09, rebased on T08 part 2 and then merged with main after T09.
+T00 to T09 and T12 are done; T09 completed the walking skeleton. T13 part 1, the price reaction, is done too; T13 stays [~] until part 2, which waits for T11 (BACKLOG.md T13, SPEC.md decision log T13). T13 part 1 was built in parallel with T08 part 2 and T09, rebased on T08 part 2 and then merged with main after T09. T12 was built in parallel with T09 and T13 part 1 and merged with main after both.
+
+T12 added the research gate and automatic research, so a card goes out as soon as it is scored and research attaches to it later:
+- The gate (apps/api/src/research/gate.ts, auto.ts) runs after each scoring run has pushed its cards, for every FeedItem above relevance 0. Code only, in this order:
+  - AUTO_RESEARCH on;
+  - relevance at least 0.6 and importance at least 4;
+  - research on the card not queued or running;
+  - no run for this user and event in the last 24 hours that was not skipped, whatever its trigger. When that run has a report and the card shows none, the report is attached to the card (done) with no model call;
+  - the daily budget.
+- A run that passes is queued in auto mode (6 tool calls, 12,000 tokens) with trigger gate, and its reason names each condition and its place in the budget.
+- Every skip on a card above relevance 0 is stored as an AgentRun with status skipped, the reason, and one Gate check step naming the condition. Relevance 0 stores nothing.
+- Daily budget (dailyBudget.ts): research runs per UTC day in the new research_budget collection (ResearchBudgetDay in shared), one document per day that both machines share, reserved with one atomic conditional $inc. 30 a day in total, and automatic runs stop at 20, so at least 10 stay for Investigate. A reserved run stays counted even if it never starts.
+- One in process FIFO queue (apps/api/src/jobs/queue.ts) runs one research run at a time, for the gate and for Investigate. enqueueResearch (enqueue.ts) is the one path:
+  - it claims the card as queued, reserves the budget or gives the card back its previous state, then moves the card queued → running → done or failed;
+  - every change is pushed as feed:update;
+  - the 15 minute takeover now covers queued as well as running.
+- Investigate answers 202 with the card queued, and 429 with "Today's research budget is spent (30 of 30 runs). It resets at 00:00 UTC." once the day is spent; a 429 changes nothing.
+- createApp composes the hook that runs after scoring: first the socket push (a failed push is logged), then autoResearch. Only replay uses it today; T10 must route live items through it.
+- AUTO_RESEARCH env flag: true or false, on when unset, any other value stops the api at startup. Off, the gate stores a skip with condition auto_research_off for every card, calls no model and reserves no budget. Investigate is unchanged.
+- The web needed no change: queued shows the same line as running, and the 429 text shows under the button.
+- On Atlas, with the browser:
+  - First Replay: B got a real auto run on Gemini (5,293 tokens, succeeded) and its report renders ("Auto mode, 2 of 6 tool calls"). A was skipped as recent, since it had an Investigate run from T08 that day, and that report was attached to its card.
+  - Second Replay: both were skipped with their reports attached, with no model call, and the budget stayed at 1.
+- The reviewer found no blockers. Its points on the push failure, errors while reserving, attaching from an earlier run, and the notes on queue depth and failed runs were fixed or documented.
+- 529 tests were green on T12 alone; after the merge with main (T09 and T13 part 1), 627 pass and 1 skips (the real bars test, without the local cache).
 
 T09 made the agent run inspectable from its card:
 - api (apps/api/src/research/runs.ts, apps/api/src/routes/research.ts):
@@ -172,11 +196,11 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. Check that CI passes on Ubuntu and Windows for the PR "T13 part 1: price reaction", then merge it.
+1. Check that CI passes on Ubuntu and Windows for the PR "T12: gate policy and automatic research", then merge it.
 2. On each machine, once: `npm run record:bars -- --event 38062166 --symbols TSM,NVDA`. It fills the gitignored bar cache so the demo card and the local SPIKE.md test read no Alpaca at runtime. Without it, the api asks Alpaca when the keys are set, and the local test skips.
 3. Phase 2 continues. Pick the next task from BACKLOG.md:
    - T11 needs the three open decisions below first; T13 part 2 follows it (notes under T13 in BACKLOG.md).
-   - T12 puts the daily budget check in startInvestigation and adds gate runs; they will show in Agent runs with trigger gate.
+   - T10 must route live items through the after scoring hook that runs the gate (notes under T12 in BACKLOG.md).
    - T14 adds the verifier; its steps and removals appear in the run screen with no screen change, since checks turn red from removedClaimIds. A metric claim can check its numbers against the same PriceReaction.
 4. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
@@ -184,8 +208,9 @@ Seed quotes and Source.text use the same normalization, and the T08 and T14 quot
    - The first npm run test downloads mongod 8.0.32, about 100 MB.
    - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay, Investigate and research:dev, MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start.
    - Run `npm run seed` once if that machine uses its own database, so older Sources get publisher and older FeedItems get research.reportId.
+   - Both machines share one daily research budget on Atlas (30 runs, automatic runs stop at 20). Set AUTO_RESEARCH=false in a machine's .env if it should not start automatic runs; the research_budget collection is created when the api starts.
 
-Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now.
+Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now. AUTO_RESEARCH is optional (on when unset).
 
 ## Open decisions
 For T11, listed under T11 in BACKLOG.md:
@@ -196,6 +221,7 @@ The UI language is settled by docs/UI.md: English interface, with Hebrew summari
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 29 Sep 2026, macOS (Mac mini), T12: research gate after scoring (relevance 0.6, importance 4, active, recent run in 24 hours with the report attached), skipped runs stored with their reason, daily budget of 30 runs with 20 for automatic runs in research_budget, one FIFO research queue for the gate and Investigate (202 queued, 429 once spent), AUTO_RESEARCH flag on by default; on Atlas B got a real auto run and a second Replay attached both reports with no model call; reviewer found no blockers; merged main with T09 and T13 part 1; 627 tests green, 1 skipped; T12 done.
 - 29 Sep 2026, macOS (Mac mini), T13 part 1: T13 split in two under one id; price reaction in shared anchored to the regular session through the market calendar, get_price_reaction over MCP and FeedCard.priceReaction from the same function, Alpaca calendar and SIP bars behind a file-first market data layer with a gitignored bar cache and npm run record:bars, the web market table and open gap bars on live values; the demo reproduces SPIKE.md check 3 exactly; WEB_PORT and API_PORT with api-alt and web-alt; rebased on T08 part 2; merged main after T09; reviewer found no blockers; 595 tests green; T13 stays [~].
 - 29 Sep 2026, macOS (Mac mini), T09: GET /runs and GET /runs/:runId for the signed in user only, run:step and run:end to the run's user only, run screen on the api with live steps, text only step output, token scope from the run's own step, Recent runs selector and /runs opening the newest run; a real Investigate on Atlas streamed 3, 5, 7, 10 steps to Completed; reviewer found no blockers; 526 tests green; T09 done.
 - 29 Sep 2026, macOS (Mac mini), T08 part 2: POST /events/:eventId/investigate answers 202 and runs deep research in the background with the user from the session, one run per item (409), stale takeover after 15 minutes; GET /reports/:reportId with ReportSource labels; FeedItem.research.reportId with a seed backfill; Investigate button states and the report screen on the api; only removed claims count as removed, waiting inferences get a neutral line; one real run on Atlas gave two facts with verified quotes; reviewer found no blockers; 496 tests green; T08 done.
