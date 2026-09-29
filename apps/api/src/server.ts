@@ -5,6 +5,7 @@ import { loadAlpacaKeys, loadAuthEnv, loadEnv, loadMcpEnv, loadModelKeys } from 
 import { describeError, redactor } from './config/redact';
 import { DB_NAME, connect } from './db/client';
 import { ensureCollections, ensureIndexes } from './db/indexes';
+import { lazyLocalEmbedder } from './embed/local';
 import { createModelClient, resolveFromKeys, type ModelClient } from './llm/client';
 import { createMarketData } from './market/data';
 import { createPriceReactions } from './market/reactions';
@@ -43,6 +44,12 @@ const models = () => (modelClient ??= createModelClient({ resolve: resolveFromKe
 // lack. The api starts without Alpaca keys; then only uncached market data is unavailable.
 const priceReactions = createPriceReactions(createMarketData({ keys: () => alpacaKeys }));
 const logError = (error: unknown) => console.error(redact(describeError(error)));
+// The local model (about 90 MB in .cache/models, downloaded once). Loading starts now, so a
+// first download never runs inside a request; a failed load is retried on the next use.
+const embedder = lazyLocalEmbedder();
+embedder().catch((error: unknown) => {
+  console.error(redact(`Embedding model not loaded: ${describeError(error)}`));
+});
 
 const devRoutes = env.NODE_ENV !== 'production';
 const app = createApp({
@@ -59,6 +66,7 @@ const app = createApp({
   logError,
   log: (message) => console.log(redact(message)),
   models,
+  embedder,
   // Investigate reaches the api's own POST /mcp as a real MCP client.
   research: {
     mcpUrl: () => `http://127.0.0.1:${port}/mcp`,

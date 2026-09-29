@@ -13,6 +13,7 @@ export function devRouter(
   models: () => ModelClient,
   log: (message: string) => void,
   onScored?: ProcessDeps['onScored'],
+  embedder?: ProcessDeps['embedder'],
 ): Router {
   const router = Router();
 
@@ -60,6 +61,7 @@ export function devRouter(
         models,
         log,
         ...(onScored ? { onScored } : {}),
+        ...(embedder ? { embedder } : {}),
       });
       res.json(ReplayResponse.parse(result));
     } catch (error) {

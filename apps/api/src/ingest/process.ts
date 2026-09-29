@@ -2,6 +2,7 @@ import { Source, type IngestMode, type ReplayResponse } from '@kesher/shared';
 import type { Db } from 'mongodb';
 import { describeError } from '../config/redact';
 import { collection } from '../db/collections';
+import { embedEvent, type LazyEmbedder } from '../embed/event';
 import { extractSource } from '../extract/extraction';
 import { MissingModelKeyError, type ModelClient } from '../llm/client';
 import { isScored, scoreEvent, type ScoredItem } from '../relevance/feed';
@@ -15,6 +16,9 @@ export interface ProcessDeps {
   mode: IngestMode;
   // Called only when a step needs a model, so dropped and already processed items need no key.
   models: () => ModelClient;
+  // The local embedding model, loaded on first use. Without it events keep embedding null until
+  // npm run embed:events.
+  embedder?: LazyEmbedder;
   now?: () => Date;
   log?: (message: string) => void;
   // Gets what a scoring run wrote, for the socket pushes. Its failure is logged and never undoes
@@ -31,7 +35,7 @@ export type ProcessResult = ReplayResponse;
 export async function processItem(
   db: Db,
   item: IncomingItem,
-  { mode, models, now = () => new Date(), log = console.log, onScored }: ProcessDeps,
+  { mode, models, embedder, now = () => new Date(), log = console.log, onScored }: ProcessDeps,
 ): Promise<ProcessResult> {
   if (!passesUniverse(item.symbols)) {
     await countDrop(db, 'not_in_universe', mode, now());
@@ -80,6 +84,16 @@ export async function processItem(
   if (!event?.extraction) {
     const { extraction } = await extractSource(models(), source, now());
     await events.updateOne({ _id: ingested.eventId, extraction: null }, { $set: { extraction } });
+  }
+
+  // The event vector for search. Fails open like the screen: relevance does not use it, and
+  // npm run embed:events fills what is missing.
+  if (embedder && event && event.embedding === null) {
+    try {
+      await embedEvent(db, await embedder(), event);
+    } catch (error) {
+      log(`embedding failed for event ${event._id}: ${describeError(error)}`);
+    }
   }
 
   // Code only: the graph, relevance and one FeedItem per user. A card never waits for research.

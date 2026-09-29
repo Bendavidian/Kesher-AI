@@ -1,11 +1,13 @@
 import { FeedItem, IngestCounter, MarketEvent, ReplayResponse, Source } from '@kesher/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { collection } from '../db/collections';
+import { backfillEventEmbeddings } from '../embed/event';
 import { createModelClient, MissingModelKeyError, MODELS, resolveFromKeys } from '../llm/client';
 import type { ModelClient } from '../llm/client';
 import { loadModelRecording, type ModelRecording } from '../llm/recordings';
 import { DEMO_SOURCE_ID, PERSONAS } from '../seed/config';
 import { runSeed } from '../seed/seed';
+import { fakeEmbedder, oneHot } from '../test/embedder';
 import { mockModel, rateLimitError, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import { toIncomingItem } from './alpaca';
@@ -152,6 +154,66 @@ describe('processItem on mongod', () => {
         { persona: 'B', relevance: 1, holding: 'TSM' },
         { persona: 'C', relevance: 0, holding: null },
       ]);
+    });
+  });
+
+  describe('event embedding', () => {
+    it('embeds the event once, from its headline and body, before scoring', async () => {
+      const embedder = fakeEmbedder();
+      const result = await processItem(mongo.db, item, {
+        ...deps(models().client),
+        embedder: () => Promise.resolve(embedder),
+      });
+      if (result.outcome !== 'processed') throw new Error('expected processed');
+
+      const { embedding, headline } = await storedEvent();
+      expect(embedder.embedded).toHaveLength(1);
+      expect(embedder.embedded[0]?.startsWith(`${headline}. `)).toBe(true);
+      expect(embedding).toEqual(oneHot(embedder.embedded[0]!));
+      expect(await collection(mongo.db, 'feed_items').countDocuments()).toBe(3);
+
+      // A duplicate never embeds again.
+      await processItem(mongo.db, item, {
+        ...noModels(),
+        embedder: () => Promise.resolve(embedder),
+      });
+      expect(embedder.embedded).toHaveLength(1);
+    });
+
+    it('fails open: a failed embedding is logged, scoring still runs, the backfill fills it', async () => {
+      await processItem(mongo.db, item, {
+        ...deps(models().client),
+        embedder: () => Promise.reject(new Error('model file missing')),
+      });
+
+      expect((await storedEvent()).embedding).toBeNull();
+      expect(logs).toContainEqual(expect.stringContaining('model file missing'));
+      expect(await collection(mongo.db, 'feed_items').countDocuments()).toBe(3);
+
+      const embedder = fakeEmbedder();
+      expect(await backfillEventEmbeddings(mongo.db, embedder)).toEqual({ embedded: 1, failed: 0 });
+      expect((await storedEvent()).embedding).toEqual(oneHot(embedder.embedded[0]!));
+      expect(await backfillEventEmbeddings(mongo.db, embedder)).toEqual({ embedded: 0, failed: 0 });
+    });
+
+    it('never replaces a stored vector', async () => {
+      await processItem(mongo.db, item, deps(models().client));
+      const stored = await storedEvent();
+      const kept = oneHot('kept');
+      await collection(mongo.db, 'market_events').updateOne(
+        { _id: stored._id },
+        { $set: { embedding: kept } },
+      );
+      await collection(mongo.db, 'feed_items').deleteMany({});
+      const embedder = fakeEmbedder();
+
+      await processItem(mongo.db, item, {
+        ...noModels(),
+        embedder: () => Promise.resolve(embedder),
+      });
+
+      expect(embedder.embedded).toEqual([]);
+      expect((await storedEvent()).embedding).toEqual(kept);
     });
   });
 

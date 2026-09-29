@@ -15,7 +15,8 @@
     "graph:review": "tsx src/graph/review-cli.ts",
     "graph:apply": "tsx src/graph/apply-cli.ts",
     "graph:chunks": "tsx src/graph/build-chunks.ts",
-    "graph:search": "tsx src/graph/search-cli.ts"
+    "graph:search": "tsx src/graph/search-cli.ts",
+    "embed:events": "tsx src/embed/backfill-cli.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.82",

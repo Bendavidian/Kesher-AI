@@ -1,6 +1,7 @@
 import { HealthResponse } from '@kesher/shared';
 import express, { type ErrorRequestHandler, type Express } from 'express';
 import type { Db } from 'mongodb';
+import type { LazyEmbedder } from './embed/event';
 import type { ProcessDeps } from './ingest/process';
 import { createQueue } from './jobs/queue';
 import { autoResearch } from './research/auto';
@@ -29,6 +30,9 @@ export interface AppDeps {
   log?: (message: string) => void;
   // The model client, built on first use. Without it every model call fails naming its key.
   models?: () => ModelClient;
+  // The local embedding model, loaded on first use, for event vectors at extraction. Without it
+  // replayed events keep embedding null until npm run embed:events.
+  embedder?: LazyEmbedder;
   // Mounts Investigate, GET /reports/:reportId and the run routes when set, with mcp and auth,
   // and runs the research gate after each scoring run. mcpUrl is the api's own POST /mcp, read
   // when a run starts; redact is applied to every run step. autoResearch is AUTO_RESEARCH, on
@@ -59,6 +63,7 @@ export function createApp({
   logError = logMessage,
   log = console.log,
   models = noKeys,
+  embedder,
   research,
   onResearch,
   onRunStep,
@@ -114,7 +119,7 @@ export function createApp({
       };
     }
   }
-  if (devRoutes) app.use(devRouter(db, models, log, afterScoring));
+  if (devRoutes) app.use(devRouter(db, models, log, afterScoring, embedder));
 
   // Answers without internals; driver errors can carry connection details.
   const onError: ErrorRequestHandler = (error, _req, res, next) => {

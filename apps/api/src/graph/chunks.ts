@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { FilingChunk, type UniverseSymbol } from '@kesher/shared';
 import type { AnyBulkWriteOperation, Db } from 'mongodb';
 import { collection } from '../db/collections';
-import { MAX_CHUNK_TOKENS } from './embed';
+import { MAX_CHUNK_TOKENS } from '../embed/local';
 import type { Section } from './sections';
 import { sentences } from './sections';
 
