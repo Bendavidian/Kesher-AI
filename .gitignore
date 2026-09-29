@@ -6,5 +6,6 @@ coverage/
 .claude/settings.local.json
 .claude/worktrees/
 spike/output/
+.cache/
 *.log
 .DS_Store
