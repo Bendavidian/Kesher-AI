@@ -22,8 +22,6 @@ export interface InvestigateDeps extends Omit<ResearchDeps, 'models' | 'newId'> 
   models: () => ModelClient;
   // Called after each research state change of the item, for feed:update.
   onResearch?: (item: FeedItem) => Promise<void> | void;
-  // Where a background failure goes, redacted by the server.
-  logError?: (error: unknown) => void;
 }
 
 export type InvestigateStart =

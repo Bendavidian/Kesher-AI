@@ -52,6 +52,8 @@ const app = createApp({
   // Investigate reaches the api's own POST /mcp as a real MCP client.
   research: { mcpUrl: () => `http://127.0.0.1:${port}/mcp`, redact },
   onResearch: (item) => realtime.publishItem(item),
+  onRunStep: (userId, pushed) => realtime.publishRunStep(userId, pushed),
+  onRunEnd: (userId, ended) => realtime.publishRunEnd(userId, ended),
 });
 const server = createServer(app);
 const realtime = createRealtime(server, { db, secret: authEnv.JWT_SECRET });
