@@ -1,7 +1,8 @@
-import { AgentRun, Claim, Report } from '@kesher/shared';
+import { AgentRun, Claim, Report, ReportDetail } from '@kesher/shared';
 import { describe, expect, it } from 'vitest';
 import { formatPercent } from '../view/format';
 import { DEMO_EVENT, DEMO_PRICE_REACTION, RELATIONSHIPS } from './demoEvent';
+import { DEMO_REPORT_DETAIL } from './index';
 import {
   DEMO_CLAIMS,
   DEMO_REPORT,
@@ -16,6 +17,12 @@ describe('research fixtures', () => {
     expect(AgentRun.parse(DEMO_RUN)).toEqual(DEMO_RUN);
     expect(Report.parse(DEMO_REPORT)).toEqual(DEMO_REPORT);
     for (const claim of DEMO_CLAIMS) expect(Claim.parse(claim)).toEqual(claim);
+    expect(ReportDetail.parse(DEMO_REPORT_DETAIL)).toEqual(DEMO_REPORT_DETAIL);
+  });
+
+  it('answer the report for the user and event of its card', () => {
+    const { run, card } = DEMO_REPORT_DETAIL;
+    expect(card?.item).toMatchObject({ userId: run.userId, eventId: run.eventId });
   });
 
   it('hold the eleven design steps, with provider, model and tokens on every model step', () => {

@@ -1,4 +1,4 @@
-import type { FeedCard, PersonaKey } from '@kesher/shared';
+import type { FeedCard, FeedResearch, PersonaKey } from '@kesher/shared';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
@@ -6,6 +6,15 @@ import { DEMO_CARDS, DEMO_EXPLAINS, PUBLIC_USERS } from './fixtures';
 import { DEMO_EVENT } from './fixtures/demoEvent';
 import type { LiveDeps } from './live/deps';
 import type { FeedSocketHandlers } from './live/socket';
+
+const RUN_ID = '00000000-0000-4000-8000-0000000000a1';
+const REPORT_ID = '00000000-0000-4000-8000-0000000000a2';
+
+// A's demo card with the given research state, as the api answers or pushes it.
+const researched = (research: FeedResearch): FeedCard => {
+  const card = DEMO_CARDS.A[0]!;
+  return { ...card, item: { ...card.item, research } };
+};
 
 const HEADLINE =
   'TSMC Suspends Chip Production After Taiwan Rocked By Strongest Tremor In 25 Years';
@@ -20,8 +29,13 @@ function fakeLive({ feeds = DEMO_CARDS }: { feeds?: Record<PersonaKey, FeedCard[
       signedIn = key;
       return Promise.resolve(PUBLIC_USERS[key]);
     }),
+    me: vi.fn(() => Promise.resolve(PUBLIC_USERS[signedIn])),
     feed: vi.fn(() => Promise.resolve(feeds[signedIn])),
     explain: vi.fn(() => Promise.resolve(DEMO_EXPLAINS[signedIn])),
+    investigate: vi.fn(() =>
+      Promise.resolve(researched({ state: 'running', runId: RUN_ID, reportId: null })),
+    ),
+    report: vi.fn(() => Promise.reject(new Error('no report in this test'))),
     replayDemo: vi.fn(() =>
       Promise.resolve({
         outcome: 'processed' as const,
@@ -240,13 +254,77 @@ describe('feed screen, signed in through the persona switcher', () => {
     expect(within(screen.getByRole('contentinfo')).getByText('No replayed session')).toBeTruthy();
   });
 
-  it('keeps Investigate and View agent run disabled until research is wired', async () => {
-    render(<App deps={fakeLive().deps} />);
+  it('starts research from Investigate and links the card to its report when done', async () => {
+    const { api, deps, socket } = fakeLive();
+    render(<App deps={deps} />);
     await ready();
     const { scores } = regions();
-    for (const name of ['Investigate this event', 'View agent run']) {
-      expect(within(scores).getByRole('button', { name }).hasAttribute('disabled')).toBe(true);
-    }
+
+    fireEvent.click(within(scores).getByRole('button', { name: 'Investigate this event' }));
+    expect(api.investigate).toHaveBeenCalledWith(DEMO_EVENT._id);
+    const running = await within(scores).findByRole('button', { name: 'Investigating…' });
+    expect(running.hasAttribute('disabled')).toBe(true);
+    expect(within(scores).getByText(/Researching this event/)).toBeTruthy();
+
+    act(() => socket().onCard(researched({ state: 'done', runId: RUN_ID, reportId: REPORT_ID })));
+    const link = await within(scores).findByRole('link', { name: 'Open research report' });
+    expect(link.getAttribute('href')).toBe(`/reports/${REPORT_ID}`);
+    const again = within(scores).getByRole('button', { name: 'Investigate again' });
+    expect(again.hasAttribute('disabled')).toBe(false);
+    expect(
+      within(scores).getByRole('button', { name: 'View agent run' }).hasAttribute('disabled'),
+    ).toBe(true);
+  });
+
+  it('says when research ended without a report, and lets the user try again', async () => {
+    const { deps, socket } = fakeLive();
+    render(<App deps={deps} />);
+    await ready();
+    act(() => socket().onCard(researched({ state: 'failed', runId: RUN_ID, reportId: null })));
+    const { scores } = regions();
+    expect(await within(scores).findByText(/ended without a report/)).toBeTruthy();
+    const button = within(scores).getByRole('button', { name: 'Investigate this event' });
+    expect(button.hasAttribute('disabled')).toBe(false);
+    expect(within(scores).queryByRole('link', { name: 'Open research report' })).toBeNull();
+  });
+
+  it('names the error when research cannot start', async () => {
+    const { api, deps } = fakeLive();
+    api.investigate.mockRejectedValueOnce(new Error('research on this event is already running'));
+    render(<App deps={deps} />);
+    await ready();
+    const { scores } = regions();
+    fireEvent.click(within(scores).getByRole('button', { name: 'Investigate this event' }));
+    expect((await within(scores).findByRole('alert')).textContent).toBe(
+      'research on this event is already running',
+    );
+    expect(
+      within(scores)
+        .getByRole('button', { name: 'Investigate this event' })
+        .hasAttribute('disabled'),
+    ).toBe(false);
+  });
+
+  it('drops a research answer that arrives after a persona switch', async () => {
+    const { api, deps } = fakeLive();
+    let answer!: (card: FeedCard) => void;
+    api.investigate.mockReturnValueOnce(new Promise<FeedCard>((resolve) => (answer = resolve)));
+    render(<App deps={deps} />);
+    await ready();
+    fireEvent.click(
+      within(regions().scores).getByRole('button', { name: 'Investigate this event' }),
+    );
+    pickPersona('Semiconductors');
+    await ready('Events that connect to AMD, AVGO, TSM and ASML');
+    act(() => answer(researched({ state: 'running', runId: RUN_ID, reportId: null })));
+    await act(() => Promise.resolve());
+    const { scores } = regions();
+    expect(within(scores).queryByText(/Researching this event/)).toBeNull();
+    expect(
+      within(scores)
+        .getByRole('button', { name: 'Investigate this event' })
+        .hasAttribute('disabled'),
+    ).toBe(false);
   });
 
   it('Replay demo event resets and replays through the api', async () => {

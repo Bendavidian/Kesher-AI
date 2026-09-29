@@ -2,6 +2,7 @@ import {
   relevanceBand,
   SHORT_NAME,
   type Confidence,
+  type FeedResearch,
   type EventExplain,
   type FeedCard,
   type FeedCardEvent,
@@ -89,6 +90,8 @@ export interface EventView extends FeedEntry {
   evidence: EvidenceView[];
   relevanceNote: string;
   held: UniverseSymbol[];
+  // The research on the user's FeedItem; null for an explained event, which has no FeedItem.
+  research: FeedResearch | null;
 }
 
 export interface FeedView {
@@ -148,6 +151,7 @@ interface Candidate {
   event: FeedCardEvent;
   source: FeedCardSource;
   evidence: FeedEvidence[];
+  research: FeedResearch | null;
 }
 
 export function buildFeedView(
@@ -163,6 +167,7 @@ export function buildFeedView(
       event: card.event,
       source: card.source,
       evidence: card.evidence,
+      research: card.item.research,
     })),
     // An explanation only fills in an event the feed does not carry.
     ...explains
@@ -173,6 +178,7 @@ export function buildFeedView(
         event: explain.event,
         source: explain.source,
         evidence: explain.evidence,
+        research: null,
       })),
   ];
 
@@ -217,6 +223,7 @@ export function buildFeedView(
             evidence: candidate.evidence.map(evidenceView),
             relevanceNote: relevanceNote(chosen.score),
             held: persona.holdings.map((holding) => holding.symbol),
+            research: candidate.research,
           }
         : null,
   };

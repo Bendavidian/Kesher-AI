@@ -4,6 +4,7 @@ import type {
   FilingForm,
   PersonaKey,
   PublicUser,
+  ReportSource,
   Source,
   Tier,
   UniverseSymbol,
@@ -73,12 +74,5 @@ export interface StepOutput {
   note: string | null;
 }
 
-// A source the report cites, as the side panel lists it.
-export interface ReportSourceView extends Pick<Source, '_id' | 'kind' | 'tier'> {
-  // Benzinga via Alpaca
-  title: string;
-  // How a claim's evidence line names it: Benzinga headline
-  citeLabel: string;
-  // The provider id, the accession number, or the delay note for market data.
-  ref: string;
-}
+// A source the report cites, as the side panel lists it: the api's read model.
+export type ReportSourceView = ReportSource;
