@@ -129,6 +129,11 @@ export function recallAtK(
   return relevant.filter((r) => top.has(r)).length / relevant.length;
 }
 
+// The highest recall at k a query allows: with more relevant items than k, not all fit.
+export function recallCeiling(relevant: number, k: number): number | null {
+  return relevant === 0 ? null : Math.min(k, relevant) / relevant;
+}
+
 export interface Summary {
   n: number;
   total: number;

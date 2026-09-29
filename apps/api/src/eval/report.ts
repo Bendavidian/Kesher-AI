@@ -89,7 +89,35 @@ export function renderReport(summary: EvalSummary, retrieval: RetrievalResult): 
     '',
     `Agreement of the reviewed labels if medium started at ${ALTERNATIVE_MEDIUM_FROM} and lower scores were none: ${(['A', 'B', 'C'] as const).map((p) => `${p} ${pct(s.agreement[p].alternative.agreement)}`).join(', ')}.`,
     '',
-    '### Start nodes',
+    '### Start node rules',
+    '',
+    'Relevance from the extracted companies that the provider also tagged (today, T05) against every tagged universe company (tagged only), on the real items, with the same graph and best path. Agreement with the reviewed labels:',
+    '',
+    '| Persona | Extracted and tagged | Tagged only |',
+    '|---|---|---|',
+    ...(['A', 'B', 'C'] as const).map(
+      (p) =>
+        `| ${p} | ${s.startNodes.current[p].agree} of ${s.startNodes.current[p].total} (${pct(s.startNodes.current[p].agreement)}) | ${s.startNodes.taggedOnly[p].agree} of ${s.startNodes.taggedOnly[p].total} (${pct(s.startNodes.taggedOnly[p].agreement)}) |`,
+    ),
+    '',
+    s.startNodes.differences.length === 0
+      ? 'The two rules give the same relevance on every real item.'
+      : 'Pairs where the rules differ:',
+  );
+  if (s.startNodes.differences.length > 0) {
+    out.push(
+      '',
+      '| Item | Headline | Persona | Label | Extracted and tagged | Tagged only |',
+      '|---|---|---|---|---|---|',
+      ...s.startNodes.differences.map(
+        (d) =>
+          `| ${d.sourceId} | ${cell(d.headline).slice(0, 80)} | ${d.persona} | ${d.label ?? 'n/a'} | ${d.current} | ${d.taggedOnly} |`,
+      ),
+    );
+  }
+  out.push(
+    '',
+    '### Untagged companies',
     '',
     `Universe companies the extraction named but the provider did not tag, which T05 leaves out of the graph (fails closed): ${s.untagged.length === 0 ? 'none.' : ''}`,
   );
@@ -132,14 +160,14 @@ export function renderReport(summary: EvalSummary, retrieval: RetrievalResult): 
       ? [`- Not comparable, the baseline's extraction failed: ${notComparable.join(', ')}.`]
       : []),
     '',
-    '| Item | Attack | Baseline | Screen | Companies | Importance | Success | With screen | Relevance moved |',
-    '|---|---|---|---|---|---|---|---|---|',
+    '| Item | Attack | Baseline | Screen | Companies | Importance | Success | With screen | Relevance moved | Moved, tagged only |',
+    '|---|---|---|---|---|---|---|---|---|---|',
   );
   for (const r of s.injection) {
     const o = r.outcome;
     if (o === null) {
       out.push(
-        `| ${r.id} | ${r.kind} | ${r.baselineId} | ${r.screen} | baseline failed | n/a | n/a | n/a | n/a |`,
+        `| ${r.id} | ${r.kind} | ${r.baselineId} | ${r.screen} | baseline failed | n/a | n/a | n/a | n/a | n/a |`,
       );
       continue;
     }
@@ -151,7 +179,7 @@ export function renderReport(summary: EvalSummary, retrieval: RetrievalResult): 
         ) || 'same';
     const importance = o.importanceChange === null ? 'none' : change(o.importanceChange);
     out.push(
-      `| ${r.id} | ${r.kind} | ${r.baselineId} | ${r.screen}${r.score === null ? '' : ` (${r.score.toFixed(3)})`} | ${companies} | ${importance} | ${o.success ? 'yes' : 'no'} | ${o.successWithScreen ? 'yes' : 'no'} | ${o.relevanceChanged.join(', ') || 'none'} |`,
+      `| ${r.id} | ${r.kind} | ${r.baselineId} | ${r.screen}${r.score === null ? '' : ` (${r.score.toFixed(3)})`} | ${companies} | ${importance} | ${o.success ? 'yes' : 'no'} | ${o.successWithScreen ? 'yes' : 'no'} | ${o.relevanceChanged.join(', ') || 'none'} | ${r.taggedOnlyMoved.join(', ') || 'none'} |`,
     );
   }
 
@@ -180,11 +208,11 @@ export function renderReport(summary: EvalSummary, retrieval: RetrievalResult): 
     if (retrieval.rows.length > 0) {
       out.push(
         '',
-        '| Query | Filer | Relevant | Found in top 3 | Recall |',
-        '|---|---|---|---|---|',
+        '| Query | Filer | Relevant | Found in top 3 | Recall | Best possible |',
+        '|---|---|---|---|---|---|',
         ...retrieval.rows.map(
           (r) =>
-            `| ${cell(r.query)} | ${r.symbol ?? 'all'} | ${r.relevant} | ${r.found.join(', ') || 'none'} | ${pct(r.recall)} |`,
+            `| ${cell(r.query)} | ${r.symbol ?? 'all'} | ${r.relevant} | ${r.found.join(', ') || 'none'} | ${pct(r.recall)} | ${pct(r.ceiling)} |`,
         ),
       );
     }

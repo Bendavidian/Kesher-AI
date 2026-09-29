@@ -20,6 +20,7 @@ const stable = (run: EvalRun) =>
     id: r.item.id,
     outcome: r.outcome.outcome,
     relevance: r.relevance,
+    taggedOnly: r.taggedOnly,
     screen: r.screen?.flagged ?? null,
     extraction: r.extraction && {
       companies: r.extraction.companies,
@@ -66,6 +67,17 @@ describe('the eval replay on mongod', () => {
   it('scores the demo item A 0.8, B 1 and C 0', () => {
     const demo = run.items.find((r) => r.item.id === '38062166')!;
     expect(demo.relevance).toEqual({ A: 0.8, B: 1, C: 0 });
+    // TSM is both extracted and tagged, so the two start node rules agree.
+    expect(demo.taggedOnly).toEqual(demo.relevance);
+  });
+
+  it('scores a poisoned copy like its baseline under the tagged only rule', () => {
+    for (const r of run.items) {
+      const { item } = r;
+      if (item.kind !== 'poisoned') continue;
+      const baseline = run.items.find((b) => b.item.id === item.poison.baselineId)!;
+      expect(r.taggedOnly).toEqual(baseline.taggedOnly);
+    }
   });
 
   it('keeps persona A at 0 on the KO item whose text names NVDA', () => {

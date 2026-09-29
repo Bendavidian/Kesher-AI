@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { collection } from '../db/collections';
 import type { Embedder } from '../graph/embed';
 import { EVAL_DIR } from './dataset';
-import { recallAtK } from './metrics';
+import { recallAtK, recallCeiling } from './metrics';
 
 // The retrieval eval (BACKLOG.md T16, note from T11): about 10 queries over the filing chunks,
 // each with the chunks the user judged relevant, measured as recall at 3. Part 1 runs it on the
@@ -104,6 +104,7 @@ export interface RetrievalRow {
   relevant: number;
   found: string[];
   recall: number | null;
+  ceiling: number | null;
 }
 
 export type RetrievalResult =
@@ -132,7 +133,7 @@ export async function runRetrieval(
     if (q.status !== 'reviewed') continue;
     const hits = await searchChunks(db, embedder, q.query, q.symbol, k);
     for (const hit of hits) excerpts.set(hit.key, hit.excerpt);
-    const retrieved = hits.map((h) => h.key);
+    const retrieved = hits.map((h) => h.key).slice(0, k);
     const relevant = q.relevant.map((r) => r.key);
     rows.push({
       id: q.id,
@@ -141,6 +142,7 @@ export async function runRetrieval(
       relevant: relevant.length,
       found: relevant.filter((r) => retrieved.includes(r)),
       recall: recallAtK(retrieved, relevant, k),
+      ceiling: recallCeiling(relevant.length, k),
     });
   }
   // Every judged chunk is read back by key to check it still holds the judged text.

@@ -55,6 +55,23 @@ export interface InjectionRow {
   // null when the baseline's own extraction failed: nothing to compare, and the row stays out of
   // the success rates.
   outcome: InjectionOutcome | null;
+  // Personas whose relevance would move under the tagged only rule.
+  taggedOnlyMoved: PersonaKey[];
+}
+
+// The start node comparison: today's rule (extracted and tagged) against tagged only.
+export interface StartNodeRules {
+  current: Record<PersonaKey, Confusion>;
+  taggedOnly: Record<PersonaKey, Confusion>;
+  // Every pair of real item and persona where the two rules give different relevance.
+  differences: {
+    sourceId: string;
+    headline: string;
+    persona: PersonaKey;
+    label: Level | null;
+    current: number;
+    taggedOnly: number;
+  }[];
 }
 
 export interface EvalSummary {
@@ -65,6 +82,7 @@ export interface EvalSummary {
   labels: { reviewed: number; proposed: number };
   agreement: Record<PersonaKey, PersonaAgreement>;
   disagreements: LabelRow[];
+  startNodes: StartNodeRules;
   // Universe companies the extraction named that the provider did not tag (T05, fails closed).
   untagged: { sourceId: string; headline: string; symbols: string[] }[];
   // Real items whose extraction failed: no card, so relevance 0 and importance 0 above.
@@ -164,6 +182,34 @@ export function summarizeRun(
     };
   }
 
+  const current = {} as Record<PersonaKey, Confusion>;
+  const taggedOnly = {} as Record<PersonaKey, Confusion>;
+  const differences: StartNodeRules['differences'] = [];
+  for (const persona of PERSONA_KEYS) {
+    const now: { label: Level; predicted: Level }[] = [];
+    const alt: { label: Level; predicted: Level }[] = [];
+    for (const r of real) {
+      const label = labelOf.get(key(r.item.id, persona));
+      const reviewed = label?.status === 'reviewed' ? label.level : null;
+      if (reviewed) {
+        now.push({ label: reviewed, predicted: relevanceBand(r.relevance[persona]) });
+        alt.push({ label: reviewed, predicted: relevanceBand(r.taggedOnly[persona]) });
+      }
+      if (r.relevance[persona] !== r.taggedOnly[persona]) {
+        differences.push({
+          sourceId: r.item.id,
+          headline: r.item.item.headline,
+          persona,
+          label: reviewed,
+          current: r.relevance[persona],
+          taggedOnly: r.taggedOnly[persona],
+        });
+      }
+    }
+    current[persona] = confusion(now);
+    taggedOnly[persona] = confusion(alt);
+  }
+
   const untagged = real.flatMap((r) => {
     const named = (r.extraction?.companies ?? []).map((c) => c.symbol);
     const starts = new Set<string>(eventCompanies(named, r.tagged));
@@ -201,6 +247,7 @@ export function summarizeRun(
       baselineId: r.item.poison.baselineId,
       headline: r.item.item.headline,
       screen,
+      taggedOnlyMoved: PERSONA_KEYS.filter((p) => baseline.taggedOnly[p] !== r.taggedOnly[p]),
       score: r.screen?.score ?? null,
       outcome:
         baselineView &&
@@ -235,6 +282,7 @@ export function summarizeRun(
     },
     agreement,
     disagreements,
+    startNodes: { current, taggedOnly, differences },
     untagged,
     failed: real.flatMap((r) =>
       r.outcome.outcome === 'failed'

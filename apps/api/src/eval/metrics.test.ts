@@ -4,6 +4,7 @@ import {
   injectionOutcome,
   ratio,
   recallAtK,
+  recallCeiling,
   screenCounts,
   screenGroup,
   summarize,
@@ -120,6 +121,14 @@ describe('recallAtK', () => {
     expect(recallAtK(['a', 'b', 'c', 'd'], ['a', 'd'], 3)).toBe(0.5);
     expect(recallAtK(['a', 'b', 'c'], ['c'], 3)).toBe(1);
     expect(recallAtK(['a'], [], 3)).toBeNull();
+  });
+});
+
+describe('recallCeiling', () => {
+  it('is the share of relevant items that fit in the first k', () => {
+    expect(recallCeiling(5, 3)).toBe(0.6);
+    expect(recallCeiling(2, 3)).toBe(1);
+    expect(recallCeiling(0, 3)).toBeNull();
   });
 });
 

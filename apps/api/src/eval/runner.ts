@@ -6,6 +6,7 @@ import {
   type Extraction,
   type InjectionScreen,
   type PersonaKey,
+  type UniverseSymbol,
 } from '@kesher/shared';
 import { APICallError } from 'ai';
 import type { Db } from 'mongodb';
@@ -16,6 +17,8 @@ import { toIncomingItem } from '../ingest/alpaca';
 import { processItem, type ProcessResult } from '../ingest/process';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import type { ModelRecording } from '../llm/recordings';
+import { loadEdges } from '../relevance/graph';
+import { bestPath, eventCompanies } from '../relevance/score';
 import { runSeed } from '../seed/seed';
 // Test doubles in a dev-only job: the api runs from source through tsx, mongodb-memory-server is
 // a devDependency and ai/test ships with ai, so nothing here reaches a production path.
@@ -37,6 +40,9 @@ export interface ItemRun {
   tagged: string[];
   extraction: Extraction | null;
   relevance: Record<PersonaKey, number>;
+  // What relevance would be if every provider tagged universe company were a start node, whatever
+  // the extraction named: a counterfactual rule for the report, never written anywhere.
+  taggedOnly: Record<PersonaKey, number>;
   models: ModelRecording;
   // Wall time of processItem with the recorded answers: the code's own time, not the models'.
   codeMs: number;
@@ -79,12 +85,48 @@ export async function seedEvalDb(db: Db, now: Date): Promise<number> {
   return (await countRelationships(db)).relationships;
 }
 
-async function personaIds(db: Db): Promise<Map<string, PersonaKey>> {
+interface Persona {
+  key: PersonaKey;
+  holdings: UniverseSymbol[];
+}
+
+async function personas(db: Db): Promise<Map<string, Persona>> {
   const users = await collection(db, 'users')
     .find({ email: { $in: DEMO_PERSONAS.map((p) => p.email) } })
-    .project<{ _id: string; email: string }>({ _id: 1, email: 1 })
+    .project<{ _id: string; email: string; holdings: { symbol: UniverseSymbol }[] }>({
+      _id: 1,
+      email: 1,
+      holdings: 1,
+    })
     .toArray();
-  return new Map(users.map((u) => [u._id, DEMO_PERSONAS.find((p) => p.email === u.email)!.key]));
+  return new Map(
+    users.map((u) => [
+      u._id,
+      {
+        key: DEMO_PERSONAS.find((p) => p.email === u.email)!.key,
+        holdings: u.holdings.map((h) => h.symbol),
+      },
+    ]),
+  );
+}
+
+const zeros = () =>
+  Object.fromEntries(PERSONA_KEYS.map((p) => [p, 0])) as Record<PersonaKey, number>;
+
+// The tagged only rule, with the same graph and the same best path as scoring. Each eval item is
+// its own event, so its tags are the event's tags; scoring unions them over a cluster.
+async function taggedOnlyRelevance(
+  db: Db,
+  tagged: readonly string[],
+  users: ReadonlyMap<string, Persona>,
+): Promise<Record<PersonaKey, number>> {
+  const starts = eventCompanies(tagged, tagged);
+  const edges = await loadEdges(db, starts);
+  const result = zeros();
+  for (const { key, holdings } of users.values()) {
+    result[key] = bestPath(starts, holdings, edges).relevance;
+  }
+  return result;
 }
 
 export async function runEval(
@@ -94,7 +136,7 @@ export async function runEval(
   { now = new Date(), log = () => undefined }: { now?: Date; log?: (m: string) => void } = {},
 ): Promise<EvalRun> {
   const relationships = await seedEvalDb(db, now);
-  const personas = await personaIds(db);
+  const users = await personas(db);
   const runs: ItemRun[] = [];
 
   for (const item of items) {
@@ -113,10 +155,7 @@ export async function runEval(
     }));
     const codeMs = performance.now() - started;
 
-    const relevance = Object.fromEntries(PERSONA_KEYS.map((p) => [p, 0])) as Record<
-      PersonaKey,
-      number
-    >;
+    const relevance = zeros();
     let screen: InjectionScreen | null = null;
     let extraction: Extraction | null = null;
     if (outcome.outcome === 'failed') {
@@ -138,8 +177,8 @@ export async function runEval(
       for (const feed of await collection(db, 'feed_items')
         .find({ eventId: outcome.eventId })
         .toArray()) {
-        const persona = personas.get(feed.userId);
-        if (persona) relevance[persona] = feed.relevance;
+        const persona = users.get(feed.userId);
+        if (persona) relevance[persona.key] = feed.relevance;
       }
     }
     runs.push({
@@ -149,6 +188,12 @@ export async function runEval(
       tagged: incoming.symbols,
       extraction,
       relevance,
+      // Like relevance, 0 for an item the pipeline did not score, so the rules compare on the same
+      // items.
+      taggedOnly:
+        outcome.outcome === 'processed'
+          ? await taggedOnlyRelevance(db, incoming.symbols, users)
+          : zeros(),
       models,
       codeMs,
     });
