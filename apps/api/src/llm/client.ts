@@ -1,7 +1,16 @@
 import { createGoogle } from '@ai-sdk/google';
 import { createGroq } from '@ai-sdk/groq';
 import type { LlmProvider } from '@kesher/shared';
-import { APICallError, generateText, Output, type LanguageModel } from 'ai';
+import {
+  APICallError,
+  generateText,
+  Output,
+  ToolChoiceViolationError,
+  type LanguageModel,
+  type ModelMessage,
+  type ToolChoice,
+  type ToolSet,
+} from 'ai';
 import type { z } from 'zod';
 import { RateLimiter, systemClock, type Clock } from './limiter';
 import { MODEL_LIMITS } from './limits';
@@ -60,6 +69,21 @@ export function isRateLimited(error: unknown): error is APICallError {
   return APICallError.isInstance(error) && error.statusCode === 429;
 }
 
+// The wait a retry-after header asks for, in seconds; undefined without one.
+function headerWaitMs(error: APICallError): number | undefined {
+  const seconds = Number(error.responseHeaders?.['retry-after']);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined;
+}
+
+// The wait a 429 asks for: Groq's retry-after header, or the retryDelay Gemini puts in the body.
+// undefined when it names none. Runs read both; single calls keep the header only (T04).
+export function requestedWaitMs(error: APICallError): number | undefined {
+  const header = headerWaitMs(error);
+  if (header !== undefined) return header;
+  const delay = /"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/.exec(error.responseBody ?? '')?.[1];
+  return delay === undefined ? undefined : Math.ceil(Number(delay) * 1000);
+}
+
 export interface TokenUsage {
   inputTokens: number | undefined;
   outputTokens: number | undefined;
@@ -81,10 +105,68 @@ export interface SingleResult<T> extends ModelRef {
   usage: TokenUsage;
 }
 
+// One turn of an agent run: the model sees the tools but executes none. Code runs every tool call
+// it returns (T08).
+export interface RunStepRequest {
+  system: string;
+  messages: ModelMessage[];
+  tools: ToolSet;
+  toolChoice: ToolChoice<ToolSet>;
+  maxOutputTokens: number;
+  // System, tools and messages, estimated by the caller for the limiter's reservation.
+  estimatedInputTokens: number;
+}
+
+export interface RunStepResult extends ModelRef {
+  text: string;
+  toolCalls: { toolCallId: string; toolName: string; input: unknown }[];
+  // The assistant message to append to the history, with any provider metadata it carries.
+  responseMessages: ModelMessage[];
+  finishReason: string;
+  usage: TokenUsage;
+  // The model ignored the forced tool choice. Nothing of this turn goes into the history, and
+  // its usage is unknown.
+  toolChoiceViolated: boolean;
+}
+
+export interface RunWait extends ModelRef {
+  attempt: number;
+  waitMs: number;
+}
+
+// The 429 policy inside a run: wait on the same provider, at most 30 seconds per wait and at most
+// 3 retries. A longer wait, such as a daily quota, ends the run instead of blocking it.
+export const RUN_MAX_WAIT_MS = 30_000;
+export const RUN_MAX_RETRIES = 3;
+const RUN_DEFAULT_WAIT_MS = 10_000;
+const runWaitMs = (error: APICallError) => requestedWaitMs(error) ?? RUN_DEFAULT_WAIT_MS;
+
+export class RunRateLimitError extends Error {
+  constructor(
+    readonly ref: ModelRef,
+    readonly reason: 'wait_too_long' | 'retries_exhausted',
+    readonly waitMs: number,
+    readonly retries: number,
+  ) {
+    super(
+      reason === 'wait_too_long'
+        ? `${ref.provider} ${ref.model} asked for a ${waitMs} ms wait, over the ${RUN_MAX_WAIT_MS} ms limit`
+        : `${ref.provider} ${ref.model} still answered 429 after ${retries} retries`,
+    );
+    this.name = 'RunRateLimitError';
+  }
+}
+
 export interface ModelClient {
   generateSingle<T>(request: SingleRequest<T>): Promise<SingleResult<T>>;
   screenChunk(text: string): Promise<{ text: string; model: string }>;
   pickRunProvider(budgetTokens: number): ModelRef;
+  // onWait runs before each wait, so the run records it as a step.
+  runStep(
+    ref: ModelRef,
+    request: RunStepRequest,
+    onWait?: (wait: RunWait) => Promise<void> | void,
+  ): Promise<RunStepResult>;
 }
 
 export interface ModelClientOptions {
@@ -98,6 +180,29 @@ const DEFAULT_BLOCK_MS = 60_000;
 
 // About 4 characters per token: a reservation, corrected with the real usage after the call.
 const estimateTokens = (text: string) => Math.ceil(text.length / 4);
+
+// What the model sent when it did not call the tool it was told to. The caller decides what that
+// means; the answer never enters the history.
+function violation(ref: ModelRef, error: ToolChoiceViolationError): RunStepResult {
+  const parts = error.content as {
+    type: string;
+    text?: string;
+    toolCallId?: string;
+    toolName?: string;
+    input?: unknown;
+  }[];
+  return {
+    ...ref,
+    text: parts.map((p) => (p.type === 'text' ? (p.text ?? '') : '')).join(''),
+    toolCalls: parts
+      .filter((p) => p.type === 'tool-call')
+      .map((p) => ({ toolCallId: p.toolCallId ?? '', toolName: p.toolName ?? '', input: p.input })),
+    responseMessages: [],
+    finishReason: error.finishReason,
+    usage: { inputTokens: undefined, outputTokens: undefined, totalTokens: undefined },
+    toolChoiceViolated: true,
+  };
+}
 
 // Every model call goes through here: a limiter per model keeps each call inside the free tier's
 // tokens per minute. No call gets tools; the models only read and answer.
@@ -122,6 +227,8 @@ export function createModelClient({
     ref: ModelRef,
     estimate: number,
     run: (model: LanguageModel) => Promise<{ usage: { totalTokens?: number | undefined } } & R>,
+    // How long a 429 blocks this model.
+    waitOf: (error: APICallError) => number = (error) => headerWaitMs(error) ?? DEFAULT_BLOCK_MS,
   ): Promise<R> {
     const model = resolve(ref);
     const limiter = limiterFor(ref);
@@ -135,15 +242,28 @@ export function createModelClient({
       // tokens (an answer that failed the schema), so it keeps the estimate.
       if (isRateLimited(error)) {
         reservation.settle(0);
-        const seconds = Number(error.responseHeaders?.['retry-after']);
-        limiter.block(
-          clock.now() +
-            (Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_BLOCK_MS),
-        );
+        limiter.block(clock.now() + waitOf(error));
       }
       throw error;
     }
   }
+
+  const usageOf = (usage: {
+    inputTokens: number | undefined;
+    outputTokens: number | undefined;
+    totalTokens: number | undefined;
+  }): TokenUsage => ({
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens:
+      usage.totalTokens ??
+      (usage.inputTokens === undefined || usage.outputTokens === undefined
+        ? undefined
+        : usage.inputTokens + usage.outputTokens),
+  });
+
+  const groqOptions = (ref: ModelRef) =>
+    ref.provider === 'groq' ? { providerOptions: { groq: { reasoningEffort: 'low' } } } : {};
 
   async function single<T>(ref: ModelRef, request: SingleRequest<T>): Promise<SingleResult<T>> {
     const maxOutputTokens = request.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
@@ -158,26 +278,10 @@ export function createModelClient({
           output: Output.object({ schema: request.schema }),
           maxOutputTokens,
           maxRetries: 0,
-          ...(ref.provider === 'groq'
-            ? { providerOptions: { groq: { reasoningEffort: 'low' } } }
-            : {}),
+          ...groqOptions(ref),
         }),
     );
-    const { inputTokens, outputTokens } = result.usage;
-    return {
-      ...ref,
-      output: result.output,
-      text: result.text,
-      usage: {
-        inputTokens,
-        outputTokens,
-        totalTokens:
-          result.usage.totalTokens ??
-          (inputTokens === undefined || outputTokens === undefined
-            ? undefined
-            : inputTokens + outputTokens),
-      },
-    };
+    return { ...ref, output: result.output, text: result.text, usage: usageOf(result.usage) };
   }
 
   return {
@@ -207,6 +311,54 @@ export function createModelClient({
       return !research.isBlocked() && research.hasRoom(budgetTokens)
         ? MODELS.research
         : MODELS.researchFallback;
+    },
+
+    async runStep(ref, request, onWait) {
+      for (let retries = 0; ; retries++) {
+        try {
+          const result = await call(
+            ref,
+            request.estimatedInputTokens + request.maxOutputTokens,
+            (model) =>
+              generateText({
+                model,
+                system: request.system,
+                messages: request.messages,
+                tools: request.tools,
+                toolChoice: request.toolChoice,
+                maxOutputTokens: request.maxOutputTokens,
+                maxRetries: 0,
+                ...groqOptions(ref),
+              }),
+            runWaitMs,
+          );
+          return {
+            ...ref,
+            text: result.text,
+            toolCalls: result.toolCalls.map((c) => ({
+              toolCallId: c.toolCallId,
+              toolName: c.toolName,
+              input: c.input as unknown,
+            })),
+            responseMessages: result.responseMessages,
+            finishReason: result.finishReason,
+            usage: usageOf(result.usage),
+            toolChoiceViolated: false,
+          };
+        } catch (error) {
+          if (ToolChoiceViolationError.isInstance(error)) return violation(ref, error);
+          if (!isRateLimited(error)) throw error;
+          // call() has already blocked this model for the wait, so the next acquire sleeps it.
+          const waitMs = runWaitMs(error);
+          if (waitMs > RUN_MAX_WAIT_MS) {
+            throw new RunRateLimitError(ref, 'wait_too_long', waitMs, retries);
+          }
+          if (retries >= RUN_MAX_RETRIES) {
+            throw new RunRateLimitError(ref, 'retries_exhausted', waitMs, retries);
+          }
+          await onWait?.({ ...ref, attempt: retries + 1, waitMs });
+        }
+      }
     },
   };
 }
