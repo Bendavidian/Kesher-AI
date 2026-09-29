@@ -1,5 +1,5 @@
 import type {
-  AgentRun,
+  AgentName,
   Benchmark,
   FilingForm,
   PersonaKey,
@@ -7,6 +7,7 @@ import type {
   ReportSource,
   Source,
   Tier,
+  ToolName,
   UniverseSymbol,
 } from '@kesher/shared';
 
@@ -39,8 +40,8 @@ export interface FilingView {
   tier: Tier;
 }
 
-// The price reaction from SPEC.md, Price reaction. Moves are percentages, in the order of
-// the windows. T13 computes these; until then they come from the fixtures.
+// The price reaction from SPEC.md, Price reaction, as the screens show it (priceReactionView maps
+// the api's). Moves are percentages in the order of the windows; null while a window is not ready.
 export interface PriceReaction {
   anchor: {
     kind: 'headline' | 'previous_close';
@@ -48,30 +49,16 @@ export interface PriceReaction {
     tradingDay: Date;
   };
   windows: string[];
-  rows: { symbol: UniverseSymbol | Benchmark; moves: number[] }[];
+  rows: { symbol: UniverseSymbol | Benchmark; moves: (number | null)[] }[];
   delayNote: string;
 }
 
-// The agent a run token is minted for. packages/shared exports no AgentName, so it is read off
-// AgentRun.agent; T07 owns the run token and can move the name into shared.
-export type AgentName = AgentRun['agent'];
-
-// What a run token allows (SPEC.md, MCP tool layer). T07 mints and verifies the real token;
-// the web only shows its scope. The user is not part of it here: that comes from sign in.
+// What a run token allowed, as its Run token issued step records it (docs/INTERFACES.md). The
+// user is not part of it here: that comes from sign in.
 export interface RunTokenScope {
   agent: AgentName;
-  tools: string[];
-  // Collections the agent may write. Every research tool is read only, so this stays empty.
-  writes: string[];
+  tools: ToolName[];
   ttlMinutes: number;
-}
-
-// A step's full output, for the detail panel. AgentStep stores only outputSummary, so this
-// comes from the fixtures until T09 decides where step output lives.
-export interface StepOutput {
-  value: unknown;
-  // A note for the output heading, such as a cap on its size.
-  note: string | null;
 }
 
 // A source the report cites, as the side panel lists it: the api's read model.

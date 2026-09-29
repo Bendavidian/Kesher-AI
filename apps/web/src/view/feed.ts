@@ -16,7 +16,8 @@ import {
 } from '@kesher/shared';
 import { formatDay } from './format';
 import { buildPathView, type PathView } from './path';
-import type { NewsSourceView, Persona } from './types';
+import { priceReactionView } from './price';
+import type { NewsSourceView, Persona, PriceReaction } from './types';
 
 export type RelevanceLabel = 'High' | 'Medium' | 'None';
 
@@ -92,6 +93,8 @@ export interface EventView extends FeedEntry {
   held: UniverseSymbol[];
   // The research on the user's FeedItem; null for an explained event, which has no FeedItem.
   research: FeedResearch | null;
+  // From the card; null for an explained event, or when the api could not read market data.
+  reaction: PriceReaction | null;
 }
 
 export interface FeedView {
@@ -152,6 +155,7 @@ interface Candidate {
   source: FeedCardSource;
   evidence: FeedEvidence[];
   research: FeedResearch | null;
+  reaction: PriceReaction | null;
 }
 
 export function buildFeedView(
@@ -168,6 +172,7 @@ export function buildFeedView(
       source: card.source,
       evidence: card.evidence,
       research: card.item.research,
+      reaction: card.priceReaction && priceReactionView(card.priceReaction),
     })),
     // An explanation only fills in an event the feed does not carry.
     ...explains
@@ -179,6 +184,7 @@ export function buildFeedView(
         source: explain.source,
         evidence: explain.evidence,
         research: null,
+        reaction: null,
       })),
   ];
 
@@ -224,6 +230,7 @@ export function buildFeedView(
             relevanceNote: relevanceNote(chosen.score),
             held: persona.holdings.map((holding) => holding.symbol),
             research: candidate.research,
+            reaction: candidate.reaction,
           }
         : null,
   };

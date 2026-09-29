@@ -1,7 +1,9 @@
-import type { FeedCard, FeedResearch, PersonaKey } from '@kesher/shared';
+import { PriceReaction, type FeedCard, type FeedResearch, type PersonaKey } from '@kesher/shared';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import demoReaction from '../../../recordings/price-reactions/38062166.json';
 import { App } from './App';
+import { reviveDates } from './api/decode';
 import { DEMO_CARDS, DEMO_EXPLAINS, PUBLIC_USERS } from './fixtures';
 import { DEMO_EVENT } from './fixtures/demoEvent';
 import type { LiveDeps } from './live/deps';
@@ -36,6 +38,8 @@ function fakeLive({ feeds = DEMO_CARDS }: { feeds?: Record<PersonaKey, FeedCard[
       Promise.resolve(researched({ state: 'running', runId: RUN_ID, reportId: null })),
     ),
     report: vi.fn(() => Promise.reject(new Error('no report in this test'))),
+    run: vi.fn(() => Promise.reject(new Error('no run in this test'))),
+    runs: vi.fn(() => Promise.resolve([])),
     replayDemo: vi.fn(() =>
       Promise.resolve({
         outcome: 'processed' as const,
@@ -51,7 +55,7 @@ function fakeLive({ feeds = DEMO_CARDS }: { feeds?: Record<PersonaKey, FeedCard[
     connectFeed: (handlers) => {
       const socket = { handlers, closed: false };
       sockets.push(socket);
-      handlers.onConnection(true);
+      handlers.onConnection?.(true);
       return { close: () => (socket.closed = true) };
     },
   };
@@ -171,7 +175,7 @@ describe('feed screen, signed in through the persona switcher', () => {
     expect(within(regions().feed).queryByText('Hidden for you')).toBeNull();
     expect(api.explain).not.toHaveBeenCalled();
 
-    act(() => socket().onScored(DEMO_EVENT._id));
+    act(() => socket().onScored!(DEMO_EVENT._id));
     await screen.findByText('Hidden for you');
     const { feed, event, scores } = regions();
 
@@ -193,7 +197,7 @@ describe('feed screen, signed in through the persona switcher', () => {
     const { api, deps, socket } = fakeLive();
     render(<App deps={deps} />);
     await ready();
-    act(() => socket().onScored(DEMO_EVENT._id));
+    act(() => socket().onScored!(DEMO_EVENT._id));
 
     pickPersona('Unrelated');
     await screen.findByText('Hidden for you');
@@ -206,8 +210,8 @@ describe('feed screen, signed in through the persona switcher', () => {
     await ready('Nothing connects to NVDA, MSFT and AMZN');
 
     act(() => {
-      socket().onCard(DEMO_CARDS.A[0]!);
-      socket().onScored(DEMO_EVENT._id);
+      socket().onCard!(DEMO_CARDS.A[0]!);
+      socket().onScored!(DEMO_EVENT._id);
     });
     const feed = regions().feed;
     expect(within(row(feed)).getByText('High 0.80')).toBeTruthy();
@@ -223,7 +227,7 @@ describe('feed screen, signed in through the persona switcher', () => {
     const { deps, socket } = fakeLive();
     render(<App deps={deps} />);
     await ready();
-    act(() => socket().onScored(DEMO_EVENT._id));
+    act(() => socket().onScored!(DEMO_EVENT._id));
     for (const label of ['AI investor', 'Semiconductors', 'Unrelated']) {
       pickPersona(label);
       await screen.findByTestId('relevance-value');
@@ -245,11 +249,41 @@ describe('feed screen, signed in through the persona switcher', () => {
     expect(again).not.toBe(first);
   });
 
-  it('shows no price moves until the api sends a price reaction', async () => {
+  it('shows the price reaction the api sent, next to the benchmarks, and the closing moves', async () => {
+    // The committed reaction of the demo event, as the api computes it for persona A's card.
+    const reaction = PriceReaction.parse(reviveDates(demoReaction.reaction));
+    const feeds = {
+      ...DEMO_CARDS,
+      A: DEMO_CARDS.A.map((card) => ({ ...card, priceReaction: reaction })),
+    };
+    render(<App deps={fakeLive({ feeds }).deps} />);
+    await ready();
+    const { event } = regions();
+    const table = within(event).getByRole('table');
+    expect(within(table).getByRole('rowheader', { name: 'NVDA, you hold' })).toBeTruthy();
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((cell) => cell.textContent),
+    ).toEqual(['Symbol', 'Open gap', '15 min after open', '2 h after open', 'Session close']);
+    expect(within(table).getByText('−1.16%')).toBeTruthy();
+    expect(within(event).getByText(/previous regular close/)).toBeTruthy();
+    expect(
+      within(event).getByText(
+        'NVDA opened −1.07% from its previous close; SMH −1.00%, SPY −0.22% in the same window.',
+      ),
+    ).toBeTruthy();
+    expect(event.textContent).not.toMatch(/caused/i);
+    const footer = screen.getByRole('contentinfo');
+    expect(within(footer).getByText('−0.54%')).toBeTruthy();
+    expect(within(footer).getByText('SIP data, delayed 15 minutes')).toBeTruthy();
+  });
+
+  it('shows no price moves when the api sent no price reaction', async () => {
     render(<App deps={fakeLive().deps} />);
     await ready();
     const { event } = regions();
-    expect(within(event).getByText(/No price reaction yet/)).toBeTruthy();
+    expect(within(event).getByText(/No price reaction for this event/)).toBeTruthy();
     expect(within(event).queryByRole('table')).toBeNull();
     expect(within(screen.getByRole('contentinfo')).getByText('No replayed session')).toBeTruthy();
   });
@@ -265,12 +299,25 @@ describe('feed screen, signed in through the persona switcher', () => {
     const running = await within(scores).findByRole('button', { name: 'Investigating…' });
     expect(running.hasAttribute('disabled')).toBe(true);
     expect(within(scores).getByText(/Researching this event/)).toBeTruthy();
+    // The run can be watched while it goes: the card names it from the start.
+    expect(within(scores).getByRole('link', { name: 'View agent run' }).getAttribute('href')).toBe(
+      `/runs/${RUN_ID}`,
+    );
 
-    act(() => socket().onCard(researched({ state: 'done', runId: RUN_ID, reportId: REPORT_ID })));
+    act(() => socket().onCard!(researched({ state: 'done', runId: RUN_ID, reportId: REPORT_ID })));
     const link = await within(scores).findByRole('link', { name: 'Open research report' });
     expect(link.getAttribute('href')).toBe(`/reports/${REPORT_ID}`);
     const again = within(scores).getByRole('button', { name: 'Investigate again' });
     expect(again.hasAttribute('disabled')).toBe(false);
+    expect(within(scores).getByRole('link', { name: 'View agent run' }).getAttribute('href')).toBe(
+      `/runs/${RUN_ID}`,
+    );
+  });
+
+  it('keeps View agent run disabled until the card names a run', async () => {
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    const { scores } = regions();
     expect(
       within(scores).getByRole('button', { name: 'View agent run' }).hasAttribute('disabled'),
     ).toBe(true);
@@ -280,7 +327,7 @@ describe('feed screen, signed in through the persona switcher', () => {
     const { deps, socket } = fakeLive();
     render(<App deps={deps} />);
     await ready();
-    act(() => socket().onCard(researched({ state: 'failed', runId: RUN_ID, reportId: null })));
+    act(() => socket().onCard!(researched({ state: 'failed', runId: RUN_ID, reportId: null })));
     const { scores } = regions();
     expect(await within(scores).findByText(/ended without a report/)).toBeTruthy();
     const button = within(scores).getByRole('button', { name: 'Investigate this event' });

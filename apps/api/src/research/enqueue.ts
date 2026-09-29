@@ -27,8 +27,6 @@ export interface ResearchJobDeps extends Omit<ResearchDeps, 'models' | 'newId'> 
   queue?: JobQueue;
   // Called after each research state change of the item, for feed:update.
   onResearch?: (item: FeedItem) => Promise<void> | void;
-  // Where a background failure goes, redacted by the server.
-  logError?: (error: unknown) => void;
 }
 
 export interface ResearchJob {

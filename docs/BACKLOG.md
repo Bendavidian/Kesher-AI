@@ -101,10 +101,14 @@ Notes from part 2 for later tasks:
 - T12: the daily budget check belongs in startInvestigation (apps/api/src/research/investigate.ts), which Investigate must not skip. The run is a fire and forget promise in the api process; the job queue replaces it. A run lost to a restart leaves its AgentRun in status running; only its FeedItem is taken over after 15 minutes (STALE_RESEARCH_MS).
 - T14: until the verifier supports facts, every inference stays hidden on the report screen with a neutral line ("1 inference waits for verification", buildReportView in apps/web/src/view/report.ts). The removed block and the red segments count only claims with status removed.
 
-### [ ] T09 Agent Runs view, thin
+### [x] T09 Agent Runs view, thin
 A timeline of one run: trigger, steps, tool calls with latency, sources, check results, token usage.
 Build to docs/UI.md. docs/design/agent-run.dc.html is markup reference only; it needs the design canvas runtime and does not run on its own.
 Done when: the run from T08 is fully inspectable from its card.
+Notes for later tasks:
+- T12: gate runs appear in GET /runs and the run screen as they are; the summary line already words trigger gate. A run lost to a restart stays running in the list, since only its FeedItem is taken over.
+- T14: a check step turns red when its output lists removedClaimIds, so the verifier should record removals the same way. Its model steps add their provider and model to the served limits by themselves.
+- Each run screen opens its own socket next to the feed's; share one connection if more screens listen.
 
 ## Phase 2: deepen
 
@@ -132,14 +136,24 @@ Open decisions and notes from T02:
 The gate from SPEC.md: relevance threshold, importance of at least 4, dedupe per event cluster, daily budget. Cards appear immediately and research attaches asynchronously.
 Done when: tests cover every gate condition, and a card is visible before its research completes.
 Notes from T12 for later tasks:
-- T09: the run list now holds skipped runs (trigger gate, status skipped, startedAt null, one Gate check step with the condition and reason). Show the gate decision and reason on the run screen from AgentRun.gate. Automatic runs are mode auto with trigger gate; the run summary in apps/web/src/view/run.ts already words trigger gate. A queued card has research.runId before its AgentRun exists, for longer than before, since the queue runs one run at a time.
+- Web, after T09 (new item): the run list and GET /runs now hold skipped runs (trigger gate, status skipped, startedAt null, one Gate check step with the condition and reason). The run summary in apps/web/src/view/run.ts says "Started by the research gate" for every gate run, a skipped one too; show "Skipped by the research gate" with AgentRun.gate.reason instead. The Agent runs tab opens the newest run, which after a Replay is often a skip; consider opening the newest run that was not skipped. A queued card has research.runId before its AgentRun exists, for longer than before, since the queue runs one run at a time; the run screen already loads on the first run:step.
 - T10: live items must go through the same after scoring hook as replay: createApp in apps/api/src/app.ts composes onScored with autoResearch (afterScoring). Expose it to the live ingester rather than passing server.ts's onScored alone, or live cards get no automatic research.
 - T16: a failed run counts as recent, so the gate does not retry it for 24 hours; only Investigate does. Decide whether failed runs should leave the recent check. A queue that keeps a job waiting past 15 minutes lets the next Investigate take the card over, and the waiting job's reserved run stays counted.
 - T16: tune GATE_MIN_RELEVANCE, GATE_MIN_IMPORTANCE and RECENT_RUN_MS (apps/api/src/research/gate.ts) and DAILY_RUN_LIMIT and AUTO_RUN_LIMIT (dailyBudget.ts). The research_budget collection shows the runs reserved per day.
 
-### [ ] T13 Full MCP tool set
+### [~] T13 Full MCP tool set
 Every tool in INTERFACES.md, a tool set per agent, and get_price_reaction with benchmarks and the delayed flag. Windows are anchored to the regular session through the Alpaca market calendar, and the result states its anchor. search_filings returns at most 3 chunks per call.
 Done when: each agent's token lists only its own tools, and get_price_reaction returns stock and benchmark moves for the TSMC window anchored to the previous close, and a test covers a weekend, a holiday and an early close headline.
+Split in two parts under this id, because search_filings and the hybrid search need the filing chunks and the embedder from T11:
+- Part 1, now: the price reaction. get_price_reaction as an MCP tool, and FeedCard.priceReaction filled by the same code: SIP bars from Alpaca, windows anchored as decided in T00 finding A, the Alpaca market calendar for weekends, holidays and early closes, the anchor stated in the output, SMH and SPY in the same windows, always labeled as delayed 15 minutes and never stated as a cause. The web market table and open gap bars show the values instead of the empty state. Raw SIP bars stay out of git (Alpaca's data terms; the repo becomes public): recordings/alpaca-bars/ is a gitignored local cache that `npm run record:bars` fills. The market calendar recordings and the computed PriceReaction of the demo event are committed. CI tests use synthetic bars and that fixture; the test that reproduces SPIKE.md from real bars runs locally and skips when the cache is missing.
+- Part 2, after T11: get_my_portfolio, get_company_relationships, search_filings, get_financial_facts, the hybrid search_news behind the same contract (event embeddings, the Atlas text index), and a tool set per agent.
+Done when for part 1: get_price_reaction returns stock and benchmark moves for the TSMC window anchored to the previous close, equal to docs/SPIKE.md check 3, a test covers a weekend, a holiday and an early close headline, and the demo card shows the moves next to the benchmarks.
+Part 1 is done (29 Sep 2026). Notes for part 2 and later tasks:
+- Tool sets per agent: decide whether the research agent gets get_price_reaction (RESEARCH_TOOLS in apps/api/src/research/mcp.ts). research:dev passes no priceReactions to createApp, so there the tool answers "market data is not configured".
+- The committed calendar holds 2024 only. Live headlines in other years read the calendar from Alpaca once per process; record more years with `npm run record:bars` when a test or the demo needs them.
+- An incomplete reaction (a session still under way) is computed again on every card request; add a short TTL if live feeds make that costly. The memo of whole sessions in data.ts has no cap.
+- T10: decide how live reactions persist (no collection stores bars or reactions yet), and whether live bars feed the local cache.
+- T14: a metric claim can check its numbers against the same PriceReaction (numbers_match).
 
 ### [ ] T14 Full verification
 Typed claims (fact, metric, inference), deterministic checks, an independent verifier agent. Unsupported facts are dropped, and inferences appear only with supported premises.

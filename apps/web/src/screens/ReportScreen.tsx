@@ -190,7 +190,7 @@ function ReportBody({ detail, user }: { detail: ReportDetail; user: PublicUser |
   const symbol = item?.path?.eventCompany ?? event?.extraction?.companies[0]?.symbol;
   const company = symbol && symbol in SHORT_NAME ? (symbol as UniverseSymbol) : null;
   const path = item && persona && company ? buildPathView(item.path, company, persona) : null;
-  const checkStep = removingCheckStep(run, claims);
+  const checkStep = removingCheckStep(run);
   const removedCount = view.removedReasons.length;
 
   return (

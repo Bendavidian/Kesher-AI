@@ -4,8 +4,8 @@ import { DEMO_PRICE_REACTION } from '../fixtures/demoEvent';
 import { MarketTable } from './MarketTable';
 import { TickerFooter } from './TickerFooter';
 
-// The anchored price moves from docs/SPIKE.md. The live feed shows them once the api sends a
-// price reaction (T13); until then they are fixtures for these tests.
+// The anchored price moves from docs/SPIKE.md, as fixtures. The live feed shows the api's
+// price reaction (FeedCard.priceReaction) through the same components.
 
 afterEach(cleanup);
 
@@ -23,6 +23,21 @@ describe('MarketTable', () => {
     expect(within(table).getAllByText('−1.16%').length).toBeGreaterThan(0);
     expect(within(table).getAllByText('+1.25%').length).toBeGreaterThan(0);
     expect(table.textContent).not.toMatch(/-\d/);
+  });
+
+  it('shows a dash, never a number, for a window that is not ready yet', () => {
+    const pending = {
+      ...DEMO_PRICE_REACTION,
+      rows: DEMO_PRICE_REACTION.rows.map((row) => ({
+        ...row,
+        moves: [row.moves[0] ?? null, null, null, null],
+      })),
+    };
+    render(<MarketTable reaction={pending} held={['NVDA']} />);
+    const table = screen.getByRole('table');
+    expect(within(table).getAllByText('—')).toHaveLength(12);
+    expect(within(table).getAllByText('not available yet')).toHaveLength(12);
+    expect(within(table).getByText('−1.16%')).toBeTruthy();
   });
 });
 

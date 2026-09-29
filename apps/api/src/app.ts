@@ -5,6 +5,7 @@ import type { ProcessDeps } from './ingest/process';
 import { createQueue } from './jobs/queue';
 import { autoResearch } from './research/auto';
 import type { InvestigateDeps } from './research/investigate';
+import type { PriceReactions } from './market/reactions';
 import { createModelClient, resolveFromKeys, type ModelClient } from './llm/client';
 import { authRouter, type AuthOptions } from './routes/auth';
 import { devRouter } from './routes/dev';
@@ -28,14 +29,20 @@ export interface AppDeps {
   log?: (message: string) => void;
   // The model client, built on first use. Without it every model call fails naming its key.
   models?: () => ModelClient;
-  // Mounts Investigate and GET /reports/:reportId when set, with mcp and auth, and runs the
-  // research gate after each scoring run. mcpUrl is the api's own POST /mcp, read when a run
-  // starts; redact is applied to every run step.
-  // autoResearch is AUTO_RESEARCH, on unless set to false: off, the gate records a skip for every
-  // card and starts no run; Investigate is unchanged.
+  // Mounts Investigate, GET /reports/:reportId and the run routes when set, with mcp and auth,
+  // and runs the research gate after each scoring run. mcpUrl is the api's own POST /mcp, read
+  // when a run starts; redact is applied to every run step. autoResearch is AUTO_RESEARCH, on
+  // unless set to false: off, the gate records a skip for every card and starts no run;
+  // Investigate is unchanged.
   research?: { mcpUrl: () => string; redact: (text: string) => string; autoResearch?: boolean };
   // Gets each FeedItem whose research state changed; the server passes the feed:update push.
   onResearch?: InvestigateDeps['onResearch'];
+  // Get each stored run step and each run's end; the server passes run:step and run:end.
+  onRunStep?: InvestigateDeps['onStep'];
+  onRunEnd?: InvestigateDeps['onEnd'];
+  // The price reaction over the api's market data (createPriceReactions), for get_price_reaction
+  // and FeedCard.priceReaction. Without it cards carry null and the tool answers unavailable.
+  priceReactions?: PriceReactions;
 }
 
 const logMessage = (error: unknown) =>
@@ -54,6 +61,9 @@ export function createApp({
   models = noKeys,
   research,
   onResearch,
+  onRunStep,
+  onRunEnd,
+  priceReactions,
 }: AppDeps): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -66,10 +76,12 @@ export function createApp({
   // never waits for it (SPEC.md Pipeline).
   let afterScoring = onScored;
 
-  if (mcp) app.use(mcpRouter(db, mcp.secret, logError));
+  if (mcp) app.use(mcpRouter(db, mcp.secret, logError, priceReactions));
   if (auth) {
     app.use(authRouter(db, auth));
-    app.use(feedRouter(db, auth.secret));
+    // Every card the api sends carries the same price reaction.
+    const market = priceReactions && { priceReaction: priceReactions, logError };
+    app.use(feedRouter(db, auth.secret, market));
     if (mcp && research) {
       const deps: InvestigateDeps = {
         db,
@@ -86,8 +98,10 @@ export function createApp({
         queue: createQueue({ logError }),
         logError,
         ...(onResearch ? { onResearch } : {}),
+        ...(onRunStep ? { onStep: onRunStep } : {}),
+        ...(onRunEnd ? { onEnd: onRunEnd } : {}),
       };
-      app.use(researchRouter(deps, auth.secret));
+      app.use(researchRouter(deps, auth.secret, market));
       // A push that fails is logged; the gate still decides, since the event counts as scored
       // and is not scored again.
       afterScoring = async (eventId, scored) => {

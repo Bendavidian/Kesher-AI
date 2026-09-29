@@ -29,7 +29,7 @@ export function TickerFooter({ reaction, apiStatus }: Props) {
           </span>
           {reaction.rows.map((row) => (
             <span key={row.symbol} className="font-extrabold whitespace-nowrap">
-              {row.symbol} <Move value={row.moves.at(-1) ?? 0} />
+              {row.symbol} <Move value={row.moves.at(-1) ?? null} />
             </span>
           ))}
         </>

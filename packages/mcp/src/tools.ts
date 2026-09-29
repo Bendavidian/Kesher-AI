@@ -2,19 +2,28 @@ import {
   EventStatus,
   Extraction,
   Id,
+  PriceAnchor,
+  PriceReactionError,
+  PriceSymbol,
+  PriceWindowName,
   Ticker,
   Tier,
+  TradingDay,
+  UniverseSymbol,
   type MarketEvent,
+  type PriceReaction,
   type Source,
 } from '@kesher/shared';
 import type { Collection, Filter } from 'mongodb';
 import { z } from 'zod';
 import type { RunTokenClaims, ToolName } from './token';
 
-// Read only access; the api passes its collections in.
+// Read only access; the api passes its collections and its market data in.
 export interface ToolDeps {
   events: Collection<MarketEvent>;
   sources: Collection<Source>;
+  // priceReactionFor in packages/shared over the api's market data: the subjects, then SMH and SPY.
+  priceReaction: (subjects: readonly PriceSymbol[], headline: Date) => Promise<PriceReaction>;
 }
 
 // The verified run token. Tools that need a user read it from here, never from arguments.
@@ -200,5 +209,70 @@ export const searchNews: ToolDefinition<typeof SearchNewsInput, typeof SearchNew
   },
 };
 
+// get_price_reaction ---------------------------------------------------------------------------
+// Temporal association only: the moves show what traded at the same time, never why.
+
+const GetPriceReactionInput = z.strictObject({
+  symbol: UniverseSymbol.describe('A demo universe company'),
+  eventTime: IsoTime.describe('The headline time; not in the future'),
+});
+
+const GetPriceReactionOutput = z.strictObject({
+  anchor: PriceAnchor.extend({ baseTime: IsoTime, tradingDay: TradingDay }),
+  windows: z.array(z.strictObject({ name: PriceWindowName, endsAt: IsoTime })),
+  rows: z.array(
+    z.strictObject({
+      symbol: PriceSymbol,
+      basePrice: z.number().nullable(),
+      baseBarTime: IsoTime.nullable(),
+      moves: z.array(z.strictObject({ pct: z.number().nullable(), barTime: IsoTime.nullable() })),
+    }),
+  ),
+  delayed: z.literal(true),
+  complete: z.boolean(),
+});
+type GetPriceReactionOutput = z.output<typeof GetPriceReactionOutput>;
+
+const iso = (date: Date | null) => date?.toISOString() ?? null;
+
+export function priceReactionJson(reaction: PriceReaction): GetPriceReactionOutput {
+  return {
+    anchor: { ...reaction.anchor, baseTime: reaction.anchor.baseTime.toISOString() },
+    windows: reaction.windows.map((w) => ({ name: w.name, endsAt: w.endsAt.toISOString() })),
+    rows: reaction.rows.map((row) => ({
+      symbol: row.symbol,
+      basePrice: row.basePrice,
+      baseBarTime: iso(row.baseBarTime),
+      moves: row.moves.map((move) => ({ pct: move.pct, barTime: iso(move.barTime) })),
+    })),
+    delayed: reaction.delayed,
+    complete: reaction.complete,
+  };
+}
+
+export const getPriceReaction: ToolDefinition<
+  typeof GetPriceReactionInput,
+  typeof GetPriceReactionOutput
+> = {
+  name: 'get_price_reaction',
+  description:
+    'Percent moves of a company, SMH and SPY after a headline, anchored to the regular session: from the price at the headline, or from the previous close with an open gap. SIP data delayed 15 minutes. Shows timing only, never a cause.',
+  inputSchema: GetPriceReactionInput,
+  outputSchema: GetPriceReactionOutput,
+  async run({ symbol, eventTime }, { priceReaction }) {
+    try {
+      return {
+        ok: true,
+        output: priceReactionJson(await priceReaction([symbol], new Date(eventTime))),
+      };
+    } catch (error) {
+      // Only the reaction's own reasons reach the agent. A provider error stays on the server,
+      // which logs it where it passes priceReaction in.
+      if (error instanceof PriceReactionError) return { ok: false, error: error.message };
+      return { ok: false, error: 'Market data is unavailable' };
+    }
+  },
+};
+
 // Every tool the server implements. The run token decides which of them a caller sees.
-export const TOOLS = [getEvent, searchNews] as const;
+export const TOOLS = [getEvent, searchNews, getPriceReaction] as const;
