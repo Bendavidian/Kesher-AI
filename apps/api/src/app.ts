@@ -1,3 +1,4 @@
+import type { SearchBackend } from '@kesher/mcp';
 import { HealthResponse } from '@kesher/shared';
 import express, { type ErrorRequestHandler, type Express } from 'express';
 import type { Db } from 'mongodb';
@@ -12,6 +13,7 @@ import { authRouter, type AuthOptions } from './routes/auth';
 import { devRouter } from './routes/dev';
 import { feedRouter } from './routes/feed';
 import { mcpRouter } from './routes/mcp';
+import { atlasSearch } from './search/atlas';
 import { researchRouter } from './routes/research';
 
 export interface AppDeps {
@@ -47,6 +49,9 @@ export interface AppDeps {
   // The price reaction over the api's market data (createPriceReactions), for get_price_reaction
   // and FeedCard.priceReaction. Without it cards carry null and the tool answers unavailable.
   priceReactions?: PriceReactions;
+  // The searches behind search_filings and search_news. Atlas over db and the embedder when
+  // unset; tests pass an in memory backend, since plain mongod has no search stages.
+  search?: SearchBackend;
 }
 
 const logMessage = (error: unknown) =>
@@ -69,6 +74,7 @@ export function createApp({
   onRunStep,
   onRunEnd,
   priceReactions,
+  search,
 }: AppDeps): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -81,7 +87,15 @@ export function createApp({
   // never waits for it (SPEC.md Pipeline).
   let afterScoring = onScored;
 
-  if (mcp) app.use(mcpRouter(db, mcp.secret, logError, priceReactions));
+  if (mcp) {
+    app.use(
+      mcpRouter(db, mcp.secret, {
+        onError: logError,
+        search: search ?? atlasSearch(db, embedder),
+        ...(priceReactions ? { priceReaction: priceReactions } : {}),
+      }),
+    );
+  }
   if (auth) {
     app.use(authRouter(db, auth));
     // Every card the api sends carries the same price reaction.

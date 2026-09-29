@@ -6,11 +6,14 @@ import { parseArgs } from 'node:util';
 import { AgentRun, Claim, Report } from '@kesher/shared';
 import { z } from 'zod';
 import { createApp } from '../app';
-import { loadEnv, loadMcpEnv, loadModelKeys } from '../config/env';
+import { loadAlpacaKeys, loadEnv, loadMcpEnv, loadModelKeys } from '../config/env';
 import { describeError, redactor } from '../config/redact';
 import { collection } from '../db/collections';
 import { DB_NAME, connect } from '../db/client';
+import { lazyLocalEmbedder } from '../embed/local';
 import { createModelClient, resolveFromKeys } from '../llm/client';
+import { createMarketData } from '../market/data';
+import { createPriceReactions } from '../market/reactions';
 import { DEMO_SOURCE_ID, DEMO_SOURCE_PROVIDER, PERSONAS } from '../seed/config';
 import { runResearch } from './agent';
 import { ResearchRecording, researchRecordingPath, type RecordedTurn } from './recordings';
@@ -49,7 +52,14 @@ if (env.NODE_ENV === 'production') {
 }
 const { MCP_TOKEN_SECRET } = loadMcpEnv();
 const keys = loadModelKeys();
-const redact = redactor(env.MONGODB_URI, [MCP_TOKEN_SECRET, keys.groq ?? '', keys.google ?? '']);
+const alpacaKeys = loadAlpacaKeys();
+const redact = redactor(env.MONGODB_URI, [
+  MCP_TOKEN_SECRET,
+  keys.groq ?? '',
+  keys.google ?? '',
+  alpacaKeys?.keyId ?? '',
+  alpacaKeys?.secretKey ?? '',
+]);
 
 const recordingPath = researchRecordingPath(DEMO_SOURCE_ID);
 if (record && existsSync(recordingPath) && !force) {
@@ -70,6 +80,9 @@ const server = createApp({
   devRoutes: false,
   mcp: { secret: MCP_TOKEN_SECRET },
   logError: (error) => console.error(redact(describeError(error))),
+  // The same market data and local embedding model as the api, so every tool works here.
+  priceReactions: createPriceReactions(createMarketData({ keys: () => alpacaKeys })),
+  embedder: lazyLocalEmbedder(),
 }).listen(0, '127.0.0.1');
 
 try {

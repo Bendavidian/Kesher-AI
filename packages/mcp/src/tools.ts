@@ -10,6 +10,7 @@ import {
   Tier,
   TradingDay,
   UniverseSymbol,
+  type Company,
   type MarketEvent,
   type PriceReaction,
   type Relationship,
@@ -19,6 +20,7 @@ import {
 import type { Collection, Filter } from 'mongodb';
 import { z } from 'zod';
 import { fitItems } from './fit';
+import type { SearchBackend } from './search';
 import type { RunTokenClaims, ToolName } from './token';
 
 // Read only access; the api passes its collections and its market data in.
@@ -27,6 +29,8 @@ export interface ToolDeps {
   events: Collection<MarketEvent>;
   sources: Collection<Source>;
   relationships: Collection<Relationship>;
+  companies: Collection<Company>;
+  search: SearchBackend;
   // priceReactionFor in packages/shared over the api's market data: the subjects, then SMH and SPY.
   priceReaction: (subjects: readonly PriceSymbol[], headline: Date) => Promise<PriceReaction>;
 }

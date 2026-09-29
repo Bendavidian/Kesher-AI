@@ -26,6 +26,7 @@ describe('tool inputs', () => {
       'get_my_portfolio',
       'get_event',
       'search_news',
+      'search_filings',
       'get_company_relationships',
       'get_price_reaction',
     ]);
@@ -48,6 +49,7 @@ describe('tool inputs', () => {
       get_event: { eventId: randomUUID() },
       search_news: { query: 'TSMC earthquake' },
       get_company_relationships: { symbol: 'NVDA', types: ['customer_of'] },
+      search_filings: { symbol: 'NVDA', query: 'foundry dependency' },
       get_price_reaction: { symbol: 'TSM', eventTime: '2024-04-03T03:57:09Z' },
     };
     for (const tool of TOOLS) {

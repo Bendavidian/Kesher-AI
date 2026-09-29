@@ -402,9 +402,10 @@ describe('runResearch', () => {
   });
 
   it('forces the report early when the token budget binds first', async () => {
-    // At 5,300 tokens a turn, the fourth turn must be the report.
+    // At 4,300 tokens a turn, the fourth turn must be the report: after three turns only 7,100
+    // remain, less than a tool turn and a report after it with the seven tool schemas.
     const { run } = setup([getEvent, searchNews, searchNews, report], {
-      usage: { input: 5_000, output: 300 },
+      usage: { input: 4_000, output: 300 },
     });
 
     const outcome = await run();
@@ -415,7 +416,7 @@ describe('runResearch', () => {
     expect(stored.steps.find((s) => s.name === 'Report turn')?.input).toMatchObject({
       reason: 'token_budget',
     });
-    expect(stored.tokensUsed).toBe(4 * 5_300);
+    expect(stored.tokensUsed).toBe(4 * 4_300);
   });
 
   it('counts a report turn that calls another tool as a failed attempt, and runs nothing', async () => {

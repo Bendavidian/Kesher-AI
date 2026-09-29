@@ -4,6 +4,8 @@ import type { AddressInfo } from 'node:net';
 import { mintRunToken, type ToolName } from '@kesher/mcp';
 import {
   EMBEDDING_DIMENSIONS,
+  type Company,
+  type FilingChunk,
   PriceReactionError,
   type MarketEvent,
   type PriceSymbol,
@@ -19,7 +21,9 @@ import { ensureCollections, ensureIndexes } from '../db/indexes';
 import { loadReactionFixture } from '../market/fixture';
 import type { PriceReactions } from '../market/reactions';
 import { DEMO_SOURCE_ID } from '../seed/config';
+import { oneHot } from '../test/embedder';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
+import { memorySearch } from '../test/search';
 
 const SECRET = 'integration-secret-that-is-long-enough';
 const personaA = randomUUID();
@@ -130,6 +134,37 @@ function edge(
   };
 }
 
+const FOUNDRY_TEXT =
+  'We depend on foundries to manufacture our semiconductor wafers and have no fabs of our own.';
+
+function chunk(chunkIndex: number, text: string, symbol: FilingChunk['symbol'] = 'NVDA') {
+  return {
+    _id: randomUUID(),
+    sourceId: symbol === 'NVDA' ? nvidia10k._id : randomUUID(),
+    symbol,
+    form: '10-K',
+    section: 'Item 1A. Risk Factors',
+    chunkIndex,
+    text,
+    embedding: oneHot(text),
+    createdAt: new Date('2026-09-29T00:00:00Z'),
+  } satisfies FilingChunk;
+}
+
+function company(symbol: Company['symbol'], filerType: Company['filerType']): Company {
+  return {
+    _id: randomUUID(),
+    symbol,
+    primaryListing: symbol,
+    name: symbol,
+    cik: String(Math.floor(Math.random() * 1e10)).padStart(10, '0'),
+    filerType,
+    sector: 'semiconductors',
+    themes: [],
+    createdAt: new Date('2026-09-28T00:00:00Z'),
+  };
+}
+
 function user(_id: string, holdings: User['holdings']): User {
   return {
     _id,
@@ -180,6 +215,18 @@ describe('POST /mcp', () => {
       ),
     ]);
     await collection(mongo.db, 'market_events').insertOne(event);
+    await collection(mongo.db, 'filing_chunks').insertMany([
+      chunk(0, 'Our business is accelerated computing for data centers and gaming.'),
+      chunk(1, FOUNDRY_TEXT),
+      chunk(2, 'We face intense competition in every market we serve.'),
+      chunk(3, 'Export controls restrict sales of some products to China.'),
+      chunk(0, 'AMD designs processors and graphics chips.', 'AMD'),
+    ]);
+    await collection(mongo.db, 'companies').insertMany([
+      company('NVDA', '10-K'),
+      company('TSM', '20-F'),
+      company('KO', '10-K'),
+    ]);
     await collection(mongo.db, 'users').insertMany([
       user(personaA, [
         { symbol: 'TSM', quantity: 5 },
@@ -187,6 +234,7 @@ describe('POST /mcp', () => {
       ]),
       user(personaB, [{ symbol: 'KO', quantity: 40 }]),
     ]);
+    const search = memorySearch(mongo.db);
     const { reaction } = await loadReactionFixture(DEMO_SOURCE_ID);
     // The committed demo reaction for any past headline; the real computation is tested in market.
     const priceReactions: PriceReactions = (subjects, headline) => {
@@ -202,6 +250,13 @@ describe('POST /mcp', () => {
       devRoutes: false,
       mcp: { secret: SECRET },
       priceReactions,
+      search: {
+        ...search,
+        filingPassages: (symbol, vector, limit) =>
+          symbol === 'KO'
+            ? Promise.reject(new Error('filing_chunks_vector is not READY'))
+            : search.filingPassages(symbol, vector, limit),
+      },
       logError: (error) => logged.push(error),
     }).listen(0);
     baseUrl = await listen(server);
@@ -391,6 +446,63 @@ describe('POST /mcp', () => {
       expect(Buffer.byteLength(JSON.stringify(output))).toBeLessThanOrEqual(8_192);
       expect(output.omitted).toBeGreaterThan(0);
       expect(output.edges.length + output.omitted).toBe(8);
+    });
+  });
+
+  describe('search_filings', () => {
+    it('returns at most 3 passages of one filer, nearest first, with the filing source', async () => {
+      const client = await connect(['search_filings']);
+      const result = await client.callTool({
+        name: 'search_filings',
+        arguments: { symbol: 'NVDA', query: FOUNDRY_TEXT },
+      });
+      expect(result.isError).toBeFalsy();
+      const { passages, omitted } = result.structuredContent as {
+        passages: { text: string; symbol: string; sourceId: string; sourceTitle: string }[];
+        omitted: number;
+      };
+      expect(passages).toHaveLength(3);
+      expect(omitted).toBe(0);
+      expect(passages[0]).toEqual({
+        sourceId: nvidia10k._id,
+        symbol: 'NVDA',
+        form: '10-K',
+        section: 'Item 1A. Risk Factors',
+        chunkIndex: 1,
+        text: FOUNDRY_TEXT,
+        sourceTitle: nvidia10k.title,
+        url: nvidia10k.url,
+      });
+      expect(passages.every((p) => p.symbol === 'NVDA')).toBe(true);
+    });
+
+    it('answers a tool error for a 20-F filer and for a filer without chunks', async () => {
+      const client = await connect(['search_filings']);
+      const foreign = await client.callTool({
+        name: 'search_filings',
+        arguments: { symbol: 'TSM', query: 'foundry' },
+      });
+      expect(foreign.isError).toBe(true);
+      expect(JSON.stringify(foreign.content)).toContain('TSM files a 20-F');
+      const none = await client.callTool({
+        name: 'search_filings',
+        arguments: { symbol: 'MSFT', query: 'cloud' },
+      });
+      expect(none.isError).toBe(true);
+      expect(JSON.stringify(none.content)).toContain('No filing passages for MSFT');
+    });
+
+    it('logs a failed search and tells the agent only that search is unavailable', async () => {
+      const client = await connect(['search_filings']);
+      logged.length = 0;
+      const result = await client.callTool({
+        name: 'search_filings',
+        arguments: { symbol: 'KO', query: 'bottlers' },
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain('Filing search is unavailable');
+      expect(JSON.stringify(result.content)).not.toContain('READY');
+      expect(String(logged[0])).toContain('filing_chunks_vector is not READY');
     });
   });
 

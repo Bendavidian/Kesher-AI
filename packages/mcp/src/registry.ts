@@ -1,3 +1,4 @@
+import { searchFilings } from './filings';
 import { getMyPortfolio } from './portfolio';
 import { getCompanyRelationships } from './relationships';
 import { getEvent, getPriceReaction, searchNews } from './tools';
@@ -7,6 +8,7 @@ export const TOOLS = [
   getMyPortfolio,
   getEvent,
   searchNews,
+  searchFilings,
   getCompanyRelationships,
   getPriceReaction,
 ] as const;
