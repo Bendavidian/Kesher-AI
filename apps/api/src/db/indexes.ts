@@ -32,6 +32,8 @@ export const INDEXES: Record<CollectionName, IndexDescription[]> = {
   agent_runs: [
     { name: 'user_created_at', key: { userId: 1, createdAt: -1 } },
     { name: 'event', key: { eventId: 1 } },
+    // The research gate's recent run check, per user and event (T12).
+    { name: 'user_event_created_at', key: { userId: 1, eventId: 1, createdAt: -1 } },
   ],
   reports: [{ name: 'run_unique', key: { runId: 1 }, unique: true }],
   claims: [{ name: 'report', key: { reportId: 1 } }],
@@ -42,6 +44,8 @@ export const INDEXES: Record<CollectionName, IndexDescription[]> = {
   ingest_counters: [
     { name: 'day_mode_reason_unique', key: { day: 1, mode: 1, reason: 1 }, unique: true },
   ],
+  // One budget per UTC day; runs are reserved with a conditional $inc.
+  research_budget: [{ name: 'day_unique', key: { day: 1 }, unique: true }],
 };
 
 const embeddingField = {

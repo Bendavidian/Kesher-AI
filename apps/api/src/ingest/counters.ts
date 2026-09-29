@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { DropReason, IngestMode } from '@kesher/shared';
-import { MongoServerError, type Db } from 'mongodb';
+import type { Db } from 'mongodb';
 import { collection } from '../db/collections';
-
-const DUPLICATE_KEY = 11000;
+import { retryOnDuplicateKey } from '../db/retry';
 
 // Adds one to the counter for this UTC day, mode and reason, so the savings of the pre filter
 // show in the metrics (SPEC.md Pipeline). The dropped item itself is never stored.
@@ -21,9 +20,5 @@ export async function countDrop(
       { $inc: { count: 1 }, $set: { updatedAt: now }, $setOnInsert: { _id: randomUUID() } },
       { upsert: true },
     );
-  // Concurrent first upserts of one key can fail with E11000; the retry increments the winner.
-  await increment().catch((error: unknown) => {
-    if (error instanceof MongoServerError && error.code === DUPLICATE_KEY) return increment();
-    throw error;
-  });
+  await retryOnDuplicateKey(increment);
 }

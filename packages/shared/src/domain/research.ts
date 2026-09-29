@@ -104,6 +104,16 @@ export const AgentRun = z
   });
 export type AgentRun = z.infer<typeof AgentRun>;
 
+// Research runs reserved per UTC day, automatic and Investigate together (the daily budget of
+// the research gate, SPEC.md decision log T12). A skipped run reserves nothing.
+export const ResearchBudgetDay = z.strictObject({
+  _id: Id,
+  day: z.iso.date(),
+  runs: z.int().min(0),
+  updatedAt: z.date(),
+});
+export type ResearchBudgetDay = z.infer<typeof ResearchBudgetDay>;
+
 export const Report = z.strictObject({
   _id: Id,
   runId: Id,
