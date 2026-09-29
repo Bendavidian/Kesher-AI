@@ -3,7 +3,7 @@ import { SOCKET_EVENTS, type EventScored, type FeedCard, type FeedItem } from '@
 import type { Db } from 'mongodb';
 import { Server } from 'socket.io';
 import { sessionFromCookie } from '../auth/session';
-import { assembleCards, feedCard } from '../feed/cards';
+import { assembleCards, feedCard, type CardMarket } from '../feed/cards';
 import type { ScoredItem } from '../relevance/feed';
 
 // Socket.IO events the server sends (docs/INTERFACES.md). Dates travel as ISO strings.
@@ -37,7 +37,10 @@ const roomOf = (userId: string) => `user:${userId}`;
 
 // Attaches Socket.IO to the api's HTTP server. The handshake needs the session cookie, and the
 // verified user decides the room; the client never names a user (principle 5).
-export function createRealtime(httpServer: HttpServer, { db, secret }: { db: Db; secret: string }) {
+export function createRealtime(
+  httpServer: HttpServer,
+  { db, secret, market }: { db: Db; secret: string; market?: CardMarket },
+) {
   const io = new Server<
     ClientToServerEvents,
     ServerToClientEvents,
@@ -75,6 +78,7 @@ export function createRealtime(httpServer: HttpServer, { db, secret }: { db: Db;
       const cards = await assembleCards(
         db,
         shown.map((s) => s.item),
+        market,
       );
       for (const card of cards) {
         const event = created.has(card.item._id)
@@ -87,7 +91,7 @@ export function createRealtime(httpServer: HttpServer, { db, secret }: { db: Db;
     },
     async publishItem(item) {
       if (item.relevance <= 0) return;
-      const card = await feedCard(db, item);
+      const card = await feedCard(db, item, market);
       if (card) io.to(roomOf(item.userId)).emit(SOCKET_EVENTS.feedUpdate, card);
     },
     signOut(userId) {

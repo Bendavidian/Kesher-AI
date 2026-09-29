@@ -8,6 +8,8 @@ import type { AlpacaKeys } from '../ingest/alpaca';
 export const ALPACA_CALENDAR_URL = 'https://paper-api.alpaca.markets/v2/calendar';
 export const ALPACA_BARS_URL = 'https://data.alpaca.markets/v2/stocks/bars';
 const MAX_PAGES = 20;
+// A request that hangs fails instead, so a feed that waits for a card never stalls on Alpaca.
+export const FETCH_TIMEOUT_MS = 10_000;
 
 const headers = (keys: AlpacaKeys) => ({
   'APCA-API-KEY-ID': keys.keyId,
@@ -43,6 +45,7 @@ export async function fetchCalendar(
   const query = new URLSearchParams({ start: from, end: to });
   const response = await fetch(`${ALPACA_CALENDAR_URL}?${query.toString()}`, {
     headers: headers(keys),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`Alpaca calendar answered ${response.status}`);
   return z
@@ -86,6 +89,7 @@ export async function fetchBars(
     if (pageToken) query.set('page_token', pageToken);
     const response = await fetch(`${ALPACA_BARS_URL}?${query.toString()}`, {
       headers: headers(keys),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`Alpaca bars answered ${response.status}`);
     const body = BarsPage.parse(await response.json());

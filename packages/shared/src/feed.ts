@@ -5,6 +5,7 @@ import { FilingForm } from './domain/filing';
 import { RelationshipType } from './domain/graph';
 import { Source } from './domain/source';
 import { UniverseSymbol } from './domain/universe';
+import { PriceReaction } from './price';
 
 // Display bands for the code computed relevance, named like the SPEC.md eval labels. Placeholders
 // until T16 calibrates them: high from 0.8, medium above 0, none at 0. Bands only label a score;
@@ -64,14 +65,16 @@ export type FeedCardSource = z.infer<typeof FeedCardSource>;
 
 // The FeedCard read model (docs/INTERFACES.md), assembled on the server from stored documents.
 // Nothing here is written by a model: the path, relevance and confidence are code, and "Why you"
-// is rendered from the path with the whyYou templates. priceReaction stays null until T13.
+// is rendered from the path with the whyYou templates. priceReaction is computed by code from
+// market data (priceReactionFor), for the path's event company and holding next to SMH and SPY;
+// null when the market data could not be read.
 export const FeedCard = z.strictObject({
   item: FeedItem,
   event: FeedCardEvent,
   source: FeedCardSource,
   // One entry per hop that has reviewed evidence, in path order.
   evidence: z.array(FeedEvidence).max(2),
-  priceReaction: z.null(),
+  priceReaction: PriceReaction.nullable(),
 });
 export type FeedCard = z.infer<typeof FeedCard>;
 

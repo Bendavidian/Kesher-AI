@@ -5,6 +5,8 @@ import {
   type FeedCardSource,
   FeedItem,
   type FeedPath,
+  type PriceReaction,
+  type PriceSymbol,
   Relationship,
   Source,
   UniverseSymbol,
@@ -135,18 +137,70 @@ export async function assembleParts(
   });
 }
 
+// Where a card's price reaction comes from: priceReactionFor over the api's market data, the same
+// function get_price_reaction serves. Without it every card carries null.
+export interface CardMarket {
+  priceReaction: (subjects: readonly PriceSymbol[], headline: Date) => Promise<PriceReaction>;
+  logError: (error: unknown) => void;
+  // How long a card waits for its reaction; later, it carries null. CARD_REACTION_TIMEOUT_MS.
+  timeoutMs?: number;
+}
+
+export const CARD_REACTION_TIMEOUT_MS = 5_000;
+
+// The path's event company and holding, then SMH and SPY. null when the market data could not be
+// read; the card still shows, and the failure is logged, never sent.
+async function reactionFor(
+  market: CardMarket | undefined,
+  path: FeedPath | null,
+  headline: Date,
+): Promise<PriceReaction | null> {
+  if (!market || !path) return null;
+  const timeoutMs = market.timeoutMs ?? CARD_REACTION_TIMEOUT_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`price reaction took longer than ${timeoutMs} ms`)),
+      timeoutMs,
+    );
+  });
+  try {
+    const subjects = [...new Set([path.eventCompany, path.holding])];
+    return await Promise.race([market.priceReaction(subjects, headline), late]);
+  } catch (error) {
+    market.logError(error);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Assembles FeedCards (docs/INTERFACES.md) from stored documents, in the order of the items.
-export async function assembleCards(db: Db, items: readonly FeedItem[]): Promise<FeedCard[]> {
+export async function assembleCards(
+  db: Db,
+  items: readonly FeedItem[],
+  market?: CardMarket,
+): Promise<FeedCard[]> {
   const parts = await assembleParts(db, items);
+  const reactions = await Promise.all(
+    items.map((item, index) => {
+      const part = parts[index];
+      return part ? reactionFor(market, item.path, part.event.publishedAt) : Promise.resolve(null);
+    }),
+  );
   return items.flatMap((item, index) => {
     const part = parts[index];
-    return part ? [FeedCard.parse({ item, ...part, priceReaction: null })] : [];
+    return part ? [FeedCard.parse({ item, ...part, priceReaction: reactions[index] })] : [];
   });
 }
 
 // One card, for feed:item and feed:update (T06). null when its event or source is gone.
-export async function feedCard(db: Db, item: FeedItem): Promise<FeedCard | null> {
-  const [card] = await assembleCards(db, [item]);
+export async function feedCard(
+  db: Db,
+  item: FeedItem,
+  market?: CardMarket,
+): Promise<FeedCard | null> {
+  const [card] = await assembleCards(db, [item], market);
   return card ?? null;
 }
 
@@ -156,7 +210,7 @@ export async function feedCard(db: Db, item: FeedItem): Promise<FeedCard | null>
 export async function feedCardsFor(
   db: Db,
   userId: string,
-  { limit = FEED_PAGE_SIZE }: { limit?: number } = {},
+  { limit = FEED_PAGE_SIZE, market }: { limit?: number; market?: CardMarket } = {},
 ): Promise<FeedCard[]> {
   const items = await collection(db, 'feed_items')
     .find({ userId, relevance: { $gt: 0 } })
@@ -166,5 +220,6 @@ export async function feedCardsFor(
   return assembleCards(
     db,
     items.map((doc) => FeedItem.parse(doc)),
+    market,
   );
 }

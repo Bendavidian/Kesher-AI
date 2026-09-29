@@ -11,10 +11,13 @@ const keys = { keyId: 'key-id', secretKey: 'secret-key' };
 
 // A fetch that answers from a queue and records every URL and header it was given.
 function fakeFetch(bodies: unknown[], status = 200) {
-  const calls: { url: URL; headers: Record<string, string> }[] = [];
+  const calls: { url: URL; headers: Record<string, string>; signal?: AbortSignal }[] = [];
   // The code under test always passes a string URL and a headers object.
-  const fetch = (input: string, init?: { headers: Record<string, string> }) => {
-    calls.push({ url: new URL(input), headers: init?.headers ?? {} });
+  const fetch = (
+    input: string,
+    init?: { headers: Record<string, string>; signal?: AbortSignal },
+  ) => {
+    calls.push({ url: new URL(input), headers: init?.headers ?? {}, signal: init?.signal });
     return Promise.resolve(new Response(JSON.stringify(bodies.shift()), { status }));
   };
   return { fetch: fetch as unknown as typeof globalThis.fetch, calls };
@@ -46,6 +49,13 @@ describe('fetchCalendar', () => {
     const session = toSession({ date: '2024-11-29', open: '09:30', close: '13:00' });
     expect(session.open.toISOString()).toBe('2024-11-29T14:30:00.000Z');
     expect(session.close.toISOString()).toBe('2024-11-29T18:00:00.000Z');
+  });
+
+  it('passes a timeout signal to every request, so a hung one fails', async () => {
+    const { fetch, calls } = fakeFetch([[], { bars: {}, next_page_token: null }]);
+    await fetchCalendar('2024-01-01', '2024-01-31', { keys, fetch });
+    await fetchBars(['TSM'], new Date(0), new Date(60_000), { keys, fetch });
+    expect(calls.map((call) => call.signal instanceof AbortSignal)).toEqual([true, true]);
   });
 
   it('fails on an error status', async () => {
