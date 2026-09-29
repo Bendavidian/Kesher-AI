@@ -2,23 +2,30 @@ import { randomUUID } from 'node:crypto';
 import {
   AgentRun,
   AgentStep,
+  PriceReactionError,
   Report,
+  type PriceReaction,
+  type PriceSymbol,
   type RunEnded,
   type RunFailureReason,
   type RunStepPushed,
   type TokenUsage,
+  VERIFIER_STEP,
 } from '@kesher/shared';
 import { jsonSchema, tool, type ModelMessage, type ToolResultPart, type ToolSet } from 'ai';
 import type { Db } from 'mongodb';
 import { collection } from '../db/collections';
 import { RunRateLimitError, type ModelClient, type RunStepResult } from '../llm/client';
 import { estimateTokens, planTurn, STEP_BUDGET, TOKEN_BUDGET, type RunMode } from './budget';
-import { checkDraft } from './checks';
+import type { PriceReactions } from '../market/reactions';
+import { checkDraft, DETERMINISTIC_CHECKS, type CheckedDraft } from './checks';
 import { REPORT_DRAFT_JSON_SCHEMA, ReportDraft } from './draft';
+import { upsertMarketSource } from './marketSource';
 import { openToolbox, type TokenIssued, type Toolbox } from './mcp';
 import { capStepOutput } from './output';
 import { buildBrief, quoteToolOutput, REPORT_TOOL, RESEARCH_SYSTEM } from './prompt';
-import type { RecordedTurn } from './recordings';
+import type { RecordedTurn, RecordedVerifierCall } from './recordings';
+import { applyVerdicts, VERIFIER_TOKEN_CAP, verifyClaims, type VerifierCall } from './verifier';
 
 // The research agent (SPEC.md Research agent). The model reads and proposes; code runs every tool
 // call through MCP, decides every turn and every budget, checks the claims and does every write.
@@ -33,8 +40,12 @@ export interface ResearchDeps {
   // Step times and token age. The model client keeps its own clock for waits.
   now?: () => number;
   newId?: () => string;
-  // Each raw model turn, for npm run research:dev -- --record.
+  // Each raw model turn and verifier call, for npm run research:dev -- --record.
   onTurn?: (turn: RecordedTurn) => void;
+  onVerifierCall?: (call: RecordedVerifierCall) => void;
+  // The price reaction the api serves (createPriceReactions). numbers_match reads it at the
+  // event's time; without it a metric's figures stay unchecked and the metric unverified.
+  priceReactions?: PriceReactions;
   // Each step once it is stored, and the final status once the run is finished, for run:step
   // and run:end to the run's user. A push that fails is logged and never stops the run.
   onStep?: (userId: string, pushed: RunStepPushed) => Promise<void> | void;
@@ -152,6 +163,7 @@ export async function runResearch(
       tokenBudget,
       steps: [],
       tokensUsed: 0,
+      verification: { tokenCap: VERIFIER_TOKEN_CAP, tokensUsed: 0 },
       costUsd: 0,
       status: 'running',
       failureReason: null,
@@ -184,7 +196,11 @@ export async function runResearch(
   // Written as it happens, redacted, output capped at 8 KB, then pushed as run:step. The count is
   // the step's place in AgentRun.steps only while steps are recorded one at a time: every caller
   // awaits record, and none may start two at once. A client that sees a gap reads the run again.
-  async function record(step: StepInput): Promise<void> {
+  // A model step counts against the research budget, or against the verifier's cap.
+  async function record(
+    step: StepInput,
+    account: 'research' | 'verifier' = 'research',
+  ): Promise<void> {
     const { output, outputTruncated } = capStepOutput(step.output, redact);
     const stored = AgentStep.parse({
       ...step,
@@ -195,9 +211,10 @@ export async function runResearch(
       startedAt: new Date(step.startedAt),
     });
     const tokens = stored.kind === 'model' ? stored.tokens.total : 0;
+    const counter = account === 'research' ? 'tokensUsed' : 'verification.tokensUsed';
     await runs.updateOne(
       { _id: runId },
-      { $push: { steps: stored }, ...(tokens > 0 ? { $inc: { tokensUsed: tokens } } : {}) },
+      { $push: { steps: stored }, ...(tokens > 0 ? { $inc: { [counter]: tokens } } : {}) },
     );
     const index = stepCount;
     stepCount += 1;
@@ -230,6 +247,126 @@ export async function runResearch(
       startedAt: issued.issuedAt.getTime(),
       latencyMs: issued.latencyMs,
     });
+
+  // The event's price reaction at the event's own time, for numbers_match. A failure leaves the
+  // figures unchecked; the reason is recorded, and only a PriceReactionError's own text is kept.
+  async function readReaction(
+    subjects: PriceSymbol[],
+    headline: Date,
+  ): Promise<PriceReaction | null> {
+    const started = now();
+    let reaction: PriceReaction | null = null;
+    let problem: string | null = null;
+    if (!deps.priceReactions) problem = 'Market data is not configured.';
+    else {
+      try {
+        reaction = await deps.priceReactions(subjects, headline);
+      } catch (error) {
+        if (!(error instanceof PriceReactionError)) deps.logError?.(error);
+        problem =
+          error instanceof PriceReactionError ? error.message : 'Market data is unavailable.';
+      }
+    }
+    await record({
+      kind: 'code',
+      name: 'Market data read',
+      input: { symbols: subjects, eventTime: headline.toISOString() },
+      outputSummary: reaction
+        ? `Price reaction anchored to the ${reaction.anchor.kind === 'headline' ? 'headline' : 'previous close'}, trading day ${reaction.anchor.tradingDay}.`
+        : `${problem} Metric figures stay unchecked.`,
+      output: reaction ?? { error: problem },
+      startedAt: started,
+      latencyMs: now() - started,
+    });
+    return reaction;
+  }
+
+  // One check step, recorded only when the check ran on a claim. Its output lists the claims it
+  // removed, which is what turns the step red in the run screen.
+  async function recordCheck(
+    name: (typeof DETERMINISTIC_CHECKS)[number],
+    checked: Pick<CheckedDraft, 'claims'>,
+    removed: string[],
+    startedAt: number,
+    extra: Record<string, unknown>,
+    only?: string[],
+  ): Promise<void> {
+    const ran = checked.claims.filter(
+      (c) => (!only || only.includes(c._id)) && c.checks.some((check) => check.name === name),
+    );
+    if (ran.length === 0 && Object.keys(extra).length === 0) return;
+    await record({
+      kind: 'check',
+      name,
+      input: { claims: ran.length },
+      outputSummary:
+        removed.length === 0
+          ? `${ran.length} checked, none removed.`
+          : `${ran.length} checked, ${removed.length} removed.`,
+      output: {
+        removedClaimIds: removed,
+        failures: ran.flatMap((c) =>
+          c.checks
+            .filter((check) => check.name === name && !check.passed)
+            .map((check) => ({ claimId: c._id, detail: check.detail })),
+        ),
+        ...extra,
+      },
+      startedAt,
+      latencyMs: now() - startedAt,
+    });
+  }
+
+  // Each verifier call is a model step on the verifier's own cap, or a code step when it failed.
+  async function recordVerifierCall(call: VerifierCall): Promise<void> {
+    deps.onVerifierCall?.(
+      call.ok
+        ? {
+            text: call.text,
+            usage: {
+              inputTokens: call.usage.inputTokens ?? null,
+              outputTokens: call.usage.outputTokens ?? null,
+              totalTokens: call.usage.totalTokens ?? null,
+            },
+          }
+        : { error: call.error },
+    );
+    const input = {
+      claims: call.claimIds.length,
+      estimatedTokens: call.estimatedTokens,
+      tokenCap: VERIFIER_TOKEN_CAP,
+    };
+    if (!call.ok) {
+      await record({
+        kind: 'code',
+        name: 'Verifier failed',
+        input,
+        outputSummary: `${call.error}. ${call.claimIds.length} claims stay unverified and hidden.`,
+        output: { claimIds: call.claimIds, error: call.error },
+        startedAt: call.startedAt,
+        latencyMs: call.latencyMs,
+      });
+      return;
+    }
+    const supported = call.answer.verdicts.filter((v) => v.verdict === 'supported').length;
+    const inputTokens = call.usage.inputTokens ?? call.estimatedTokens;
+    const outputTokens = call.usage.outputTokens ?? Math.max(0, call.tokens - inputTokens);
+    await record(
+      {
+        kind: 'model',
+        name: VERIFIER_STEP,
+        input,
+        outputSummary: `${supported} supported, ${call.answer.verdicts.length - supported} unsupported.`,
+        output: { claimIds: call.claimIds, verdicts: call.answer.verdicts },
+        provider: call.provider,
+        model: call.model,
+        tokens: { input: inputTokens, output: outputTokens, total: call.tokens },
+        startedAt: call.startedAt,
+        latencyMs: call.latencyMs,
+      },
+      'verifier',
+    );
+  }
 
   // From here on every path ends the run with finish, so no run stays running.
   let toolbox: Toolbox | undefined;
@@ -476,40 +613,40 @@ export async function runResearch(
       mustReport = reportCall !== undefined || result.toolCalls.length === 0;
     }
 
-    // The report: code checks every claim against the sources the tools returned.
+    // The report: code checks every claim against the sources the tools returned and the market
+    // data it reads itself, then the verifier judges the claims the checks kept.
     const checksStarted = now();
     const sources = await collection(db, 'sources')
       .find({ _id: { $in: [...seen] } }, { projection: { title: 1, text: 1 } })
       .toArray();
+    const seenSources = new Map(sources.map((s) => [s._id, s]));
     const reportId = newId();
+
+    const figures = draft.claims.flatMap((c) => (c.type === 'metric' ? c.figures : []));
+    const subjects = [...new Set(figures.map((f) => f.symbol))];
+    let reaction: PriceReaction | null = null;
+    let marketSourceId: string | null = null;
+    if (figures.length > 0) {
+      reaction = await readReaction(subjects, event.publishedAt);
+      marketSourceId = await upsertMarketSource(db, event._id, subjects, {
+        now: new Date(checksStarted),
+        newId,
+      });
+    }
+
     const checked = checkDraft(draft, {
-      seen: new Map(sources.map((s) => [s._id, s])),
+      seen: seenSources,
       reportId,
       newId,
       now: new Date(checksStarted),
+      reaction,
+      marketSourceId,
     });
-    for (const name of ['sources_exist', 'quote_verbatim', 'premises_supported'] as const) {
-      const ran = checked.claims.filter((c) => c.checks.some((check) => check.name === name));
-      if (ran.length === 0) continue;
-      const removed = checked.removedBy[name];
-      await record({
-        kind: 'check',
-        name,
-        input: { claims: ran.length },
-        outputSummary:
-          removed.length === 0
-            ? `${ran.length} checked, none removed.`
-            : `${ran.length} checked, ${removed.length} removed.`,
-        output: {
-          removedClaimIds: removed,
-          failures: ran.flatMap((c) =>
-            c.checks
-              .filter((check) => check.name === name && !check.passed)
-              .map((check) => ({ claimId: c._id, detail: check.detail })),
-          ),
-        },
-        startedAt: checksStarted,
-        latencyMs: now() - checksStarted,
+    for (const name of DETERMINISTIC_CHECKS) {
+      await recordCheck(name, checked, checked.removedBy[name], checksStarted, {
+        ...(name === 'no_advice' && checked.droppedQuestions.length > 0
+          ? { droppedOpenQuestions: checked.droppedQuestions }
+          : {}),
       });
     }
     if (checked.dropped.length > 0) {
@@ -524,19 +661,71 @@ export async function runResearch(
       });
     }
 
+    const verified = await verifyClaims(
+      models,
+      { claims: checked.claims, sources: seenSources, reaction, tokenCap: VERIFIER_TOKEN_CAP },
+      { now, onCall: recordVerifierCall },
+    );
+    const verifyStarted = now();
+    const applied = applyVerdicts(checked.claims, checked.keys, verified.verdicts);
+    if (verified.verdicts.size > 0) {
+      const judged = applied.claims.filter((c) => verified.verdicts.has(c._id));
+      await record({
+        kind: 'check',
+        name: 'verifier',
+        input: { claims: judged.length },
+        outputSummary: `${judged.length} checked, ${applied.removedBy.verifier.length === 0 ? 'none' : applied.removedBy.verifier.length} removed.`,
+        output: {
+          removedClaimIds: applied.removedBy.verifier,
+          supportedClaimIds: judged
+            .filter((c) => verified.verdicts.get(c._id)?.verdict === 'supported')
+            .map((c) => c._id),
+          failures: judged.flatMap((c) =>
+            c.checks
+              .filter((check) => check.name === 'verifier' && !check.passed)
+              .map((check) => ({ claimId: c._id, detail: check.detail })),
+          ),
+        },
+        startedAt: verifyStarted,
+        latencyMs: 0,
+      });
+    }
+    if (applied.removedBy.premises_supported.length > 0) {
+      await recordCheck(
+        'premises_supported',
+        { ...checked, claims: applied.claims },
+        applied.removedBy.premises_supported,
+        verifyStarted,
+        {},
+        applied.removedBy.premises_supported,
+      );
+    }
+    if (verified.left.length > 0) {
+      await record({
+        kind: 'code',
+        name: 'Claims not verified',
+        input: { claims: verified.left.length, tokenCap: VERIFIER_TOKEN_CAP },
+        outputSummary: `${verified.left.length} claims stay unverified and hidden: ${verified.left[0]?.reason}.`,
+        output: verified.left,
+        startedAt: verifyStarted,
+        latencyMs: 0,
+      });
+    }
+    const finalClaims = applied.claims;
+
     // Claims first, then the report that lists them. Claims left without a report are removed.
     const claims = collection(db, 'claims');
-    if (checked.claims.length > 0) await claims.insertMany(checked.claims);
+    if (finalClaims.length > 0) await claims.insertMany(finalClaims);
     try {
       await collection(db, 'reports').insertOne(
         Report.parse({
           _id: reportId,
           runId,
           sections:
-            checked.claims.length > 0
-              ? [{ title: REPORT_SECTION, claimIds: checked.claims.map((c) => c._id) }]
+            finalClaims.length > 0
+              ? [{ title: REPORT_SECTION, claimIds: finalClaims.map((c) => c._id) }]
               : [],
-          openQuestions: draft.openQuestions,
+          openQuestions: checked.openQuestions,
           createdAt: new Date(now()),
         }),
       );

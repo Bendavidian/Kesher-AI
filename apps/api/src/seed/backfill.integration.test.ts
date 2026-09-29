@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
-import { backfillPublishers, backfillResearchReports } from './backfill';
+import { backfillPublishers, backfillResearchReports, backfillVerification } from './backfill';
 
 const at = new Date('2026-09-28T12:00:00Z');
 
@@ -89,5 +89,43 @@ describe('backfillResearchReports on mongod', () => {
 
   it('changes nothing on a second run', async () => {
     expect(await backfillResearchReports(mongo.db)).toBe(0);
+  });
+});
+
+describe('backfillVerification on mongod', () => {
+  let mongo: TestMongo;
+
+  beforeAll(async () => {
+    mongo = await startTestMongo('kesher_backfill_verification_test');
+    await mongo.db.collection<{ _id: string; verification?: object }>('agent_runs').insertMany([
+      // As T08 stored it, before verification existed.
+      { _id: 'old' },
+      { _id: 'new', verification: { tokenCap: 6000, tokensUsed: 900 } },
+    ]);
+    await mongo.db
+      .collection<{ _id: string; type: string; figures?: object[] }>('claims')
+      .insertMany([
+        { _id: 'm', type: 'metric' },
+        { _id: 'f', type: 'fact' },
+        { _id: 'k', type: 'metric', figures: [{ symbol: 'TSM', window: 'open_gap', pct: -1.16 }] },
+      ]);
+  }, MONGO_START_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await mongo?.stop();
+  });
+
+  it('sets a missing verification to null and missing metric figures to none', async () => {
+    expect(await backfillVerification(mongo.db)).toEqual({ runs: 1, claims: 1 });
+    const runs = await mongo.db.collection<{ _id: string }>('agent_runs').find().toArray();
+    expect(runs).toContainEqual({ _id: 'old', verification: null });
+    expect(runs).toContainEqual({ _id: 'new', verification: { tokenCap: 6000, tokensUsed: 900 } });
+    const claims = await mongo.db.collection<{ _id: string }>('claims').find().toArray();
+    expect(claims).toContainEqual({ _id: 'm', type: 'metric', figures: [] });
+    expect(claims).toContainEqual({ _id: 'f', type: 'fact' });
+  });
+
+  it('changes nothing on a second run', async () => {
+    expect(await backfillVerification(mongo.db)).toEqual({ runs: 0, claims: 0 });
   });
 });

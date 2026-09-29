@@ -1,4 +1,10 @@
-import { ReportDetail, type ReportSource, type Source } from '@kesher/shared';
+import {
+  DELAY_MINUTES,
+  joinList,
+  ReportDetail,
+  type ReportSource,
+  type Source,
+} from '@kesher/shared';
 import type { Db } from 'mongodb';
 import { collection } from '../db/collections';
 import { feedCard, type CardMarket } from '../feed/cards';
@@ -21,6 +27,17 @@ export function reportSourceFor(source: Omit<Source, 'text'>): ReportSource {
       title: source.publisher ? `${source.publisher} via ${provider}` : provider,
       citeLabel: `${outlet} headline`,
       ref: `id ${source.externalId}`,
+    };
+  }
+  // The bars behind a metric's numbers (marketSource.ts): named by the symbols read.
+  if (source.kind === 'market_data') {
+    return {
+      _id: source._id,
+      kind: source.kind,
+      tier: source.tier,
+      title: `SIP bars for ${joinList(source.symbols)}`,
+      citeLabel: 'SIP bars',
+      ref: `Delayed ${DELAY_MINUTES} minutes`,
     };
   }
   return {

@@ -4,8 +4,9 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 // The research agent's tools, reached as a real MCP client over POST /mcp with a run token
 // (docs/INTERFACES.md). The token carries the user; nothing here passes a user id to a tool.
 
-// Read only, and only these two until T13 adds the rest.
-export const RESEARCH_TOOLS: ToolName[] = ['get_event', 'search_news'];
+// Read only. get_price_reaction gives the numbers a metric claim cites (SPEC.md decision log,
+// T14); T13 part 2 adds the rest.
+export const RESEARCH_TOOLS: ToolName[] = ['get_event', 'search_news', 'get_price_reaction'];
 
 // A token this old is replaced before the next tool call, so no call runs on one about to expire.
 export const TOKEN_REFRESH_AFTER_MS = (RUN_TOKEN_TTL_SECONDS - 60) * 1000;

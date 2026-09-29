@@ -61,4 +61,25 @@ describe('reportSourceFor', () => {
       ref: '0001045810-26-000021',
     });
   });
+
+  it('names market data by the symbols read, delayed 15 minutes', () => {
+    const market: Omit<Source, 'text'> = {
+      ...news,
+      _id: '00000000-0000-4000-8000-000000000003',
+      kind: 'market_data',
+      tier: 1,
+      externalId: 'sip-bars:00000000-0000-4000-8000-000000000009',
+      publisher: null,
+      title: 'SIP minute bars',
+      symbols: ['TSM', 'NVDA', 'SMH', 'SPY'],
+    };
+    expect(reportSourceFor(market)).toEqual({
+      _id: market._id,
+      kind: 'market_data',
+      tier: 1,
+      title: 'SIP bars for TSM, NVDA, SMH and SPY',
+      citeLabel: 'SIP bars',
+      ref: 'Delayed 15 minutes',
+    });
+  });
 });

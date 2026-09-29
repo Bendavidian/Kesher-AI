@@ -89,6 +89,7 @@ describe('automatic research through the gate, on mongod', () => {
                 text: 'TSMC paused some production after the earthquake.',
                 sources: [{ sourceId: demo._id, quote: demo.text!.slice(0, 80) }],
                 premises: [],
+                figures: [],
               },
             ],
             openQuestions: [],
@@ -108,7 +109,10 @@ describe('automatic research through the gate, on mongod', () => {
         return call === 0 ? hold : undefined;
       },
     );
-    const groq = mockModel(MODELS.researchFallback.model, [new Error('Groq is not used')]);
+    // Groq answers only the verifier, which supports the one claim.
+    const groq = mockModel(MODELS.extraction.model, [
+      JSON.stringify({ verdicts: [{ claim: 'k1', verdict: 'supported', reason: 'stated' }] }),
+    ]);
     models = createModelClient({
       resolve: resolveMocks({ [gemini.modelId]: gemini, [groq.modelId]: groq }),
     });
