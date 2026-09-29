@@ -21,6 +21,7 @@
     "record": "npm run record -w @kesher/api --",
     "record:models": "npm run record:models -w @kesher/api --",
     "record:bars": "npm run record:bars -w @kesher/api --",
+    "recording:export": "npm run recording:export -w @kesher/api --",
     "research:dev": "npm run research:dev -w @kesher/api --",
     "graph:candidates": "npm run graph:candidates -w @kesher/api --",
     "graph:review": "npm run graph:review -w @kesher/api --",

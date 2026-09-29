@@ -45,12 +45,24 @@ export interface AppDeps {
   priceReactions?: PriceReactions;
 }
 
+// The Express app, and what runs after each scoring run: the Socket.IO pushes, then the research
+// gate when research is mounted. Replay and live ingestion both take afterScoring, so a live card
+// gets the same pushes and automatic research as a replayed one.
+export interface Api {
+  app: Express;
+  afterScoring: ProcessDeps['onScored'];
+}
+
 const logMessage = (error: unknown) =>
   console.error(error instanceof Error ? error.message : 'request failed');
 
 const noKeys = () => createModelClient({ resolve: resolveFromKeys({}) });
 
-export function createApp({
+export function createApp(deps: AppDeps): Express {
+  return createApi(deps).app;
+}
+
+export function createApi({
   db,
   devRoutes,
   mcp,
@@ -64,7 +76,7 @@ export function createApp({
   onRunStep,
   onRunEnd,
   priceReactions,
-}: AppDeps): Express {
+}: AppDeps): Api {
   const app = express();
   app.disable('x-powered-by');
 
@@ -127,5 +139,5 @@ export function createApp({
   };
   app.use(onError);
 
-  return app;
+  return { app, afterScoring };
 }

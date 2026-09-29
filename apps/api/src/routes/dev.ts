@@ -1,11 +1,26 @@
-import { ReplayResponse, ResetResponse } from '@kesher/shared';
+import { AccessionNumber, Company, ReplayResponse, ResetResponse } from '@kesher/shared';
 import { Router } from 'express';
 import type { Db } from 'mongodb';
 import { toIncomingItem } from '../ingest/alpaca';
 import { processItem, type ProcessDeps } from '../ingest/process';
 import { collection } from '../db/collections';
-import { AlpacaNewsId, loadRecording } from '../ingest/recordings';
+import { toIncomingFiling } from '../ingest/edgar';
+import type { IncomingItem } from '../ingest/item';
+import { AlpacaNewsId, findRecording, type LiveItem } from '../ingest/recordings';
 import { isRateLimited, MissingModelKeyError, type ModelClient } from '../llm/client';
+
+type Provider = LiveItem['provider'];
+
+// A replay id names its provider by its shape: an Alpaca news id is digits only, an EDGAR
+// accession number is 0001045810-26-000021.
+function parseSourceId(raw: string): { provider: Provider; externalId: string } | null {
+  if (AlpacaNewsId.safeParse(raw).success) return { provider: 'alpaca', externalId: raw };
+  if (AccessionNumber.safeParse(raw).success) return { provider: 'sec_edgar', externalId: raw };
+  return null;
+}
+
+const BAD_ID = 'sourceId must be an Alpaca news id or an EDGAR accession number';
+const label = (provider: Provider) => (provider === 'alpaca' ? 'Alpaca news' : 'EDGAR filing');
 
 // Development only (docs/INTERFACES.md, REST); createApp mounts this outside production.
 export function devRouter(
@@ -20,19 +35,18 @@ export function devRouter(
   // its extraction stay. The next replay then scores the event again with no model call and pushes
   // it as a new arrival, as live ingestion would. A replay without a reset stays a duplicate.
   router.post('/dev/reset/:sourceId', async (req, res) => {
-    const id = AlpacaNewsId.safeParse(req.params.sourceId);
-    if (!id.success) {
-      res.status(400).json({ error: 'sourceId must be an Alpaca news id' });
+    const id = parseSourceId(req.params.sourceId);
+    if (!id) {
+      res.status(400).json({ error: BAD_ID });
       return;
     }
-    const source = await collection(db, 'sources').findOne({
-      provider: 'alpaca',
-      externalId: id.data,
-    });
+    const source = await collection(db, 'sources').findOne(id);
     const event =
       source && (await collection(db, 'market_events').findOne({ sourceIds: source._id }));
     if (!source || !event) {
-      res.status(404).json({ error: `Alpaca news ${id.data} has not been replayed` });
+      res
+        .status(404)
+        .json({ error: `${label(id.provider)} ${id.externalId} has not been replayed` });
       return;
     }
     const { deletedCount } = await collection(db, 'feed_items').deleteMany({ eventId: event._id });
@@ -41,21 +55,31 @@ export function devRouter(
     );
   });
 
-  // Replays one recorded Alpaca news item by its Alpaca id, never by keyword, through the same
-  // pipeline as live items: pre filter, injection screen, extraction.
+  // The recording mapped the way live ingestion maps it. A filing takes its symbol and name from
+  // the universe company with its CIK; null when that company is not seeded.
+  const incoming = async (live: LiveItem): Promise<IncomingItem | null> => {
+    if (live.provider === 'alpaca') return toIncomingItem(live.item);
+    const company = await collection(db, 'companies').findOne({ cik: live.item.cik });
+    return company ? toIncomingFiling(live.item, Company.parse(company)) : null;
+  };
+
+  // Replays one recorded item by its provider id, never by keyword, through the same pipeline as
+  // live items: pre filter, injection screen, extraction. The committed recording file is read
+  // first, then the live recordings collection.
   router.post('/dev/replay/:sourceId', async (req, res) => {
-    const id = AlpacaNewsId.safeParse(req.params.sourceId);
-    if (!id.success) {
-      res.status(400).json({ error: 'sourceId must be an Alpaca news id' });
+    const id = parseSourceId(req.params.sourceId);
+    if (!id) {
+      res.status(400).json({ error: BAD_ID });
       return;
     }
-    const recording = await loadRecording(id.data);
-    if (!recording) {
-      res.status(404).json({ error: `no recording for Alpaca news ${id.data}` });
+    const recording = await findRecording(db, id.provider, id.externalId);
+    const item = recording && (await incoming(recording));
+    if (!item) {
+      res.status(404).json({ error: `no recording for ${label(id.provider)} ${id.externalId}` });
       return;
     }
     try {
-      const result = await processItem(db, toIncomingItem(recording.item), {
+      const result = await processItem(db, item, {
         mode: 'replay',
         models,
         log,

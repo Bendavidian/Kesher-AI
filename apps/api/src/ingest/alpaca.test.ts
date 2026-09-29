@@ -44,6 +44,12 @@ describe('toIncomingItem', () => {
     expect(publisher(' Reuters ')).toBe('Reuters');
     expect(publisher('  ')).toBeNull();
   });
+
+  it('drops provider symbols that fail the Ticker schema and keeps the item', () => {
+    const symbols = ['TSM', 'brk/a', '', 'BRK.A', 'NVDA ', 'TOOLONGSYMBOLXX'];
+    const item = toIncomingItem(AlpacaNewsItem.parse({ ...raw, symbols }));
+    expect(item.symbols).toEqual(['TSM', 'BRK.A']);
+  });
 });
 
 describe('AlpacaNewsItem', () => {
