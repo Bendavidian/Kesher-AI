@@ -5,6 +5,7 @@ import {
   AgentRun,
   Claim,
   priceReactionExternalId,
+  priceReactionText,
   Report,
   type FeedItem,
   type MarketEvent,
@@ -467,7 +468,8 @@ describe('runResearch', () => {
                 key: 'c1',
                 type: 'metric',
                 text: 'TSM opened 1.16% below the previous close, while SPY also moved.',
-                sources: [{ sourceId }],
+                // A line of the text get_price_reaction returned, quoted exactly.
+                sources: [{ sourceId, quote: priceReactionText(reaction).split('\n')[1] }],
                 premises: [],
               },
             ],

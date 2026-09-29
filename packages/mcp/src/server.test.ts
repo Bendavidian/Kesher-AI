@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createKesherServer } from './server';
 import { AGENT_TOOLS, mintRunToken, verifyRunToken, type ToolName } from './token';
 import { priceReactionJson, type ToolDeps } from './tools';
+import { priceReactionText } from '@kesher/shared';
 import { REACTION } from './testing';
 
 const SECRET = 'test-secret-that-is-at-least-32-chars';
@@ -76,6 +77,7 @@ describe('createKesherServer', () => {
     // The market_data Source is already stored, so the output names its id.
     expect(result.structuredContent).toEqual({
       sourceId: STORED_SOURCE_ID,
+      text: priceReactionText(REACTION),
       ...priceReactionJson(REACTION),
     });
   });

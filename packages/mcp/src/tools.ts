@@ -7,6 +7,7 @@ import {
   PriceSymbol,
   PriceWindowName,
   priceReactionExternalId,
+  priceReactionText,
   TradingDay,
   UniverseSymbol,
   type Company,
@@ -107,6 +108,8 @@ const GetPriceReactionInput = z.strictObject({
 export const GetPriceReactionOutput = z.strictObject({
   // The market_data Source that cites these moves; a metric claim about them names it.
   sourceId: Id,
+  // The moves as that Source's text, written by code: a metric can quote one line exactly.
+  text: z.string(),
   anchor: PriceAnchor.extend({ baseTime: IsoTime, tradingDay: TradingDay }),
   windows: z.array(z.strictObject({ name: PriceWindowName, endsAt: IsoTime })),
   rows: z.array(
@@ -121,7 +124,7 @@ export const GetPriceReactionOutput = z.strictObject({
   complete: z.boolean(),
 });
 export type GetPriceReactionOutput = z.output<typeof GetPriceReactionOutput>;
-type ReactionJson = Omit<GetPriceReactionOutput, 'sourceId'>;
+type ReactionJson = Omit<GetPriceReactionOutput, 'sourceId' | 'text'>;
 
 const iso = (date: Date | null) => date?.toISOString() ?? null;
 
@@ -178,6 +181,9 @@ export const getPriceReaction: ToolDefinition<
       return { ok: false, error: 'Market data is unavailable' };
     }
     const sourceId = await sourceIdFor(sources, 'alpaca', priceReactionExternalId(reaction));
-    return { ok: true, output: { sourceId, ...priceReactionJson(reaction) } };
+    return {
+      ok: true,
+      output: { sourceId, text: priceReactionText(reaction), ...priceReactionJson(reaction) },
+    };
   },
 };

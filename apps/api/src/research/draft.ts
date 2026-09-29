@@ -23,7 +23,7 @@ export const DraftClaim = z.strictObject({
           .string()
           .optional()
           .describe(
-            'Required for a fact: at least 20 characters copied exactly, character for character, from what a tool returned for that source. A fact without a quote is dropped. Leave it out for a metric from get_price_reaction or get_financial_facts.',
+            'Required for a fact: at least 20 characters copied exactly, character for character, from what a tool returned for that source. A fact without a quote is dropped. For a metric from get_price_reaction, leave it out or copy one line of its text exactly; for get_financial_facts, leave it out.',
           ),
       }),
     )

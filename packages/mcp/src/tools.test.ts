@@ -1,11 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { PriceReactionError, priceReactionExternalId, type PriceSymbol } from '@kesher/shared';
+import {
+  PriceReactionError,
+  priceReactionExternalId,
+  priceReactionText,
+  type PriceSymbol,
+} from '@kesher/shared';
 import { nameUuid } from './sourceIds';
 import { REACTION } from './testing';
 import { TOOLS } from './registry';
-import { getPriceReaction, priceReactionJson, type ToolDeps } from './tools';
+import { getPriceReaction, priceReactionFromJson, priceReactionJson, type ToolDeps } from './tools';
 
 // Any argument that could name a user. Identity comes from the run token only (principle 5).
 const USER_LIKE = /user|owner|sub|account|persona|holder|email|identity/i;
@@ -100,6 +105,7 @@ describe('get_price_reaction', () => {
       output: {
         // Not stored yet: the id the agent's code will store the market_data Source under.
         sourceId: nameUuid(`alpaca:${priceReactionExternalId(REACTION)}`),
+        text: priceReactionText(REACTION),
         ...priceReactionJson(REACTION),
       },
     });
@@ -121,5 +127,12 @@ describe('get_price_reaction', () => {
     expect(
       await getPriceReaction.run(input, failing(new Error('Alpaca bars answered 403')), ctx),
     ).toEqual({ ok: false, error: 'Market data is unavailable' });
+  });
+});
+
+describe('priceReactionFromJson', () => {
+  it('rebuilds the reaction, so the stored text equals the text the tool returned', () => {
+    const json = priceReactionJson(REACTION);
+    expect(priceReactionText(priceReactionFromJson(json))).toBe(priceReactionText(REACTION));
   });
 });

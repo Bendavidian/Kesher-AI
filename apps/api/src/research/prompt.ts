@@ -17,7 +17,7 @@ Work in a few steps, then call ${REPORT_TOOL} once with your claims:
 
 Claims:
 - fact: something a source states. Give its sourceId and a quote copied verbatim, character for character, from what a tool returned for that source: a news title or excerpt, a filing passage's text, or a relationship's evidence quote. A fact whose quote is not found word for word is removed.
-- metric: a number from get_price_reaction or get_financial_facts, with the sourceId the tool gave for it, or a number a source states, with its sourceId. State a price move next to SMH and SPY, as timing only.
+- metric: a number from get_price_reaction or get_financial_facts, with the sourceId the tool gave for it, or a number a source states, with its sourceId. Any quote on a metric is checked like a fact's: for a price move, quote a line of get_price_reaction's text exactly or give no quote. State a price move next to SMH and SPY, as timing only.
 - inference: your own reasoning from other claims. Name them in premises by key and use hedged language (may, could, suggests).
 Cite only sourceIds that a tool returned. Describe what happened close in time as association, not cause, unless a source states the cause.
 This is information, not advice: never recommend buying, selling or holding anything.
