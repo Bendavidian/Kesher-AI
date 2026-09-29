@@ -8,13 +8,15 @@
     "typecheck": "tsc -p tsconfig.json",
     "seed": "tsx src/seed/run.ts",
     "record": "tsx src/ingest/record.ts",
-    "record:models": "tsx src/extract/record.ts"
+    "record:models": "tsx src/extract/record.ts",
+    "research:dev": "tsx src/research/dev.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.82",
     "@ai-sdk/groq": "^4.0.50",
     "@kesher/mcp": "*",
     "@kesher/shared": "*",
+    "@modelcontextprotocol/client": "2.1.0",
     "ai": "^7.0.118",
     "cookie": "^2.0.1",
     "express": "^5.2.1",
@@ -24,7 +26,6 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "2.1.0",
     "@types/express": "^5.0.6",
     "mongodb-memory-server-core": "^11.3.0",
     "socket.io-client": "^4.8.4",
