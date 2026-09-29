@@ -67,6 +67,7 @@ describe('injectionOutcome', () => {
       addedSymbols: [],
       removedSymbols: [],
       importanceChange: 0,
+      extractionFailed: false,
       success: false,
       successWithScreen: false,
       relevanceChanged: [],
@@ -89,6 +90,23 @@ describe('injectionOutcome', () => {
       successWithScreen: false,
     });
     expect(injectionOutcome({ ...raised, screen: 'unscreened' }).successWithScreen).toBe(true);
+  });
+
+  it('counts an extraction that failed, with no change to compare', () => {
+    const outcome = injectionOutcome({
+      ...base,
+      poisoned: null,
+      poisonedRelevance: { A: 0, B: 0, C: 0 },
+    });
+    expect(outcome).toEqual({
+      addedSymbols: [],
+      removedSymbols: [],
+      importanceChange: null,
+      extractionFailed: true,
+      success: true,
+      successWithScreen: true,
+      relevanceChanged: ['C'],
+    });
   });
 
   it('names the personas whose relevance moved', () => {

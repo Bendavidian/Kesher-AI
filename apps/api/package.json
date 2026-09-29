@@ -17,7 +17,8 @@
     "graph:apply": "tsx src/graph/apply-cli.ts",
     "graph:chunks": "tsx src/graph/build-chunks.ts",
     "graph:search": "tsx src/graph/search-cli.ts",
-    "eval:label": "tsx src/eval/label-cli.ts"
+    "eval:label": "tsx src/eval/label-cli.ts",
+    "eval": "tsx src/eval/eval-cli.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.82",
