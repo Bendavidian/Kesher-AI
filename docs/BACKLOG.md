@@ -99,7 +99,7 @@ Notes from part 2 for later tasks:
 - T09: the card carries research.runId from the start of a run, but the AgentRun document appears only once runResearch inserts it, a moment later; GET /runs/:runId may answer 404 in that window. View agent run stays disabled on the card, and the report screen's run links still open the fixture run screen. run:step is not sent yet.
 - T09: the web revives ISO strings to dates everywhere except step inputs (decodeReport keeps AgentStep.input as sent); decode GET /runs/:runId the same way.
 - T12: the daily budget check belongs in startInvestigation (apps/api/src/research/investigate.ts), which Investigate must not skip. The run is a fire and forget promise in the api process; the job queue replaces it. A run lost to a restart leaves its AgentRun in status running; only its FeedItem is taken over after 15 minutes (STALE_RESEARCH_MS).
-- T14: until the verifier supports facts, every inference is hidden on the report screen and counted in the removed block as "a claim it builds on was not supported" (buildReportView in apps/web/src/view/report.ts), although the api stored it unverified. Reword that block, or show unverified inferences as pending, when T14 lands.
+- T14: until the verifier supports facts, every inference stays hidden on the report screen with a neutral line ("1 inference waits for verification", buildReportView in apps/web/src/view/report.ts). The removed block and the red segments count only claims with status removed.
 
 ### [ ] T09 Agent Runs view, thin
 A timeline of one run: trigger, steps, tool calls with latency, sources, check results, token usage.

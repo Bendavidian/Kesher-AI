@@ -279,6 +279,18 @@ function ReportBody({ detail, user }: { detail: ReportDetail; user: PublicUser |
               ))}
             </ol>
 
+            {view.hiddenNotes.length > 0 && (
+              // Neutral: these claims were not removed, they are only not shown yet.
+              <ul
+                aria-label="Claims not shown yet"
+                className="flex flex-col gap-1 border-b border-divider px-[22px] py-3 text-xs text-text-3"
+              >
+                {view.hiddenNotes.map((note) => (
+                  <li key={note}>{note}.</li>
+                ))}
+              </ul>
+            )}
+
             {view.openQuestions.length > 0 && (
               <section
                 aria-labelledby="open-questions"

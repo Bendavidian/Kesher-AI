@@ -197,4 +197,27 @@ describe('Research report screen', () => {
       'Sign in from the feed to see your reports.',
     );
   });
+
+  it('never shows the removed block for a report with no removed claims', async () => {
+    // As T08 stores them: facts unverified until T14, an inference waiting on them.
+    const claims = DEMO_CLAIMS.filter((claim) => claim.status !== 'removed').map((claim) =>
+      claim.type === 'inference' ? claim : { ...claim, status: 'unverified' as const },
+    );
+    const { deps } = fakeDeps(() => Promise.resolve({ ...DEMO_REPORT_DETAIL, claims }));
+    renderAt(reportPath(DEMO_REPORT._id), deps);
+    await screen.findByRole('heading', { level: 1, name: 'Research report' });
+
+    expect(screen.queryByRole('region', { name: /removed by verification/ })).toBeNull();
+    expect(screen.queryByText(/removed by verification/)).toBeNull();
+    const chips = screen.getByRole('list', { name: 'Report summary' });
+    expect(within(chips).getByText('0 removed')).toBeTruthy();
+    const bar = screen.getByRole('img', {
+      name: '0 claims supported, 4 not checked yet, 0 removed',
+    });
+    expect(Array.from(bar.children).some((s) => s.className.includes('bg-down'))).toBe(false);
+    const hidden = screen.getByRole('list', { name: 'Claims not shown yet' });
+    expect(hidden.textContent).toBe('1 inference waits for verification.');
+    for (const color of ['text-down', 'bg-down-tint'])
+      expect(hidden.className).not.toContain(color);
+  });
 });
