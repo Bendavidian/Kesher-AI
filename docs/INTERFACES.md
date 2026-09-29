@@ -15,6 +15,8 @@ Served by packages/mcp on the official TypeScript SDK v2 (`@modelcontextprotocol
 | search_news | query, symbols?, since? | ranked news items with source ids | keyword match until T13 makes it hybrid search; see below |
 | search_filings | symbol, query | filing chunks with source ids | RAG over FilingChunk; at most 3 chunks per call |
 | get_price_reaction | symbol, eventTime | anchor, then stock, SMH and SPY moves per window, delayed flag | see below |
+| get_financial_facts | symbol, metrics | XBRL values with period and source | us-gaap filers only in the MVP |
+| search_x_posts | query, since? | posts as Tier 3 signals with links | V2, not in the MVP (X level 1) |
 
 ### get_event
 - Input: `{ eventId }`, a MarketEvent id.
@@ -31,15 +33,19 @@ Served by packages/mcp on the official TypeScript SDK v2 (`@modelcontextprotocol
   - injectionFlagged is the injection screen label, or null when the item has not been screened.
 
 ### get_price_reaction
-Anchored to the regular session; the Alpaca market calendar defines trading days, opens and closes (weekends, holidays, early closes). SIP bars older than 15 minutes.
-- anchor: kind (`headline` when the headline falls inside a regular session, `previous_close` otherwise), baseTime, basePrice, tradingDay (YYYY-MM-DD, ET).
-- windows, each with pct and the bar time used, for the symbol, SMH and SPY:
-  - `headline` anchor: 15m, 2h, sessionClose.
-  - `previous_close` anchor: openGap, 15m after the open, 2h after the open, sessionClose.
-  - A window that would end after the session close ends at the close.
-- delayed: true.
-| get_financial_facts | symbol, metrics | XBRL values with period and source | us-gaap filers only in the MVP |
-| search_x_posts | query, since? | posts as Tier 3 signals with links | V2, not in the MVP (X level 1) |
+Temporal association only, never a cause. The same code (priceReactionFor in packages/shared) fills FeedCard.priceReaction.
+- Input: `{ symbol, eventTime }`. symbol is a demo universe company. eventTime is an ISO time with an offset, not in the future.
+- Anchored to the regular session; the Alpaca market calendar defines trading days, opens and closes, so weekends, holidays and early closes resolve to the right day. Prices are SIP minute bars, and only bars older than 15 minutes are used (the free plan).
+- Output: `{ anchor, windows, rows, delayed, complete }`.
+  - anchor: `{ kind, baseTime, tradingDay }`. kind is `headline` when eventTime falls inside a regular session, `previous_close` otherwise (overnight, weekend, holiday, after an early close). baseTime is eventTime for `headline` and the previous session's close for `previous_close`. tradingDay is the ET date (YYYY-MM-DD) of the session the windows fall in: the headline's session, or the next one.
+  - windows: `{ name, endsAt }` in order. `headline` anchor: `15m`, `2h`, `session_close`, from the headline. `previous_close` anchor: `open_gap` (at the open), `15m` and `2h` after the open, `session_close`. A window that would end after the session close ends at the close.
+  - rows: the symbol, then SMH, then SPY. Each row: `{ symbol, basePrice, baseBarTime, moves }`.
+    - basePrice is the close of the base bar: the last regular bar at or before the headline, or the last bar of the previous session. baseBarTime is that bar's start time.
+    - moves has one `{ pct, barTime }` per window. open_gap uses the open of the first regular bar of the trading day; every other window uses the close of the last regular bar that starts at or before endsAt. pct is the percent change from basePrice, rounded to 2 decimals.
+    - pct and barTime are null while a window is less than 15 minutes old, or when there is no bar for it; basePrice and baseBarTime are null when there is no base bar.
+  - delayed: always true; the data is SIP delayed 15 minutes.
+  - complete: true once every window is at least 15 minutes old. An incomplete result is never cached.
+- A symbol outside the universe fails validation; a future eventTime, or one with no calendar sessions around it, is a tool error.
 
 ## Run token
 Minted by the api for each agent run (mintRunToken in packages/mcp): a JWT signed with HS256 and MCP_TOKEN_SECRET, which must be at least 32 characters.
@@ -91,7 +97,7 @@ The read model for one feed card, FeedCard in packages/shared, assembled on the 
 - event: the MarketEvent with its extraction, without the embedding.
 - source: the event's first Source: _id, provider, kind, tier, externalId, url, publisher, title, publishedAt, injectionScreen. The body text stays on the server; it is untrusted data.
 - evidence: one entry per hop of the path whose edge is reviewed, in path order: relationshipId, from, to, type, quote, filingDate, url, reviewed, and the filing (sourceId, filer symbol, title, form, tier). The form is the filer's annual form. A hop without reviewed evidence has no entry. A direct holding has none.
-- priceReaction: null until T13.
+- priceReaction: the PriceReaction from get_price_reaction (same shape, dates as dates) for the path's event company and holding, deduplicated, then SMH and SPY; null when the market data could not be read (no Alpaca keys, a provider error). Moves are shown as timing next to the benchmarks, never as a cause.
 
 "Why you" is not a field. Clients render it from item.path with whyYou in packages/shared, the same templates the api uses. Relevance bands come from relevanceBand in packages/shared: high from 0.8, medium above 0, none at 0 (placeholders until T16).
 
