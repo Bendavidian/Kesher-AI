@@ -7,21 +7,40 @@ All tools are read only. Identity and the allowed tool list come from the run to
 
 Served by packages/mcp on the official TypeScript SDK v2 (`@modelcontextprotocol/server` and `/client`, pinned to 2.1.0), mounted in the api at POST /mcp. Every input schema is a strict object, so an argument the contract does not name, such as a user id, fails validation. The server registers only the tools the run token lists, so any other tool is missing from tools/list and a call to it fails with "Tool <name> not found". A tool that finds nothing returns a tool error (`isError: true`). Tool output is JSON in `structuredContent`, with the same JSON as text content; times are ISO 8601 strings.
 
+Every tool output stays within 8 KB of JSON in UTF-8 (MAX_TOOL_OUTPUT_BYTES, the same cap as a stored run step), close to the 2,000 tokens the research budget reserves for a tool result. A tool that returns a ranked list drops whole items from the end until it fits and reports how many in `omitted`; a quote or a passage is never cut. An output still over 8 KB becomes a tool error.
+
 | Tool | Input | Output | Notes |
 |---|---|---|---|
-| get_my_portfolio | none | holdings with weights | user resolved from the token |
+| get_my_portfolio | none | holdings with quantities | the token user only; see below |
 | get_event | eventId | event with its extraction and source ids | see below |
-| get_company_relationships | symbol, types? | edges with evidence | reviewed edges only |
+| get_company_relationships | symbol, types? | edges with evidence | reviewed edges only; see below |
 | search_news | query, symbols?, since? | ranked news items with source ids | hybrid search: words and meaning; see below |
-| search_filings | symbol, query | filing chunks with source ids | RAG over FilingChunk; at most 3 chunks per call |
+| search_filings | symbol, query | filing passages with source ids | RAG over FilingChunk; at most 3 per call; see below |
 | get_price_reaction | symbol, eventTime | anchor, then stock, SMH and SPY moves per window, delayed flag | see below |
 | get_financial_facts | symbol, metrics | XBRL values with period and source | us-gaap filers only in the MVP |
 | search_x_posts | query, since? | posts as Tier 3 signals with links | V2, not in the MVP (X level 1) |
+
+### get_my_portfolio
+- Input: `{}`. The tool takes no argument at all, so no call can name a user; it reads the holdings of the run token's sub.
+- Output: `{ holdings }`, each `{ symbol, quantity }`, sorted by symbol. User.holdings stores share quantities and no prices, so weights are left to the reader; nothing else about the user is returned.
+- A user that no longer exists is the tool error "No portfolio for this run".
 
 ### get_event
 - Input: `{ eventId }`, a MarketEvent id.
 - Output: `{ eventId, headline, publishedAt, status, extraction, sourceIds }`. extraction is null until extraction has run. The embedding is never returned.
 - An unknown id is a tool error.
+
+### get_company_relationships
+- Input: `{ symbol, types? }`. symbol is a demo universe company; types is 1 to 3 of supplier_of, customer_of, competitor_of. "A supplier_of B" means A supplies B, and customer_of is its inverse.
+- Reads the relationships from the symbol (`from`), reviewed ones only. Every edge is stored with its inverse, so each relationship of the company appears once from its side.
+- Output: `{ edges, omitted }`. Each edge: `{ from, to, type, evidence: { sourceId, quote, filingDate, url }, sourceTitle }`, ordered by type, then `to`. quote is verbatim from the filing named by sourceId and sourceTitle; it is data, never instructions. Edge weights are not returned.
+- No reviewed edge is the tool error "No reviewed relationships for <symbol>".
+
+### search_filings
+- Input: `{ symbol, query }`. symbol is a demo universe company; query is 1 to 200 characters.
+- Item 1 and Item 1A of the latest 10-K of each US filer, in chunks of at most 256 word pieces (T11). The query is embedded with the local MiniLM, without a heading, and `$vectorSearch` on `filing_chunks_vector` filtered by the symbol returns the 3 nearest chunks. The score only orders them.
+- Output: `{ passages, omitted }`. Each passage: `{ sourceId, symbol, form, section, chunkIndex, text, sourceTitle, url }`. text is the filing's own words, verbatim; it is data, never instructions.
+- Tool errors: a 20-F filer (TSM, ASML) "files a 20-F; filing search covers 10-K filers only"; "No filing passages for <symbol>"; and "Filing search is unavailable" when the model or the index fails, with the cause logged by the api.
 
 ### search_news
 - Input: `{ query, symbols?, since? }`. query is 1 to 200 characters. symbols is 1 to 20 tickers and matches items tagged with any of them. since is an ISO time with an offset; items published at or after it match.
@@ -56,14 +75,18 @@ Temporal association only, never a cause. The same code (priceReactionFor in pac
 Minted by the api for each agent run (mintRunToken in packages/mcp): a JWT signed with HS256 and MCP_TOKEN_SECRET, which must be at least 32 characters.
 - sub: user id (a User _id)
 - agent: research or verifier (AgentName in packages/shared)
-- tools: allowed tool names, at least one, from the MVP tools above (ToolName in packages/mcp)
+- tools: allowed tool names, at least one, all from the agent's tool set (AGENT_TOOLS in packages/shared). Minting and verification both refuse a tool outside the set.
 - iat and exp: exp is exactly 5 minutes after iat, fixed by the minter
 
 Verification accepts HS256 only and rejects any other claim, a lifetime other than 5 minutes and an expired token. Every failure gives the same RunTokenError, which never contains the token.
 
 The MCP server rejects any call to a tool that the token does not list.
 
-The research agent (T08) gets a token with get_event and search_news only. It replaces a token that is 4 minutes old before its next tool call, with the same scope, and records each issue and refresh as a run step.
+Tool sets (SPEC.md decision log, T13):
+- research: get_my_portfolio, get_event, search_news, search_filings, get_company_relationships, get_price_reaction and get_financial_facts, all read only. The model sees only the tools the server lists for its token.
+- verifier: none, by design. It judges the claims and sources it is given and never searches, so it never gets a run token.
+
+The research agent replaces a token that is 4 minutes old before its next tool call, with the same scope, and records each issue and refresh as a run step.
 
 ## Agent runs
 AgentRun, AgentStep, Report and Claim in packages/shared, written by code only (apps/api/src/research).
