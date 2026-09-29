@@ -65,6 +65,12 @@ Notes from T05:
 - The seed ran `backfillPublishers`; run `npm run seed` on each machine's database once before T06.
 - The feed and every FeedCard list hide relevance 0 (SPEC.md decision log, T05). The stored relevance 0 items only mark the event scored for that user. feedCardsFor still returns them, and its comment says so: filter on relevance above 0 there. Emit no feed:item or feed:update for a relevance 0 item.
 
+Notes from T06 for later tasks:
+- T08: the Investigate button in apps/web/src/components/ScoresPanel.tsx stays disabled; wire it to POST /events/:eventId/investigate and take the user from the session (currentUser in apps/api/src/auth/session.ts). feed:update is already pushed for a changed FeedItem, and the web upserts by event.
+- T10: live items reach the sockets through processItem's onScored hook, which server.ts wires to publishScored. Nothing else is needed for live pushes.
+- T13: FeedCard.priceReaction is still null; EventDetail and TickerFooter already render a reaction when one arrives (view type PriceReaction in apps/web/src/view/types.ts).
+- Hardening before real accounts: NODE_ENV unset counts as development (dev routes on, cookie not Secure); consider requiring it, an Origin allowlist on the socket handshake, and a login rate limit.
+
 ### [x] T07 MCP server, thin
 packages/mcp with get_event and search_news, and run token verification with user and tool scopes.
 Done when: a test proves that a token without search_news is rejected, and no tool accepts a user id argument.
