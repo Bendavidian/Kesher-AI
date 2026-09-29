@@ -7,10 +7,16 @@ import type { ModelKeys } from '../llm/client';
 // The repo root .env, from apps/api/src/config.
 const ROOT_ENV_FILE = resolve(import.meta.dirname, '../../../../.env');
 
-const Env = z.object({
+export const Env = z.object({
   MONGODB_URI: z.string().regex(/^mongodb(\+srv)?:\/\//),
   // Development routes such as POST /dev/replay are mounted everywhere except production.
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // Automatic research after scoring (the research gate). On unless set to false; any other value
+  // stops the api at startup, naming the key.
+  AUTO_RESEARCH: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
 });
 export type Env = z.infer<typeof Env>;
 

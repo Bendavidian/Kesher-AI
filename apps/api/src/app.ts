@@ -31,7 +31,9 @@ export interface AppDeps {
   // Mounts Investigate and GET /reports/:reportId when set, with mcp and auth, and runs the
   // research gate after each scoring run. mcpUrl is the api's own POST /mcp, read when a run
   // starts; redact is applied to every run step.
-  research?: { mcpUrl: () => string; redact: (text: string) => string };
+  // autoResearch is AUTO_RESEARCH, on unless set to false: off, the gate records a skip for every
+  // card and starts no run; Investigate is unchanged.
+  research?: { mcpUrl: () => string; redact: (text: string) => string; autoResearch?: boolean };
   // Gets each FeedItem whose research state changed; the server passes the feed:update push.
   onResearch?: InvestigateDeps['onResearch'];
 }
@@ -94,7 +96,7 @@ export function createApp({
         } catch (error) {
           logError(error);
         }
-        await autoResearch(deps, eventId, scored);
+        await autoResearch(deps, eventId, scored, { enabled: research.autoResearch ?? true });
       };
     }
   }

@@ -10,9 +10,12 @@ export const GATE_MIN_IMPORTANCE = 4;
 export const RECENT_RUN_MS = 24 * 60 * 60 * 1000;
 
 // budget is checked after these, with an atomic reservation (dailyBudget.ts).
-export type GateCondition = 'relevance' | 'importance' | 'active' | 'recent' | 'budget';
+export type GateCondition =
+  'auto_research_off' | 'relevance' | 'importance' | 'active' | 'recent' | 'budget';
 
 export interface GateInput {
+  // AUTO_RESEARCH: when off, the gate starts no run and skips every card first.
+  autoResearch: boolean;
   relevance: number;
   importance: number | null;
   researchState: ResearchState;
@@ -32,14 +35,23 @@ function hoursAgo(ms: number): string {
   return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
 }
 
-// Every condition but the budget, in SPEC.md order; the first one that fails is the reason.
+// The AUTO_RESEARCH flag, then every condition but the budget, in SPEC.md order; the first one
+// that fails is the reason.
 export function checkGate({
+  autoResearch,
   relevance,
   importance,
   researchState,
   recentRun,
   now,
 }: GateInput): GateCheck {
+  if (!autoResearch) {
+    return {
+      pass: false,
+      condition: 'auto_research_off',
+      reason: 'Automatic research is off on this server (AUTO_RESEARCH=false).',
+    };
+  }
   if (relevance < GATE_MIN_RELEVANCE) {
     return {
       pass: false,

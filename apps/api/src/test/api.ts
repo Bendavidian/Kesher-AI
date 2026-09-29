@@ -42,7 +42,14 @@ export async function startApi(
     models = noModels,
     devRoutes = true,
     research = false,
-  }: { models?: () => ModelClient; devRoutes?: boolean; research?: boolean } = {},
+    autoResearch = true,
+  }: {
+    models?: () => ModelClient;
+    devRoutes?: boolean;
+    research?: boolean;
+    // AUTO_RESEARCH, as server.ts passes it; on by default.
+    autoResearch?: boolean;
+  } = {},
 ): Promise<TestApi> {
   let url = '';
   const app = createApp({
@@ -63,6 +70,7 @@ export async function startApi(
           research: {
             mcpUrl: () => `${url}/mcp`,
             redact: (text: string) => text.split(TEST_MCP_SECRET).join('[REDACTED]'),
+            autoResearch,
           },
           onResearch: (item: FeedItem) => realtime.publishItem(item),
         }

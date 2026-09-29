@@ -15,6 +15,7 @@ const ago = (ms: number) => new Date(now.getTime() - ms);
 const HOUR = 60 * 60 * 1000;
 
 const input = (overrides: Partial<GateInput> = {}): GateInput => ({
+  autoResearch: true,
   relevance: 0.8,
   importance: 4,
   researchState: 'none',
@@ -32,6 +33,18 @@ describe('checkGate', () => {
 
   it('passes a relevant, important event with no recent research', () => {
     expect(checkGate(input())).toEqual({ pass: true });
+  });
+
+  it('skips every card first with auto_research_off when AUTO_RESEARCH is off', () => {
+    expect(checkGate(input({ autoResearch: false }))).toEqual({
+      pass: false,
+      condition: 'auto_research_off',
+      reason: 'Automatic research is off on this server (AUTO_RESEARCH=false).',
+    });
+    // Before any other condition, so the reason always says why nothing runs.
+    expect(checkGate(input({ autoResearch: false, relevance: 0.1, importance: 1 }))).toMatchObject({
+      condition: 'auto_research_off',
+    });
   });
 
   it('passes relevance at exactly 0.6 and skips just below it', () => {

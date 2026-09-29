@@ -22,6 +22,8 @@ export async function autoResearch(
   deps: ResearchJobDeps,
   eventId: string,
   scored: ScoredItem[],
+  // AUTO_RESEARCH (on by default). Off, every card above relevance 0 gets a skipped run.
+  { enabled = true }: { enabled?: boolean } = {},
 ): Promise<void> {
   const { db, redact, logError = () => undefined } = deps;
   const clock = deps.now ?? Date.now;
@@ -118,6 +120,7 @@ export async function autoResearch(
       .toArray();
     const recentRun = recentRuns[0] ?? null;
     const check = checkGate({
+      autoResearch: enabled,
       relevance: item.relevance,
       importance,
       researchState: item.research.state,

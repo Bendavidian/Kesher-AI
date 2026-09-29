@@ -50,7 +50,11 @@ const app = createApp({
   log: (message) => console.log(redact(message)),
   models,
   // Investigate reaches the api's own POST /mcp as a real MCP client.
-  research: { mcpUrl: () => `http://127.0.0.1:${port}/mcp`, redact },
+  research: {
+    mcpUrl: () => `http://127.0.0.1:${port}/mcp`,
+    redact,
+    autoResearch: env.AUTO_RESEARCH,
+  },
   onResearch: (item) => realtime.publishItem(item),
 });
 const server = createServer(app);

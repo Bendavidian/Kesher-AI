@@ -294,6 +294,55 @@ describe('automatic research through the gate, on mongod', () => {
     );
   });
 
+  it('with AUTO_RESEARCH off, records auto_research_off for every card and calls no model', async () => {
+    const off = await startApi(mongo.db, {
+      models: () => models,
+      research: true,
+      autoResearch: false,
+    });
+    try {
+      await fetch(`${off.url}/dev/reset/${DEMO_SOURCE_ID}`, { method: 'POST' });
+      const response = await fetch(`${off.url}/dev/replay/${DEMO_SOURCE_ID}`, { method: 'POST' });
+      expect(response.status).toBe(200);
+      await checkSkipped();
+      // Investigate is unchanged: it still runs, through the daily budget.
+      const investigate = await fetch(`${off.url}/events/${eventId}/investigate`, {
+        method: 'POST',
+        headers: { cookie: await signIn(off.url, 'A') },
+      });
+      expect(investigate.status).toBe(202);
+      expect((await settled('A')).research.state).toBe('done');
+      expect(await budgetRuns()).toBe(1);
+    } finally {
+      await off.close();
+    }
+  });
+
+  const checkSkipped = async () => {
+    for (const key of ['A', 'B'] as const) {
+      const runs = await runsOf(key);
+      expect(runs).toHaveLength(1);
+      expect(runs[0]).toMatchObject({
+        trigger: 'gate',
+        mode: 'auto',
+        status: 'skipped',
+        tokensUsed: 0,
+        gate: {
+          decision: 'skip',
+          reason: 'Automatic research is off on this server (AUTO_RESEARCH=false).',
+        },
+      });
+      expect(JSON.parse(runs[0]!.steps[0]!.output)).toMatchObject({
+        decision: 'skip',
+        condition: 'auto_research_off',
+      });
+      expect((await itemOf(key)).research.state).toBe('none');
+    }
+    expect(await runsOf('C')).toEqual([]);
+    expect(researchCalls).toBe(0);
+    expect(await budgetRuns()).toBe(0);
+  };
+
   it('skips below relevance 0.6 or importance 4, and writes nothing at relevance 0', async () => {
     await replay();
     await settled('A');
