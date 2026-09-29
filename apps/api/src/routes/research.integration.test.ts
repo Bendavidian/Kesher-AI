@@ -18,6 +18,7 @@ import { processItem } from '../ingest/process';
 import { loadRecording } from '../ingest/recordings';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import { loadModelRecording } from '../llm/recordings';
+import { loadReactionFixture } from '../market/fixture';
 import { STALE_RESEARCH_MS, startInvestigation } from '../research/investigate';
 import { runSeed } from '../seed/seed';
 import { recordedModels, signIn, startApi, TEST_MCP_SECRET, type TestApi } from '../test/api';
@@ -128,7 +129,13 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
     if (result.outcome !== 'processed') throw new Error('expected processed');
     eventId = result.eventId;
     demo = (await collection(mongo.db, 'sources').findOne({ _id: result.sourceId }))!;
-    api = await startApi(mongo.db, { models: () => research, research: true });
+    // The committed demo reaction stands in for market data, so every card carries one.
+    const { reaction } = await loadReactionFixture(DEMO_SOURCE_ID);
+    api = await startApi(mongo.db, {
+      models: () => research,
+      research: true,
+      priceReactions: () => Promise.resolve(reaction),
+    });
     for (const key of ['A', 'B', 'C'] as const) cookies[key] = await signIn(api.url, key);
     for (const key of ['A', 'B'] as const) {
       const socket = connect(api.url, {
@@ -181,6 +188,8 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
     const card = FeedCard.parse(revive(await response.json()));
     expect(card.item.userId).toBe(await userId('A'));
     expect(card.item.research).toMatchObject({ state: 'running', reportId: null });
+    // Research state changes never drop the market table.
+    expect(card.priceReaction?.anchor.kind).toBe('previous_close');
     const runId = card.item.research.runId;
     expect(runId).not.toBeNull();
 
@@ -191,6 +200,7 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
       .poll(() => updates.A.map((c) => c.item.research.state))
       .toEqual(['running', 'done']);
     expect(updates.A[1]!.item.research.reportId).toBe(item.research.reportId);
+    expect(updates.A.every((c) => c.priceReaction !== null)).toBe(true);
     expect(updates.B).toEqual([]);
 
     const run = AgentRun.parse(await collection(mongo.db, 'agent_runs').findOne({ _id: runId! }));
@@ -212,6 +222,7 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
 
     expect(detail.run._id).toBe(research.runId);
     expect(detail.card?.item.research).toEqual(research);
+    expect(detail.card?.priceReaction).not.toBeNull();
     const kept = detail.claims.filter((c) => c.status !== 'removed');
     const removed = detail.claims.filter((c) => c.status === 'removed');
     expect(kept.map((c) => c.text)).toEqual(['TSMC paused some production after the earthquake.']);

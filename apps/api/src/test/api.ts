@@ -6,6 +6,7 @@ import { createApp } from '../app';
 import { SESSION_COOKIE } from '../auth/session';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import type { ModelRecording } from '../llm/recordings';
+import type { PriceReactions } from '../market/reactions';
 import { createRealtime, type Realtime } from '../realtime/socket';
 import { mockModel, resolveMocks } from './models';
 
@@ -42,7 +43,14 @@ export async function startApi(
     models = noModels,
     devRoutes = true,
     research = false,
-  }: { models?: () => ModelClient; devRoutes?: boolean; research?: boolean } = {},
+    priceReactions,
+  }: {
+    models?: () => ModelClient;
+    devRoutes?: boolean;
+    research?: boolean;
+    // One instance for the routes and the socket pushes, as server.ts passes it.
+    priceReactions?: PriceReactions;
+  } = {},
 ): Promise<TestApi> {
   let url = '';
   const app = createApp({
@@ -57,6 +65,7 @@ export async function startApi(
     models,
     log: quiet,
     logError: quiet,
+    ...(priceReactions ? { priceReactions } : {}),
     ...(research
       ? {
           mcp: { secret: TEST_MCP_SECRET },
@@ -69,7 +78,11 @@ export async function startApi(
       : {}),
   });
   const server = createServer(app);
-  const realtime = createRealtime(server, { db, secret: TEST_JWT_SECRET });
+  const realtime = createRealtime(server, {
+    db,
+    secret: TEST_JWT_SECRET,
+    ...(priceReactions ? { market: { priceReaction: priceReactions, logError: quiet } } : {}),
+  });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
   url = `http://127.0.0.1:${port}`;
