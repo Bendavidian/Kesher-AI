@@ -101,7 +101,7 @@ A run that passes is queued in auto mode with trigger gate. Investigate skips re
 ## Live ingestion
 Runs in the api process only where LIVE_INGEST is true, on one machine (apps/api/src/ingest/live.ts). There is no route; live items reach clients as the Socket.IO events below.
 - Sources: the Alpaca news WebSocket, subscribed to all news, and an EDGAR poller over the submissions of every universe company every 5 minutes (8-K, 10-Q, 10-K, 20-F and 6-K, no amendments, accepted in the last 24 hours).
-- Every item runs processItem in mode live. An item that fails the pre filter is counted and nothing else. One that passes is recorded (LiveRecording in packages/shared, collection recordings, the item as the provider sent it without the article body, first version kept), then queued; the in process queue runs one item at a time and retries a rate limited item up to 3 times.
+- Every item runs processItem in mode live. An item that fails the pre filter is counted and nothing else. One that passes is recorded (LiveRecording in packages/shared, collection recordings, the item as the provider sent it without the article body, first version kept), then queued; the in process queue runs one item at a time and retries a rate limited item up to 3 times. A scored live item goes through the same after scoring hook as replay (afterScoring from createApi in apps/api/src/app.ts): the Socket.IO pushes, then the research gate, which only queues research, so a live item never waits for a run.
 - A filing becomes a Tier 1 Source with the filer's universe symbol, text null and a title written by code from the company name, the form and the 8-K item labels.
 - `npm run recording:export -- --id <id>` copies a live recording to recordings/<provider>/<id>.json for commit.
 

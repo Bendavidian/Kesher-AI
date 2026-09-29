@@ -122,7 +122,6 @@ Notes from T04:
 - Note from T05: graph start nodes are the extracted companies that the event's sources tagged, taken as the union over the cluster (eventCompanies, apps/api/src/relevance/score.ts). Once clustering puts several items in one event, an untrusted later item can widen that set; decide then whether to intersect per source.
 Notes from T10 for later tasks:
 - T11: a live filing's Source has text null and a code written title (company, form, 8-K item labels), so extraction reads only that title. Once filing chunks exist, decide whether live filings get their text screened and extracted.
-- T12: the in process queue (apps/api/src/ingest/queue.ts) runs live items one at a time; gate runs can use it or a queue of their own. A live item reaches onScored inside a queued job, so research started from there must not block the queue.
 - T16: live rows of ingest_counters now fill up where LIVE_INGEST is on; items that fail the Source schema are logged, not counted.
 - T18: the deployed instance needs LIVE_INGEST=true with the Alpaca keys and SEC_USER_AGENT, and both development machines false. Recordings go to the database there, so nothing on its disk needs to last.
 
@@ -142,7 +141,7 @@ The gate from SPEC.md: relevance threshold, importance of at least 4, dedupe per
 Done when: tests cover every gate condition, and a card is visible before its research completes.
 Notes from T12 for later tasks:
 - Web, after T09 (new item): the run list and GET /runs now hold skipped runs (trigger gate, status skipped, startedAt null, one Gate check step with the condition and reason). The run summary in apps/web/src/view/run.ts says "Started by the research gate" for every gate run, a skipped one too; show "Skipped by the research gate" with AgentRun.gate.reason instead. The Agent runs tab opens the newest run, which after a Replay is often a skip; consider opening the newest run that was not skipped. A queued card has research.runId before its AgentRun exists, for longer than before, since the queue runs one run at a time; the run screen already loads on the first run:step.
-- T10: live items must go through the same after scoring hook as replay: createApp in apps/api/src/app.ts composes onScored with autoResearch (afterScoring). Expose it to the live ingester rather than passing server.ts's onScored alone, or live cards get no automatic research.
+- T10: live items must go through the same after scoring hook as replay: createApp in apps/api/src/app.ts composes onScored with autoResearch (afterScoring). Expose it to the live ingester rather than passing server.ts's onScored alone, or live cards get no automatic research. Done in T10: createApi returns afterScoring and server.ts hands it to startLiveIngest.
 - T16: a failed run counts as recent, so the gate does not retry it for 24 hours; only Investigate does. Decide whether failed runs should leave the recent check. A queue that keeps a job waiting past 15 minutes lets the next Investigate take the card over, and the waiting job's reserved run stays counted.
 - T16: tune GATE_MIN_RELEVANCE, GATE_MIN_IMPORTANCE and RECENT_RUN_MS (apps/api/src/research/gate.ts) and DAILY_RUN_LIMIT and AUTO_RUN_LIMIT (dailyBudget.ts). The research_budget collection shows the runs reserved per day.
 

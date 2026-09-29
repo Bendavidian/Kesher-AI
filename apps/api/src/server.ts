@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { z } from 'zod';
-import { createApp } from './app';
+import { createApi } from './app';
 import {
   loadAlpacaKeys,
   loadAuthEnv,
@@ -55,7 +55,7 @@ const priceReactions = createPriceReactions(createMarketData({ keys: () => alpac
 const logError = (error: unknown) => console.error(redact(describeError(error)));
 
 const devRoutes = env.NODE_ENV !== 'production';
-const app = createApp({
+const { app, afterScoring } = createApi({
   db,
   devRoutes,
   mcp: { secret: mcpEnv.MCP_TOKEN_SECRET },
@@ -97,7 +97,8 @@ server.listen(port, () => {
     liveIngest = startLiveIngest({
       db,
       models,
-      onScored: (eventId, scored) => realtime.publishScored(eventId, scored),
+      // The same hook as replay: the pushes, then the research gate.
+      ...(afterScoring ? { onScored: afterScoring } : {}),
       log: (message) => console.log(redact(message)),
       alpaca: { keys: live.alpaca },
       edgar: { userAgent: live.secUserAgent },

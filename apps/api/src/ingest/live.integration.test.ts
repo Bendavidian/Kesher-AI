@@ -68,7 +68,8 @@ describe('live ingestion end to end, on mongod', () => {
     startLiveIngest({
       db: mongo.db,
       models,
-      onScored: (eventId, scored) => api.realtime.publishScored(eventId, scored),
+      // What server.ts passes: the pushes, then the research gate.
+      ...(api.afterScoring ? { onScored: api.afterScoring } : {}),
       log: (message) => logs.push(message),
       now: () => now,
       ...sources,
@@ -79,7 +80,9 @@ describe('live ingestion end to end, on mongod', () => {
     await runSeed(mongo.db, now);
     recorded = (await loadModelRecording(DEMO_SOURCE_ID))!;
     demo = (await loadRecording(DEMO_SOURCE_ID))!.item;
-    api = await startApi(mongo.db, { models: recordedModels(recorded) });
+    // Research mounted and automatic research on, as server.ts runs it. The mock client has no
+    // research model, so a run the gate starts fails at its first model call, with no provider.
+    api = await startApi(mongo.db, { models: recordedModels(recorded), research: true });
     // Persona A holds NVDA, which TSMC supplies.
     const cookie = await signIn(api.url, 'A');
     socket = await new Promise<Socket>((resolve, reject) => {
@@ -135,6 +138,27 @@ describe('live ingestion end to end, on mongod', () => {
     expect(cards[0]!.event.headline).toBe(demo.headline);
     expect(cards[0]!.source.externalId).toBe(String(LIVE_ID));
     expect(cards[0]!.item.relevance).toBe(0.8);
+
+    // The gate ran for the live card, as for a replayed one: relevance 0.8 and importance 4 pass,
+    // so automatic research started (trigger gate, not skipped) for persona A. Only A's card is
+    // checked here; the gate itself is tested in research/auto.integration.test.ts.
+    const eventId = cards[0]!.event._id;
+    const userId = cards[0]!.item.userId;
+    const busy = (state: string) => ['queued', 'running'].includes(state);
+    // Settled once the runs and the card's research state have both left queued and running.
+    const settled = async () => {
+      const runs = await collection(mongo.db, 'agent_runs')
+        .find({ eventId, userId, trigger: 'gate' })
+        .toArray();
+      const item = await collection(mongo.db, 'feed_items').findOne({ eventId, userId });
+      return runs.length > 0 && !runs.some((run) => busy(run.status)) && !busy(item!.research.state)
+        ? runs
+        : null;
+    };
+    await until(async () => (await settled()) !== null, 10_000);
+    const gateRuns = (await settled())!;
+    expect(gateRuns.map((run) => run.status)).not.toContain('skipped');
+    expect(gateRuns.map((run) => run.mode)).toEqual(['auto']);
 
     // Recorded once, without the body; the item outside the universe was counted, not recorded.
     const recordings = (await collection(mongo.db, 'recordings').find({}).toArray()).map((doc) =>
