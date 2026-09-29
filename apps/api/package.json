@@ -16,14 +16,18 @@
     "@kesher/mcp": "*",
     "@kesher/shared": "*",
     "ai": "^7.0.118",
+    "cookie": "^2.0.1",
     "express": "^5.2.1",
+    "jose": "^6.2.12",
     "mongodb": "^7.6.0",
+    "socket.io": "^4.8.4",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.1.0",
     "@types/express": "^5.0.6",
     "mongodb-memory-server-core": "^11.3.0",
+    "socket.io-client": "^4.8.4",
     "tsx": "^4.23.15"
   }
 }

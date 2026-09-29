@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { MIN_SECRET_LENGTH } from '@kesher/mcp';
+import { MIN_SECRET_LENGTH } from '@kesher/shared';
 import { z } from 'zod';
 import type { ModelKeys } from '../llm/client';
 
@@ -26,6 +26,13 @@ export const McpEnv = z.object({
   MCP_TOKEN_SECRET: z.string().min(MIN_SECRET_LENGTH),
 });
 export type McpEnv = z.infer<typeof McpEnv>;
+
+// The key that signs and verifies web sessions (docs/INTERFACES.md, Auth). Separate from the run
+// token secret, so a leaked run token can never act as a session.
+export const AuthEnv = z.object({
+  JWT_SECRET: z.string().min(MIN_SECRET_LENGTH),
+});
+export type AuthEnv = z.infer<typeof AuthEnv>;
 
 // Loads the root .env at runtime when it exists and validates what the caller needs. Nothing
 // runs at import, so tests and CI never need a .env. Values are never printed; errors name keys
@@ -62,4 +69,8 @@ export function loadModelKeys(): ModelKeys {
 
 export function loadMcpEnv(): McpEnv {
   return load(McpEnv);
+}
+
+export function loadAuthEnv(): AuthEnv {
+  return load(AuthEnv);
 }
