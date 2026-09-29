@@ -1,11 +1,11 @@
-import { FeedItem, Relationship, type Extraction, type UniverseSymbol } from '@kesher/shared';
+import { Relationship, type Extraction, type UniverseSymbol } from '@kesher/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { collection } from '../db/collections';
 import { ingestItem } from '../ingest/ingest';
 import { PERSONAS } from '../seed/config';
 import { runSeed } from '../seed/seed';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
-import { scoreEvent } from './feed';
+import { scoreEvent, type ScoredItem } from './feed';
 import { loadEdges } from './graph';
 
 const now = new Date('2026-09-28T12:00:00Z');
@@ -54,11 +54,14 @@ describe('relevance on the seeded graph, on mongod', () => {
     return eventId;
   };
 
-  const byPersona = (items: FeedItem[]) => ({
-    A: items.find((item) => item.userId === userIds.A),
-    B: items.find((item) => item.userId === userIds.B),
-    C: items.find((item) => item.userId === userIds.C),
-  });
+  const byPersona = (scored: ScoredItem[]) => {
+    const items = scored.map((s) => s.item);
+    return {
+      A: items.find((item) => item.userId === userIds.A),
+      B: items.find((item) => item.userId === userIds.B),
+      C: items.find((item) => item.userId === userIds.C),
+    };
+  };
 
   beforeAll(async () => {
     mongo = await startTestMongo('kesher_relevance_test');
@@ -178,9 +181,11 @@ describe('relevance on the seeded graph, on mongod', () => {
       const later = new Date(now.getTime() + 60_000);
       const second = await scoreEvent(mongo.db, eventId, later);
 
-      expect(second.map((item) => item._id)).toEqual(first.map((item) => item._id));
-      expect(second.every((item) => item.createdAt.getTime() === now.getTime())).toBe(true);
-      expect(second.every((item) => item.updatedAt.getTime() === later.getTime())).toBe(true);
+      expect(first.every((s) => s.created)).toBe(true);
+      expect(second.every((s) => !s.created)).toBe(true);
+      expect(second.map((s) => s.item._id)).toEqual(first.map((s) => s.item._id));
+      expect(second.every((s) => s.item.createdAt.getTime() === now.getTime())).toBe(true);
+      expect(second.every((s) => s.item.updatedAt.getTime() === later.getTime())).toBe(true);
       expect(await collection(mongo.db, 'feed_items').countDocuments({ eventId })).toBe(3);
     });
 

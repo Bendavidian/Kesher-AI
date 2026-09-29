@@ -4,6 +4,7 @@ import {
   FeedCardEvent,
   type FeedCardSource,
   FeedItem,
+  type FeedPath,
   Relationship,
   Source,
   UniverseSymbol,
@@ -30,22 +31,39 @@ const cardSource = (source: Source): FeedCardSource => ({
 
 const byId = <T extends { _id: string }>(docs: T[]) => new Map(docs.map((doc) => [doc._id, doc]));
 
-// Assembles FeedCards (docs/INTERFACES.md) from stored documents, in the order of the items. Every
-// read is batched: one query per collection, whatever the number of items. Code only.
-export async function assembleCards(db: Db, items: readonly FeedItem[]): Promise<FeedCard[]> {
-  if (items.length === 0) return [];
+// What a card shows beside its FeedItem: the event, its first source and the evidence per hop.
+export interface CardParts {
+  event: FeedCardEvent;
+  source: FeedCardSource;
+  evidence: FeedEvidence[];
+}
+
+interface PathOf {
+  eventId: string;
+  path: FeedPath | null;
+}
+
+// Loads the parts for each entry, in order; null where the event or its source is gone. Every read
+// is batched: one query per collection, whatever the number of entries. Code only.
+export async function assembleParts(
+  db: Db,
+  entries: readonly PathOf[],
+): Promise<(CardParts | null)[]> {
+  if (entries.length === 0) return [];
 
   const events = byId(
     (
       await collection(db, 'market_events')
-        .find({ _id: { $in: items.map((item) => item.eventId) } })
+        .find({ _id: { $in: entries.map((entry) => entry.eventId) } })
         .project({ embedding: 0 })
         .toArray()
     ).map((doc) => FeedCardEvent.parse(doc)),
   );
   // The first source of the cluster is the one a card shows.
   const newsIds = [...events.values()].flatMap((event) => event.sourceIds.slice(0, 1));
-  const hopIds = items.flatMap((item) => item.path?.hops.map((hop) => hop.relationshipId) ?? []);
+  const hopIds = entries.flatMap(
+    (entry) => entry.path?.hops.map((hop) => hop.relationshipId) ?? [],
+  );
   const edges = byId(
     (
       await collection(db, 'relationships')
@@ -79,8 +97,8 @@ export async function assembleCards(db: Db, items: readonly FeedItem[]): Promise
   );
 
   // No evidence, no edge: a hop whose edge is gone, unreviewed or without its filing shows none.
-  const evidenceFor = (item: FeedItem): FeedEvidence[] =>
-    (item.path?.hops ?? []).flatMap((hop) => {
+  const evidenceFor = (path: FeedPath | null): FeedEvidence[] =>
+    (path?.hops ?? []).flatMap((hop) => {
       const edge = edges.get(hop.relationshipId);
       if (!edge?.evidence.reviewed) return [];
       const filing = sources.get(edge.evidence.sourceId);
@@ -109,19 +127,20 @@ export async function assembleCards(db: Db, items: readonly FeedItem[]): Promise
       ];
     });
 
-  return items.flatMap((item) => {
-    const event = events.get(item.eventId);
+  return entries.map((entry) => {
+    const event = events.get(entry.eventId);
     const source = event && sources.get(event.sourceIds[0]!);
-    if (!event || !source) return [];
-    return [
-      FeedCard.parse({
-        item,
-        event,
-        source: cardSource(source),
-        evidence: evidenceFor(item),
-        priceReaction: null,
-      }),
-    ];
+    if (!event || !source) return null;
+    return { event, source: cardSource(source), evidence: evidenceFor(entry.path) };
+  });
+}
+
+// Assembles FeedCards (docs/INTERFACES.md) from stored documents, in the order of the items.
+export async function assembleCards(db: Db, items: readonly FeedItem[]): Promise<FeedCard[]> {
+  const parts = await assembleParts(db, items);
+  return items.flatMap((item, index) => {
+    const part = parts[index];
+    return part ? [FeedCard.parse({ item, ...part, priceReaction: null })] : [];
   });
 }
 
@@ -131,15 +150,16 @@ export async function feedCard(db: Db, item: FeedItem): Promise<FeedCard | null>
   return card ?? null;
 }
 
-// The user's feed, newest item first, relevance 0 included so the web can show them apart. The
-// user id comes from the auth context only (T06 mounts GET /feed); never from a request argument.
+// The user's feed, newest item first. Relevance 0 never appears in a feed list (SPEC.md decision
+// log, T05): those items only mark the event scored for that user, and GET /events/:eventId/explain
+// shows why. The user id comes from the auth context only (GET /feed), never from a request argument.
 export async function feedCardsFor(
   db: Db,
   userId: string,
   { limit = FEED_PAGE_SIZE }: { limit?: number } = {},
 ): Promise<FeedCard[]> {
   const items = await collection(db, 'feed_items')
-    .find({ userId })
+    .find({ userId, relevance: { $gt: 0 } })
     .sort({ createdAt: -1, _id: 1 })
     .limit(limit)
     .toArray();

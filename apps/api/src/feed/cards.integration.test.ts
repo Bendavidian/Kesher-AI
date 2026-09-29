@@ -1,4 +1,4 @@
-import { FeedCard } from '@kesher/shared';
+import { FeedCard, FeedItem } from '@kesher/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { collection } from '../db/collections';
 import { toIncomingItem } from '../ingest/alpaca';
@@ -71,14 +71,20 @@ describe('FeedCards for the replayed demo event, on mongod', () => {
     expect(card?.priceReaction).toBeNull();
   });
 
-  it('gives B a direct card without evidence, and C a card at relevance 0', async () => {
+  it('gives B a direct card without evidence, and C an empty feed', async () => {
     const [b] = await feedCardsFor(mongo.db, await userId(1));
-    const [c] = await feedCardsFor(mongo.db, await userId(2));
 
     expect(b?.item).toMatchObject({ relevance: 1, path: { holding: 'TSM', hops: [] } });
     expect(b?.evidence).toEqual([]);
-    expect(c?.item).toMatchObject({ relevance: 0, path: null });
-    expect(c?.evidence).toEqual([]);
+    expect(await feedCardsFor(mongo.db, await userId(2))).toEqual([]);
+  });
+
+  it("still assembles C's stored relevance 0 item as a card, for the few callers that need it", async () => {
+    const stored = await collection(mongo.db, 'feed_items').findOne({ userId: await userId(2) });
+    const card = await feedCard(mongo.db, FeedItem.parse(stored));
+
+    expect(card?.item).toMatchObject({ relevance: 0, path: null });
+    expect(card?.evidence).toEqual([]);
   });
 
   it('shows no evidence for a hop whose edge is no longer reviewed', async () => {
