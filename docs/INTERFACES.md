@@ -52,6 +52,15 @@ Verification accepts HS256 only and rejects any other claim, a lifetime other th
 
 The MCP server rejects any call to a tool that the token does not list.
 
+The research agent (T08) gets a token with get_event and search_news only. It replaces a token that is 4 minutes old before its next tool call, with the same scope, and records each issue and refresh as a run step.
+
+## Agent runs
+AgentRun, AgentStep, Report and Claim in packages/shared, written by code only (apps/api/src/research).
+- Every step keeps input, outputSummary and output: the step's JSON output (a string stays as it is), redacted and then capped at 8 KB of UTF-8, with outputTruncated when the cap cut it. Model steps add provider, model and tokens.
+- status failed always names failureReason: rate_limited (a 429 asked for a wait over 30 seconds, or a fourth 429), invalid_report (two reports that failed their schema) or error. Any other status has failureReason null.
+- Check names are CheckName in packages/shared: quote_verbatim, numbers_match, sources_exist, premises_supported, verifier. A check step's output lists removedClaimIds, the claims that check removed.
+- A claim is removed when a check fails; otherwise it is unverified until the verifier (T14) supports it. The report's one section lists kept and removed claims; the screens show removed claims only in the removed block.
+
 ## REST (api)
 - GET /health: `{ status: "ok" }`, HealthResponse in packages/shared
 - POST /auth/login: body LoginRequest `{ email, password }` (packages/shared; strict, so a user id is rejected). Returns PublicUser (the User without passwordHash and createdAt) and sets the session cookie. A wrong password and an unknown email get the same 401 `{ error: "email or password is wrong" }`; a malformed body gets 400. The persona switcher signs in as a seeded persona with the public demo password.
