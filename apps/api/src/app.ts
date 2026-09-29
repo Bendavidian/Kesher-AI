@@ -27,11 +27,14 @@ export interface AppDeps {
   log?: (message: string) => void;
   // The model client, built on first use. Without it every model call fails naming its key.
   models?: () => ModelClient;
-  // Mounts Investigate and GET /reports/:reportId when set, with mcp and auth. mcpUrl is the
+  // Mounts Investigate, GET /reports/:reportId and the run routes when set, with mcp and auth. mcpUrl is the
   // api's own POST /mcp, read when a run starts; redact is applied to every run step.
   research?: { mcpUrl: () => string; redact: (text: string) => string };
   // Gets each FeedItem whose research state changed; the server passes the feed:update push.
   onResearch?: InvestigateDeps['onResearch'];
+  // Get each stored run step and each run's end; the server passes run:step and run:end.
+  onRunStep?: InvestigateDeps['onStep'];
+  onRunEnd?: InvestigateDeps['onEnd'];
   // The price reaction over the api's market data (createPriceReactions), for get_price_reaction
   // and FeedCard.priceReaction. Without it cards carry null and the tool answers unavailable.
   priceReactions?: PriceReactions;
@@ -53,6 +56,8 @@ export function createApp({
   models = noKeys,
   research,
   onResearch,
+  onRunStep,
+  onRunEnd,
   priceReactions,
 }: AppDeps): Express {
   const app = express();
@@ -82,6 +87,8 @@ export function createApp({
         redact: research.redact,
         logError,
         ...(onResearch ? { onResearch } : {}),
+        ...(onRunStep ? { onStep: onRunStep } : {}),
+        ...(onRunEnd ? { onEnd: onRunEnd } : {}),
       };
       app.use(researchRouter(deps, auth.secret, market));
     }

@@ -1,4 +1,14 @@
-import { EventExplain, EventScored, FeedCard, PublicUser, ReportDetail } from '@kesher/shared';
+import {
+  EventExplain,
+  EventScored,
+  FeedCard,
+  PublicUser,
+  ReportDetail,
+  RunDetail,
+  RunEnded,
+  RunStepPushed,
+  RunSummary,
+} from '@kesher/shared';
 
 // Dates travel as ISO strings over JSON and Socket.IO (docs/INTERFACES.md). They become Dates
 // before the shared schemas parse them, so the web holds the same types as the api.
@@ -24,11 +34,32 @@ export const decodeExplain = (json: unknown): EventExplain => EventExplain.parse
 export const decodeUser = (json: unknown): PublicUser => PublicUser.parse(json);
 export const decodeScored = (json: unknown): EventScored => EventScored.parse(json);
 // A step's input is free form JSON: an ISO string in it stays a string, as the tool received it.
-export function decodeReport(json: unknown): ReportDetail {
-  const revived = reviveDates(json) as { run?: { steps?: { input?: unknown }[] } };
-  const sent = (json as { run?: { steps?: { input?: unknown }[] } } | null)?.run?.steps;
-  revived.run?.steps?.forEach((step, index) => {
-    step.input = sent?.[index]?.input;
+// Dates are revived everywhere else, then each step's input is put back as sent.
+function keepStepInputs(json: unknown, steps: (value: unknown) => unknown[] | undefined): unknown {
+  const revived = reviveDates(json);
+  const sent = steps(json);
+  steps(revived)?.forEach((step, index) => {
+    (step as { input?: unknown }).input = (sent?.[index] as { input?: unknown } | undefined)?.input;
   });
-  return ReportDetail.parse(revived);
+  return revived;
 }
+
+type WithRun = { run?: { steps?: unknown[] } } | null;
+const runSteps = (value: unknown) => (value as WithRun)?.run?.steps;
+
+export const decodeReport = (json: unknown): ReportDetail =>
+  ReportDetail.parse(keepStepInputs(json, runSteps));
+export const decodeRun = (json: unknown): RunDetail =>
+  RunDetail.parse(keepStepInputs(json, runSteps));
+export function decodeRuns(json: unknown): RunSummary[] {
+  if (!Array.isArray(json)) throw new Error('the run list is not a list');
+  return json.map((row) => RunSummary.parse(reviveDates(row)));
+}
+export const decodeRunStep = (json: unknown): RunStepPushed =>
+  RunStepPushed.parse(
+    keepStepInputs(json, (value) => {
+      const step = (value as { step?: unknown } | null)?.step;
+      return step === undefined ? undefined : [step];
+    }),
+  );
+export const decodeRunEnded = (json: unknown): RunEnded => RunEnded.parse(json);
