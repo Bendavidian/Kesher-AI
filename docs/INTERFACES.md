@@ -42,9 +42,10 @@ Temporal association only, never a cause. The same code (priceReactionFor in pac
   - rows: the symbol, then SMH, then SPY. Each row: `{ symbol, basePrice, baseBarTime, moves }`.
     - basePrice is the close of the base bar: the last regular bar at or before the headline, or the last bar of the previous session. baseBarTime is that bar's start time.
     - moves has one `{ pct, barTime }` per window. open_gap uses the open of the first regular bar of the trading day; every other window uses the close of the last regular bar that starts at or before endsAt. pct is the percent change from basePrice, rounded to 2 decimals.
-    - pct and barTime are null while a window is less than 15 minutes old, or when there is no bar for it; basePrice and baseBarTime are null when there is no base bar.
+    - A bar counts once it closed at least 15 minutes ago (its start plus a minute). pct and barTime are null together: while the bar a window reads could not yet have closed 15 minutes ago, or when there is no bar for it. basePrice and baseBarTime are null when there is no base bar, or while the base is not final (the bar at the headline, or the previous session's close, under 15 minutes old).
+    - For a `headline` anchor the windows read from the base bar on, so a window with no later trade repeats the base (0.00).
   - delayed: always true; the data is SIP delayed 15 minutes.
-  - complete: true once every window is at least 15 minutes old. An incomplete result is never cached.
+  - complete: true once the bar of every window could have closed at least 15 minutes ago. An incomplete result is never cached.
 - A symbol outside the universe fails validation; a future eventTime, or one with no calendar sessions around it, is a tool error.
 
 ## Run token
