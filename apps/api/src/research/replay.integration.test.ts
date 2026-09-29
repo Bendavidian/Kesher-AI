@@ -27,6 +27,7 @@ import { mockModel, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import { runResearch } from './agent';
 import { loadResearchRecording, type ResearchRecording } from './recordings';
+import { PRICE_CAUSE_REASON } from './verifier';
 
 const SECRET = 'replay-secret-that-is-long-enough!!';
 
@@ -126,7 +127,7 @@ describe('research replay of the demo item', () => {
     await mongo?.stop();
   });
 
-  it('returns a verified report: every claim supported, facts quoted, metrics matching the market', async () => {
+  it('returns a verified report: facts quoted, metrics matching the market, a causal inference removed', async () => {
     const gemini = mockModel(
       recording.model,
       recording.turns.map((turn) => ({
@@ -194,18 +195,28 @@ describe('research replay of the demo item', () => {
     ).map((c) => Claim.parse(c));
     const types = new Set(claims.map((c) => c.type));
     expect(types).toEqual(new Set(['fact', 'metric', 'inference']));
-    for (const claim of claims) {
+    // The facts and metrics pass every check, the verifier included.
+    for (const claim of claims.filter((c) => c.type !== 'inference')) {
       expect(claim.status).toBe('supported');
       expect(claim.checks.every((c) => c.passed)).toBe(true);
       expect(claim.checks.map((c) => c.name)).toContain('verifier');
     }
+    // The inference ties the event to the price moves as a cause, hedged; no source states that
+    // cause, so the verifier removed it (principle 7). Nothing else failed on it.
+    const [inference] = claims.filter((c) => c.type === 'inference');
+    expect(inference?.text).toMatch(/contributed to/);
+    expect(inference?.status).toBe('removed');
+    expect(inference?.checks.filter((c) => !c.passed)).toEqual([
+      { name: 'verifier', passed: false, detail: PRICE_CAUSE_REASON },
+    ]);
     for (const fact of claims.filter((c) => c.type === 'fact')) {
       expect(fact.sources.every((s) => s.sourceId === source._id && s.quote !== null)).toBe(true);
       expect(fact.checks).toContainEqual({ name: 'quote_verbatim', passed: true, detail: null });
     }
     for (const metric of claims.filter((c) => c.type === 'metric')) {
       expect(metric.checks).toContainEqual({ name: 'numbers_match', passed: true, detail: null });
-      const [market] = metric.sources;
+      // Code appends the market data after any source the model cited.
+      const market = metric.sources.at(-1);
       expect(
         await collection(mongo.db, 'sources').findOne({ _id: market?.sourceId ?? '' }),
       ).toMatchObject({ kind: 'market_data', text: null });

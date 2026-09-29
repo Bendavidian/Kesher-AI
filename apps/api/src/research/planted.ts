@@ -197,6 +197,15 @@ export const PLANTED_CLAIMS: {
     expected: 'verifier',
     why: 'adds a detail the source does not give',
   },
+  {
+    claim: inference(
+      'c20',
+      'The production pause at TSMC could have contributed to the negative opening gaps for TSM and NVDA.',
+      ['c1', 'c3'],
+    ),
+    expected: 'verifier',
+    why: 'hedged inference linking the event to price moves as a cause (principle 7)',
+  },
 ];
 
 export const PLANTED_QUESTIONS = {

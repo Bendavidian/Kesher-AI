@@ -154,7 +154,12 @@ const report: ModelReply = {
 // The verifier's answer: every claim it is sent is supported.
 const verdicts = (...answers: [string, 'supported' | 'unsupported'][]) =>
   JSON.stringify({
-    verdicts: answers.map(([claim, verdict]) => ({ claim, verdict, reason: `${verdict} by test` })),
+    verdicts: answers.map(([claim, verdict]) => ({
+      claim,
+      verdict,
+      priceCause: false,
+      reason: `${verdict} by test`,
+    })),
   });
 // The default report sends c1 as k1 and the inference c3 as k2; c2 was removed by its quote.
 const allSupported = verdicts(['k1', 'supported'], ['k2', 'supported']);

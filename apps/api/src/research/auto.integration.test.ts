@@ -111,7 +111,9 @@ describe('automatic research through the gate, on mongod', () => {
     );
     // Groq answers only the verifier, which supports the one claim.
     const groq = mockModel(MODELS.extraction.model, [
-      JSON.stringify({ verdicts: [{ claim: 'k1', verdict: 'supported', reason: 'stated' }] }),
+      JSON.stringify({
+        verdicts: [{ claim: 'k1', verdict: 'supported', priceCause: false, reason: 'stated' }],
+      }),
     ]);
     models = createModelClient({
       resolve: resolveMocks({ [gemini.modelId]: gemini, [groq.modelId]: groq }),

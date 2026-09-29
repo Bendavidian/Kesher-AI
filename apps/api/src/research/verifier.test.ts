@@ -7,6 +7,7 @@ import type { SeenSource } from './checks';
 import {
   applyVerdicts,
   buildVerifierPrompt,
+  PRICE_CAUSE_REASON,
   sourcePassages,
   VERIFIER_SOURCE_CHARS,
   verifyClaims,
@@ -112,6 +113,7 @@ function fakeModels(answers: (object | Error)[], usage = 900) {
 const verdict = (claim: string, v: 'supported' | 'unsupported', reason = 'ok') => ({
   claim,
   verdict: v,
+  priceCause: false,
   reason,
 });
 
@@ -237,8 +239,8 @@ describe('verifyClaims', () => {
     expect(requests[0]?.prompt).not.toContain('unchecked metric');
     expect(outcome.verdicts).toEqual(
       new Map([
-        [f._id, { verdict: 'supported', reason: 'ok' }],
-        [i._id, { verdict: 'unsupported', reason: 'goes beyond' }],
+        [f._id, { verdict: 'supported', priceCause: false, reason: 'ok' }],
+        [i._id, { verdict: 'unsupported', priceCause: false, reason: 'goes beyond' }],
       ]),
     );
     expect(outcome.tokensUsed).toBe(900);
@@ -274,6 +276,22 @@ describe('verifyClaims', () => {
     expect(outcome.verdicts.size).toBe(0);
   });
 
+  it('counts an answer without priceCause as a failed call, leaving its claims unverified', async () => {
+    const { models } = fakeModels([
+      { verdicts: [{ claim: 'k1', verdict: 'supported', reason: 'ok' }] },
+    ]);
+    const calls: VerifierCall[] = [];
+
+    const outcome = await verifyClaims(
+      models,
+      { claims: [fact()], sources, reaction, tokenCap: 6_000 },
+      { now: () => 0, onCall: (call) => void calls.push(call) },
+    );
+
+    expect(outcome.verdicts.size).toBe(0);
+    expect(calls[0]).toMatchObject({ ok: false });
+  });
+
   it('leaves the claims of a failed call unverified and reports the failure', async () => {
     const { models } = fakeModels([new Error('schema mismatch')]);
     const calls: VerifierCall[] = [];
@@ -305,7 +323,11 @@ describe('verifyClaims', () => {
     );
 
     expect(groq.doGenerateCalls).toHaveLength(1);
-    expect(outcome.verdicts.get(f._id)).toEqual({ verdict: 'supported', reason: 'ok' });
+    expect(outcome.verdicts.get(f._id)).toEqual({
+      verdict: 'supported',
+      priceCause: false,
+      reason: 'ok',
+    });
     expect(calls[0]).toMatchObject({
       ok: true,
       provider: 'google',
@@ -315,6 +337,50 @@ describe('verifyClaims', () => {
 });
 
 describe('applyVerdicts', () => {
+  it('removes a claim that ties the event to a price move as a cause, hedged or not, unless a supported fact', () => {
+    const f = fact('The quake caused the fall, the source says.');
+    const i = inference([f], 'The pause could have contributed to the negative opening gaps.');
+    const m = metric();
+    const keys = new Map([f, i, m].map((x, n) => [x._id, `c${n + 1}`]));
+    const causal = { verdict: 'supported' as const, priceCause: true, reason: 'hedged, follows' };
+
+    const { claims, removedBy } = applyVerdicts(
+      [f, i, m],
+      keys,
+      new Map([
+        [f._id, causal],
+        [i._id, causal],
+        [m._id, causal],
+      ]),
+    );
+
+    expect(claims.map((x) => x.status)).toEqual(['supported', 'removed', 'removed']);
+    expect(claims[1]?.checks.at(-1)).toEqual({
+      name: 'verifier',
+      passed: false,
+      detail: PRICE_CAUSE_REASON,
+    });
+    expect(removedBy.verifier).toEqual([i._id, m._id]);
+  });
+
+  it('names the price cause rule when the verdict was unsupported too, and never promotes a claim', () => {
+    const f = fact('A.');
+    const i = inference([f], 'The pause may have weighed on the open.');
+    const keys = new Map([f, i].map((x, n) => [x._id, `c${n + 1}`]));
+
+    const { claims } = applyVerdicts(
+      [f, i],
+      keys,
+      new Map([
+        [f._id, { verdict: 'unsupported' as const, priceCause: false, reason: 'not stated' }],
+        [i._id, { verdict: 'unsupported' as const, priceCause: true, reason: 'model words' }],
+      ]),
+    );
+
+    expect(claims.map((x) => x.status)).toEqual(['removed', 'removed']);
+    expect(claims[1]?.checks.at(-1)?.detail).toBe(PRICE_CAUSE_REASON);
+  });
+
   it('supports or removes each claim by its verdict and leaves the rest unverified', () => {
     const [a, b, c] = [fact('A.'), fact('B.'), fact('C.')];
     const keys = new Map([
@@ -327,8 +393,8 @@ describe('applyVerdicts', () => {
       [a, b, c],
       keys,
       new Map([
-        [a._id, { verdict: 'supported', reason: 'stated' }],
-        [b._id, { verdict: 'unsupported', reason: 'the source says some fabs' }],
+        [a._id, { verdict: 'supported', priceCause: false, reason: 'stated' }],
+        [b._id, { verdict: 'unsupported', priceCause: false, reason: 'the source says some fabs' }],
       ]),
     );
 
@@ -348,14 +414,14 @@ describe('applyVerdicts', () => {
     const onA = inference([a], 'A may matter.');
     const chained = inference([both], 'That could last.');
     const keys = new Map([a, b, both, onA, chained].map((x, n) => [x._id, `c${n + 1}`]));
-    const supported = { verdict: 'supported' as const, reason: 'ok' };
+    const supported = { verdict: 'supported' as const, priceCause: false, reason: 'ok' };
 
     const { claims, removedBy } = applyVerdicts(
       [a, b, both, onA, chained],
       keys,
       new Map<string, Verdict>([
         [a._id, supported],
-        [b._id, { verdict: 'unsupported', reason: 'not stated' }],
+        [b._id, { verdict: 'unsupported', priceCause: false, reason: 'not stated' }],
         [both._id, supported],
         [onA._id, supported],
         [chained._id, supported],
@@ -381,7 +447,7 @@ describe('applyVerdicts', () => {
     const [a, b] = [fact('A.'), fact('B.')];
     const both = inference([a, b]);
     const keys = new Map([a, b, both].map((x, n) => [x._id, `c${n + 1}`]));
-    const supported = { verdict: 'supported' as const, reason: 'ok' };
+    const supported = { verdict: 'supported' as const, priceCause: false, reason: 'ok' };
 
     const { claims } = applyVerdicts(
       [a, b, both],

@@ -114,7 +114,9 @@ describe('Investigate, GET /reports/:reportId and the run routes, on mongod', ()
     const gemini = mockModel(MODELS.research.model, replies, undefined, onCall);
     // Groq answers only the verifier, which supports the one claim the checks kept.
     const groq = mockModel(MODELS.extraction.model, [
-      JSON.stringify({ verdicts: [{ claim: 'k1', verdict: 'supported', reason: 'stated' }] }),
+      JSON.stringify({
+        verdicts: [{ claim: 'k1', verdict: 'supported', priceCause: false, reason: 'stated' }],
+      }),
     ]);
     research = createModelClient({
       resolve: resolveMocks({ [gemini.modelId]: gemini, [groq.modelId]: groq }),

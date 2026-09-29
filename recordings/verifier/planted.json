@@ -1,15 +1,15 @@
 {
   "fixture": "planted",
-  "recordedAt": "2026-09-29T12:00:46.159Z",
+  "recordedAt": "2026-09-29T12:28:03.206Z",
   "provider": "groq",
   "model": "openai/gpt-oss-120b",
   "calls": [
     {
-      "text": "{\n  \"verdicts\": [\n    {\n      \"claim\": \"k1\",\n      \"verdict\": \"supported\",\n      \"reason\": \"Source title confirms TSMC suspended chip production after the strongest tremor.\"\n    },\n    {\n      \"claim\": \"k2\",\n      \"verdict\": \"supported\",\n      \"reason\": \"Source states a 7.2 magnitude earthquake struck Taiwan on Wednesday.\"\n    },\n    {\n      \"claim\": \"k3\",\n      \"verdict\": \"supported\",\n      \"reason\": \"Market data matches the reported open‑gap percentages for NVDA, SMH and SPY.\"\n    },\n    {\n      \"claim\": \"k4\",\n      \"verdict\": \"supported\",\n      \"reason\": \"Inference uses hedged language and plausibly follows from the production pause.\"\n    },\n    {\n      \"claim\": \"k5\",\n      \"verdict\": \"unsupported\",\n      \"reason\": \"Source reports only one fatality, not dozens of deaths.\"\n    },\n    {\n      \"claim\": \"k6\",\n      \"verdict\": \"unsupported\",\n      \"reason\": \"Source does not link the earthquake to NVIDIA share movement.\"\n    },\n    {\n      \"claim\": \"k7\",\n      \"verdict\": \"unsupported\",\n      \"reason\": \"Metric adds a causal explanation, which is not allowed for metric claims.\"\n    },\n    {\n      \"claim\": \"k8\",\n      \"verdict\": \"unsupported\",\n      \"reason\": \"Makes a causal prediction without source support and without hedged language.\"\n    },\n    {\n      \"claim\": \"k9\",\n      \"verdict\": \"unsupported\",\n      \"reason\": \"Source does not specify that all fabs were halted for a full week.\"\n    }\n  ]\n}",
+      "text": "{\n  \"verdicts\": [\n    {\n      \"claim\": \"k1\",\n      \"verdict\": \"supported\",\n      \"priceCause\": false,\n      \"reason\": \"Source confirms TSMC suspended chip production after the strongest tremor.\"\n    },\n    {\n      \"claim\": \"k2\",\n      \"verdict\": \"supported\",\n      \"priceCause\": false,\n      \"reason\": \"Source states a 7.2 magnitude earthquake struck Taiwan on Wednesday.\"\n    },\n    {\n      \"claim\": \"k3\",\n      \"verdict\": \"supported\",\n      \"priceCause\": false,\n      \"reason\": \"Market data matches the reported opening gaps for NVDA, SMH, and SPY.\"\n    },\n    {\n      \"claim\": \"k4\",\n      \"verdict\": \"supported\",\n      \"priceCause\": false,\n      \"reason\": \"Hedged inference that a prolonged pause could tighten chip supply follows from the suspension premise.\"\n    },\n    {\n      \"claim\": \"k5\",\n      \"verdict\": \"unsupported\",\n      \"priceCause\": false,\n      \"reason\": \"Source reports one fatality, not dozens.\"\n    },\n    {\n      \"claim\": \"k6\",\n      \"verdict\": \"unsupported\",\n      \"priceCause\": true,\n      \"reason\": \"No source links the earthquake to NVIDIA share movement.\"\n    },\n    {\n      \"claim\": \"k7\",\n      \"verdict\": \"unsupported\",\n      \"priceCause\": true,\n      \"reason\": \"Cause attribution to TSMC halt is not provided by the market data source.\"\n    },\n    {\n      \"claim\": \"k8\",\n      \"verdict\": \"unsupported\",\n      \"priceCause\": true,\n      \"reason\": \"Speculative revenue miss claim is not supported by the premise.\"\n    },\n    {\n      \"claim\": \"k9\",\n      \"verdict\": \"unsupported\",\n      \"priceCause\": false,\n      \"reason\": \"Source does not state a full‑week, all‑fab suspension.\"\n    },\n    {\n      \"claim\": \"k10\",\n      \"verdict\": \"supported\",\n      \"priceCause\": true,\n      \"reason\": \"Hedged inference that the pause could have contributed to the negative gaps follows from the premises.\"\n    }\n  ]\n}",
       "usage": {
-        "inputTokens": 1194,
-        "outputTokens": 535,
-        "totalTokens": 1729
+        "inputTokens": 1509,
+        "outputTokens": 868,
+        "totalTokens": 2377
       }
     }
   ]
