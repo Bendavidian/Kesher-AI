@@ -1,3 +1,4 @@
+import { PriceSymbol, PriceWindowName } from '@kesher/shared';
 import { z } from 'zod';
 
 // The report the research model submits through submit_report. It is flat on purpose, so both
@@ -12,7 +13,7 @@ export const DraftClaim = z.strictObject({
   type: z
     .enum(['fact', 'metric', 'inference'])
     .describe(
-      'fact: stated by a source, with a verbatim quote. metric: a number from a source. inference: your reasoning from other claims, in hedged language.',
+      'fact: stated by a source, with a verbatim quote. metric: price moves from get_price_reaction, listed in figures, or a value from get_financial_facts with its sourceId. inference: your reasoning from other claims, in hedged language.',
     ),
   text: z.string().trim().min(1).max(500).describe('The claim in one sentence'),
   sources: z
@@ -23,12 +24,26 @@ export const DraftClaim = z.strictObject({
           .string()
           .optional()
           .describe(
-            'Required for a fact: at least 20 characters copied exactly, character for character, from what a tool returned for that source. A fact without a quote is dropped. For a metric from get_price_reaction, leave it out or copy one line of its text exactly; for get_financial_facts, leave it out.',
+            'Required for a fact: at least 20 characters copied exactly, character for character, from what a tool returned for that source. A fact without a quote is dropped. Leave it out for a metric.',
           ),
       }),
     )
     .max(5),
   premises: z.array(ClaimKey).max(5).describe('For an inference: the keys of the claims it uses'),
+  figures: z
+    .array(
+      z.strictObject({
+        symbol: PriceSymbol,
+        window: PriceWindowName,
+        pct: z.number().describe('The pct get_price_reaction returned, unchanged'),
+      }),
+    )
+    // No maxItems: Gemini rejects the request when this nested array has one next to the other
+    // tools. Claim caps figures at 12, so a longer list drops the claim. Required, like premises,
+    // because a model left an optional list out of its metrics.
+    .describe(
+      'For a metric: every price move its text gives, as get_price_reaction returned it. Empty for other types.',
+    ),
 });
 export type DraftClaim = z.infer<typeof DraftClaim>;
 

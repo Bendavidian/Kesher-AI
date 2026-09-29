@@ -9,7 +9,7 @@ import type {
   RunSummary,
   ToolName,
 } from '@kesher/shared';
-import { formatDay } from '../view/format';
+import { VERIFIER_STEP } from '@kesher/shared';
 import type { ReportSourceView } from '../view/types';
 import { DEMO_EVENT, DEMO_NEWS_SOURCE, DEMO_PRICE_REACTION, NVDA_10K_SOURCE_ID } from './demoEvent';
 import { PERSONAS } from './personas';
@@ -177,7 +177,7 @@ const STEPS: AgentStep[] = [
   },
   {
     kind: 'model',
-    name: 'Verifier agent',
+    name: VERIFIER_STEP,
     input: { claims: 4 },
     outputSummary: 'Separate context, read only. Four claims supported.',
     latencyMs: 2_700,
@@ -208,9 +208,15 @@ export const DEMO_RUN: AgentRun = {
   trigger: 'investigate',
   gate: { decision: 'run', reason: GATE_REASON },
   stepBudget: 15,
-  tokenBudget: 6_000,
+  tokenBudget: 20_000,
   steps: STEPS,
-  tokensUsed: STEPS.reduce((sum, step) => sum + (step.kind === 'model' ? step.tokens.total : 0), 0),
+  // The research agent's model steps; the verifier counts against its own cap.
+  tokensUsed: STEPS.reduce(
+    (sum, step) =>
+      sum + (step.kind === 'model' && step.name !== VERIFIER_STEP ? step.tokens.total : 0),
+    0,
+  ),
+  verification: { tokenCap: 6_000, tokensUsed: 1_920 },
   costUsd: 0,
   status: 'succeeded',
   failureReason: null,
@@ -267,6 +273,11 @@ export const DEMO_CLAIMS: Claim[] = [
     status: 'supported',
     sources: [{ sourceId: MARKET_DATA_SOURCE_ID, quote: null }],
     premises: [],
+    figures: [
+      { symbol: 'NVDA', window: 'open_gap', pct: -1.07 },
+      { symbol: 'SMH', window: 'open_gap', pct: -1 },
+      { symbol: 'SPY', window: 'open_gap', pct: -0.22 },
+    ],
     checks: [passed('numbers_match'), passed('verifier')],
   },
   // Removed by the deterministic checks: its quote is not in the cited source. The screens
@@ -310,13 +321,6 @@ export const DEMO_REPORT: Report = {
   createdAt: REPORT_AT,
 };
 
-const { anchor } = DEMO_PRICE_REACTION;
-const anchorDay = formatDay(anchor.baseAt, 'America/New_York', false);
-const anchorNote =
-  anchor.kind === 'previous_close'
-    ? `anchored to the regular close on ${anchorDay} because the headline came after hours`
-    : `anchored to the price at the headline on ${anchorDay}`;
-
 export const DEMO_REPORT_SOURCES: ReportSourceView[] = [
   {
     _id: DEMO_NEWS_SOURCE._id,
@@ -339,7 +343,8 @@ export const DEMO_REPORT_SOURCES: ReportSourceView[] = [
     kind: 'market_data',
     tier: 1,
     title: 'SIP bars for TSM, NVDA, SMH and SPY',
-    citeLabel: `SIP bars, ${anchorNote}`,
+    // As the api names it; the report screen adds the anchor from the card's price reaction.
+    citeLabel: 'SIP bars',
     ref: 'Delayed 15 minutes',
   },
 ];

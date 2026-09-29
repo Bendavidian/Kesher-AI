@@ -9,10 +9,11 @@ import {
   type RunStepPushed,
 } from '@kesher/shared';
 import type { Db } from 'mongodb';
-import { createApp } from '../app';
+import { createApi } from '../app';
 import { memorySearch } from './search';
 import { SESSION_COOKIE } from '../auth/session';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
+import type { ProcessDeps } from '../ingest/process';
 import type { ModelRecording } from '../llm/recordings';
 import type { PriceReactions } from '../market/reactions';
 import { createRealtime, type Realtime } from '../realtime/socket';
@@ -40,6 +41,8 @@ export const noModels = () => createModelClient({ resolve: resolveMocks({}) });
 export interface TestApi {
   url: string;
   realtime: Realtime;
+  // What server.ts hands the live ingester: the pushes, then the gate when research is on.
+  afterScoring: ProcessDeps['onScored'];
   close(): Promise<void>;
 }
 
@@ -64,7 +67,7 @@ export async function startApi(
   } = {},
 ): Promise<TestApi> {
   let url = '';
-  const app = createApp({
+  const { app, afterScoring } = createApi({
     db,
     devRoutes,
     auth: {
@@ -105,6 +108,7 @@ export async function startApi(
   return {
     url,
     realtime,
+    afterScoring,
     // Closing Socket.IO closes the HTTP server too.
     close: () => realtime.close(),
   };

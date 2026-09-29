@@ -44,11 +44,13 @@ const SEGMENT: Record<ClaimStatus, string> = {
 
 const CLAIM_GRID = 'grid grid-cols-[36px_96px_minmax(0,1fr)_150px]';
 
+// A row chip is 3 by 8 px, a legend chip 2 by 8 (docs/design/report.dc.html).
 function TypeChip({ type, testId }: { type: Claim['type']; testId?: string }) {
+  const padding = testId === 'claim-type' ? 'py-[3px]' : 'py-0.5';
   return (
     <span
       data-testid={testId}
-      className={`rounded-[5px] px-2 py-0.5 text-[11px] font-extrabold ${TYPE_CHIP[type]}`}
+      className={`rounded-[5px] px-2 ${padding} text-[11px] font-extrabold ${TYPE_CHIP[type]}`}
     >
       {CLAIM_TYPE_LABEL[type]}
     </span>
@@ -88,13 +90,9 @@ function ClaimItem({ row }: { row: ClaimRow }) {
           {evidence.text}
         </p>
       </div>
-      <span
-        className={`flex items-center justify-end gap-[5px] text-xs font-extrabold ${
-          status.supported ? 'text-up' : 'text-text-3'
-        }`}
-      >
-        {status.supported && <CheckIcon size={14} />}
-        {status.label}
+      <span className="flex items-center justify-end gap-[5px] text-xs font-extrabold text-up">
+        <CheckIcon size={14} />
+        {status}
       </span>
     </li>
   );
@@ -183,14 +181,14 @@ export function ReportScreen() {
 
 function ReportBody({ detail, user }: { detail: ReportDetail; user: PublicUser | null }) {
   const { report, claims, run, sources, card } = detail;
-  const view = buildReportView(report, claims, run, sources);
+  const view = buildReportView(report, claims, run, sources, card?.priceReaction?.anchor ?? null);
   const event = card?.event;
   const item = card?.item;
   const persona = user && personaFrom(user);
   const symbol = item?.path?.eventCompany ?? event?.extraction?.companies[0]?.symbol;
   const company = symbol && symbol in SHORT_NAME ? (symbol as UniverseSymbol) : null;
   const path = item && persona && company ? buildPathView(item.path, company, persona) : null;
-  const checkStep = removingCheckStep(run);
+  const checkStep = removingCheckStep(run, view.removedClaimIds[0]);
   const removedCount = view.removedReasons.length;
 
   return (
@@ -225,7 +223,7 @@ function ReportBody({ detail, user }: { detail: ReportDetail; user: PublicUser |
                   </li>
                   {view.counts.unverified > 0 && (
                     <li className="rounded-chip bg-border px-[9px] py-1 text-text-2">
-                      {view.counts.unverified} not checked yet
+                      {view.counts.unverified} not verified
                     </li>
                   )}
                   <li className="rounded-chip bg-down-tint px-[9px] py-1 text-down">
@@ -280,9 +278,9 @@ function ReportBody({ detail, user }: { detail: ReportDetail; user: PublicUser |
             </ol>
 
             {view.hiddenNotes.length > 0 && (
-              // Neutral: these claims were not removed, they are only not shown yet.
+              // Neutral: these claims were not removed, they are only not shown.
               <ul
-                aria-label="Claims not shown yet"
+                aria-label="Claims not shown"
                 className="flex flex-col gap-1 border-b border-divider px-[22px] py-3 text-xs text-text-3"
               >
                 {view.hiddenNotes.map((note) => (

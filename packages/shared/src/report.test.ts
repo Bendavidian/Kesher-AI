@@ -25,6 +25,7 @@ const run = {
   tokenBudget: 20_000,
   steps: [],
   tokensUsed: 0,
+  verification: null,
   costUsd: 0,
   status: 'succeeded',
   failureReason: null,

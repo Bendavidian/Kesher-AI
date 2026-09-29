@@ -13,8 +13,8 @@ import { authRouter, type AuthOptions } from './routes/auth';
 import { devRouter } from './routes/dev';
 import { feedRouter } from './routes/feed';
 import { mcpRouter } from './routes/mcp';
-import { atlasSearch } from './search/atlas';
 import { researchRouter } from './routes/research';
+import { atlasSearch } from './search/atlas';
 
 export interface AppDeps {
   db: Db;
@@ -57,12 +57,24 @@ export interface AppDeps {
   companyConcept?: CompanyConceptSource;
 }
 
+// The Express app, and what runs after each scoring run: the Socket.IO pushes, then the research
+// gate when research is mounted. Replay and live ingestion both take afterScoring, so a live card
+// gets the same pushes and automatic research as a replayed one.
+export interface Api {
+  app: Express;
+  afterScoring: ProcessDeps['onScored'];
+}
+
 const logMessage = (error: unknown) =>
   console.error(error instanceof Error ? error.message : 'request failed');
 
 const noKeys = () => createModelClient({ resolve: resolveFromKeys({}) });
 
-export function createApp({
+export function createApp(deps: AppDeps): Express {
+  return createApi(deps).app;
+}
+
+export function createApi({
   db,
   devRoutes,
   mcp,
@@ -79,7 +91,7 @@ export function createApp({
   priceReactions,
   search,
   companyConcept,
-}: AppDeps): Express {
+}: AppDeps): Api {
   const app = express();
   app.disable('x-powered-by');
 
@@ -118,6 +130,8 @@ export function createApp({
           },
         },
         redact: research.redact,
+        // numbers_match reads the same price reaction the cards and get_price_reaction use.
+        ...(priceReactions ? { priceReactions } : {}),
         // One queue for automatic runs and Investigate: one research run at a time.
         queue: createQueue({ logError }),
         logError,
@@ -151,5 +165,5 @@ export function createApp({
   };
   app.use(onError);
 
-  return app;
+  return { app, afterScoring };
 }

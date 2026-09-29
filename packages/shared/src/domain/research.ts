@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PRICE_WINDOWS, PriceSymbol, PriceWindowName } from '../price';
 import { Id, LlmProvider, NonBlank } from './common';
 
 export const TokenUsage = z.strictObject({
@@ -52,6 +53,10 @@ export const AgentStep = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('check'), ...stepFields }),
 ]);
 export type AgentStep = z.infer<typeof AgentStep>;
+
+// The name of a verifier call's model step. Its tokens count against the run's verification cap,
+// not the research budget.
+export const VERIFIER_STEP = 'Verifier';
 
 // The agents that run with a run token (docs/INTERFACES.md).
 export const AgentName = z.enum(['research', 'verifier']);
@@ -107,9 +112,16 @@ export const AgentRun = z
     // Decided by code policy, with the reason shown in Agent Runs.
     gate: z.strictObject({ decision: z.enum(['run', 'skip']), reason: NonBlank }),
     stepBudget: z.int().positive(),
+    // The research agent's tokens. tokensUsed counts its model steps only.
     tokenBudget: z.int().positive(),
     steps: z.array(AgentStep),
     tokensUsed: z.int().min(0),
+    // The verifier's own token cap and use, apart from the research budget so verification never
+    // starves research (SPEC.md decision log, T14). null for a run that never verifies, such as a
+    // skipped one, and for runs stored before T14.
+    verification: z
+      .strictObject({ tokenCap: z.int().positive(), tokensUsed: z.int().min(0) })
+      .nullable(),
     // Computed by code; 0 on the free tiers, where any paid call is a bug.
     costUsd: z.number().min(0),
     status: z.enum(['queued', 'running', 'succeeded', 'failed', 'budget_exhausted', 'skipped']),
@@ -146,11 +158,12 @@ export type Report = z.infer<typeof Report>;
 export const ClaimStatus = z.enum(['unverified', 'supported', 'removed']);
 export type ClaimStatus = z.infer<typeof ClaimStatus>;
 
-// Every check has one name, used by the api, the run steps and the web (T14 adds the rest).
+// Every check has one name, used by the api, the run steps and the web.
 export const CheckName = z.enum([
   'quote_verbatim',
   'numbers_match',
   'sources_exist',
+  'no_advice',
   'premises_supported',
   'verifier',
 ]);
@@ -162,6 +175,18 @@ export const CheckResult = z.strictObject({
   detail: z.string().nullable(),
 });
 export type CheckResult = z.infer<typeof CheckResult>;
+
+// One number of a metric claim: a move from the price reaction, as the model read it. code checks
+// it against the reaction it computes itself (numbers_match); the number never drives logic.
+export const MetricFigure = z.strictObject({
+  symbol: PriceSymbol,
+  window: PriceWindowName,
+  pct: z.number(),
+});
+export type MetricFigure = z.infer<typeof MetricFigure>;
+
+// A full table: a stock, SMH and SPY in every window.
+export const MAX_METRIC_FIGURES = 3 * PRICE_WINDOWS.length;
 
 // A fact always cites a verbatim quote. A metric may cite market data, which has no quote.
 const QuotedSource = z.strictObject({ sourceId: Id, quote: NonBlank });
@@ -176,8 +201,8 @@ const claimFields = {
   createdAt: z.date(),
 };
 
-// Typed claims, SPEC.md Claims and verification. Whether premises are supported is checked
-// in T14, not here.
+// Typed claims, SPEC.md Claims and verification. Code sets the status: removed when a check
+// fails, supported once the verifier supports it, unverified otherwise.
 export const Claim = z.discriminatedUnion('type', [
   z.strictObject({
     type: z.literal('fact'),
@@ -190,6 +215,9 @@ export const Claim = z.discriminatedUnion('type', [
     ...claimFields,
     sources: z.array(CitedSource).min(1),
     premises: z.array(Id).max(0),
+    // Price moves only. Empty for any other number, such as a financial fact, which stays
+    // unverified until XBRL arrives (T13 part 2).
+    figures: z.array(MetricFigure).max(MAX_METRIC_FIGURES),
   }),
   z.strictObject({
     type: z.literal('inference'),

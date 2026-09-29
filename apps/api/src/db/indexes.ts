@@ -44,6 +44,10 @@ export const INDEXES: Record<CollectionName, IndexDescription[]> = {
   ingest_counters: [
     { name: 'day_mode_reason_unique', key: { day: 1, mode: 1, reason: 1 }, unique: true },
   ],
+  // One recording per live item; the first one is kept.
+  recordings: [
+    { name: 'provider_external_id_unique', key: { provider: 1, externalId: 1 }, unique: true },
+  ],
   // One budget per UTC day; runs are reserved with a conditional $inc.
   research_budget: [{ name: 'day_unique', key: { day: 1 }, unique: true }],
 };

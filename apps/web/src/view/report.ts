@@ -1,5 +1,5 @@
-import type { AgentRun, Claim, ClaimStatus, Report } from '@kesher/shared';
-import { joinList } from './format';
+import type { AgentRun, CheckName, Claim, ClaimStatus, PriceAnchor, Report } from '@kesher/shared';
+import { formatDay, joinList } from './format';
 import { MODE_LABEL, toolCallsLabel } from './run';
 import type { ReportSourceView } from './types';
 
@@ -25,13 +25,14 @@ const SUPPORTED_LABEL: Record<Claim['type'], string> = {
   inference: 'Premises supported',
 };
 
-// Why a claim was removed, by the check that failed. T14 owns the check names.
-const REMOVAL_REASON: Record<string, string> = {
+// Why a claim was removed, by the first check that failed.
+const REMOVAL_REASON: Record<CheckName, string> = {
   quote_verbatim: "Its quote wasn't found in the cited source",
   numbers_match: "Its numbers didn't match market data",
   sources_exist: 'It cited a source that does not exist',
+  no_advice: 'It read as buy, sell or hold advice, which Kesher never gives',
   premises_supported: 'A claim it builds on was not supported',
-  verifier: 'The verifier found no support for it',
+  verifier: "The verifier found that its sources don't support it",
 };
 const FALLBACK_REASON = 'It failed verification';
 
@@ -41,11 +42,12 @@ export interface EvidenceLine {
   text: string;
 }
 
+// Every row is a supported claim: nothing else is shown (SPEC.md, Claims and verification).
 export interface ClaimRow {
   number: number;
   claim: Claim;
   evidence: EvidenceLine;
-  status: { label: string; supported: boolean };
+  status: string;
 }
 
 export interface NumberedSource extends ReportSourceView {
@@ -61,28 +63,40 @@ export interface ReportView {
   barLabel: string;
   rows: ClaimRow[];
   openQuestions: string[];
-  // One reason per claim with status removed, without a final period. The removed claims' text
-  // is never part of the view.
+  // One reason per claim with status removed, without a final period, and the ids of those
+  // claims in the same order. The removed claims' text is never part of the view.
   removedReasons: string[];
-  // Neutral lines for claims that are not removed but not shown either, such as an inference
-  // whose premises are not supported yet. Never counted as removed.
+  removedClaimIds: string[];
+  // Neutral lines for claims that are not removed but not shown either, such as one the verifier
+  // did not check. Never counted as removed.
   hiddenNotes: string[];
   sources: NumberedSource[];
 }
 
 const quoted = (quote: string) => `“${quote}”`;
 
+// How a metric's market data was anchored, as the design words it.
+function anchorNote(anchor: PriceAnchor): string {
+  return anchor.kind === 'previous_close'
+    ? `, anchored to the regular close on ${formatDay(anchor.baseTime, 'America/New_York', false)} because the headline came outside the regular session`
+    : `, anchored to the price at the headline on ${formatDay(anchor.baseTime, 'America/New_York', false)}`;
+}
+
 function evidenceLine(
   claim: Claim,
   numberOf: Map<string, number>,
   sourceNumber: Map<string, number>,
   sources: Map<string, ReportSourceView>,
+  anchor: PriceAnchor | null,
 ): EvidenceLine {
   const markers = claim.sources.flatMap((cited) => sourceNumber.get(cited.sourceId) ?? []);
   const cites = claim.sources.flatMap((cited) => {
     const source = sources.get(cited.sourceId);
     if (!source) return [];
-    return [cited.quote ? `${source.citeLabel}: ${quoted(cited.quote)}` : `${source.citeLabel}.`];
+    if (cited.quote) return [`${source.citeLabel}: ${quoted(cited.quote)}`];
+    if (source.kind === 'market_data' && anchor)
+      return [`${source.citeLabel}${anchorNote(anchor)}.`];
+    return [`${source.citeLabel}.`];
   });
 
   if (claim.type === 'inference') {
@@ -109,18 +123,19 @@ function removalReason(claim: Claim): string {
 
 function barLabel(counts: Record<ClaimStatus, number>): string {
   const parts = [`${counts.supported} ${counts.supported === 1 ? 'claim' : 'claims'} supported`];
-  if (counts.unverified > 0) parts.push(`${counts.unverified} not checked yet`);
+  if (counts.unverified > 0) parts.push(`${counts.unverified} not verified`);
   parts.push(`${counts.removed} removed`);
   return parts.join(', ');
 }
 
 // Why a claim that verification did not remove is still not shown.
-type HiddenReason = 'waiting' | 'premise_hidden' | 'unlisted_source';
+type HiddenReason = 'not_verified' | 'premise_hidden' | 'unlisted_source';
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 const HIDDEN_NOTE: Record<HiddenReason, (count: number) => string> = {
-  waiting: (n) => `${plural(n, 'inference waits', 'inferences wait')} for verification`,
+  not_verified: (n) =>
+    `${plural(n, 'claim was', 'claims were')} not verified, so ${n === 1 ? 'it is' : 'they are'} not shown`,
   premise_hidden: (n) =>
     `${plural(n, 'inference is', 'inferences are')} hidden because ${n === 1 ? 'a claim it builds on is' : 'claims they build on are'} not shown`,
   unlisted_source: (n) =>
@@ -128,9 +143,10 @@ const HIDDEN_NOTE: Record<HiddenReason, (count: number) => string> = {
 };
 
 // The claims the screen does not show. Removed: the ones with status removed, with the reason
-// from the failed check. Hidden: the display rules cannot back them yet. No evidence, no claim: a
-// claim citing a source the report cannot list is hidden. An inference is shown only when every
-// premise is supported (SPEC.md, Claims and verification); until then it waits.
+// from the failed check. Hidden: everything not supported, such as a claim the verifier could not
+// check, and a supported claim the display rules cannot back. No evidence, no claim: a claim
+// citing a source the report cannot list is hidden, and so is an inference built on a claim that
+// is not shown. The api supports an inference only when every premise is supported.
 function notShown(
   ordered: Claim[],
   sources: Map<string, ReportSourceView>,
@@ -155,11 +171,11 @@ function notShown(
       if (premises.some((p) => out(p.id) || !p.claim)) {
         hidden.set(claim._id, 'premise_hidden');
         changed = true;
-      } else if (premises.some((p) => p.claim?.status !== 'supported')) {
-        hidden.set(claim._id, 'waiting');
-        changed = true;
       }
     }
+  }
+  for (const claim of ordered) {
+    if (!out(claim._id) && claim.status !== 'supported') hidden.set(claim._id, 'not_verified');
   }
   return { removed, hidden };
 }
@@ -167,17 +183,19 @@ function notShown(
 function hiddenNotes(hidden: Map<string, HiddenReason>): string[] {
   const counts = new Map<HiddenReason, number>();
   for (const reason of hidden.values()) counts.set(reason, (counts.get(reason) ?? 0) + 1);
-  return (['waiting', 'premise_hidden', 'unlisted_source'] as const).flatMap((reason) => {
+  return (['not_verified', 'premise_hidden', 'unlisted_source'] as const).flatMap((reason) => {
     const count = counts.get(reason) ?? 0;
     return count > 0 ? [HIDDEN_NOTE[reason](count)] : [];
   });
 }
 
+// anchor is the event's price reaction anchor from the card, for the metric evidence line.
 export function buildReportView(
   report: Report,
   claims: Claim[],
   run: AgentRun,
   sourceList: ReportSourceView[],
+  anchor: PriceAnchor | null = null,
 ): ReportView {
   const byId = new Map(claims.map((claim) => [claim._id, claim]));
   const ordered = report.sections
@@ -200,8 +218,8 @@ export function buildReportView(
     }
   }
 
-  // Red only for claims with status removed. A hidden claim counts as not checked yet, never as
-  // supported, so the green segments match the rows marked supported.
+  // Red only for claims with status removed. A hidden claim counts as not verified, never as
+  // supported, so the green segments match the rows.
   const counts: Record<ClaimStatus, number> = { supported: 0, unverified: 0, removed: 0 };
   for (const claim of ordered) {
     if (removed.has(claim._id)) counts.removed += 1;
@@ -220,14 +238,12 @@ export function buildReportView(
     rows: shown.map((claim, index) => ({
       number: index + 1,
       claim,
-      evidence: evidenceLine(claim, numberOf, sourceNumber, sources),
-      status:
-        claim.status === 'supported'
-          ? { label: SUPPORTED_LABEL[claim.type], supported: true }
-          : { label: 'Not checked yet', supported: false },
+      evidence: evidenceLine(claim, numberOf, sourceNumber, sources, anchor),
+      status: SUPPORTED_LABEL[claim.type],
     })),
     openQuestions: report.openQuestions,
     removedReasons: [...removed.values()],
+    removedClaimIds: [...removed.keys()],
     hiddenNotes: hiddenNotes(hidden),
     sources: [...sourceNumber].flatMap(([id, number]) => {
       const source = sources.get(id);

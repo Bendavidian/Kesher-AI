@@ -17,5 +17,5 @@ export * from './domain/event';
 export * from './domain/research';
 export * from './domain/filing';
 export * from './domain/ingest';
+export * from './domain/recording';
 export * from './price';
-export * from './marketSource';

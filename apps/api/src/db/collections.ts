@@ -5,6 +5,7 @@ import {
   FeedItem,
   FilingChunk,
   IngestCounter,
+  LiveRecording,
   MarketEvent,
   Relationship,
   Report,
@@ -28,6 +29,7 @@ export const SCHEMA_BY_COLLECTION = {
   claims: Claim,
   filing_chunks: FilingChunk,
   ingest_counters: IngestCounter,
+  recordings: LiveRecording,
   research_budget: ResearchBudgetDay,
 } as const;
 

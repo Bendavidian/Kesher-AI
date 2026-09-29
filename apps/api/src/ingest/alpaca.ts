@@ -1,23 +1,9 @@
-import { normalizeText } from '@kesher/shared';
+import { normalizeText, Ticker, type AlpacaNewsItem } from '@kesher/shared';
 import { z } from 'zod';
 import type { IncomingItem } from './item';
 
-// One Alpaca news item as the REST history endpoint and the news WebSocket deliver it. Unknown
-// keys (images, content) are allowed on input and dropped on parse.
-export const AlpacaNewsItem = z.object({
-  id: z.int().positive(),
-  headline: z.string(),
-  summary: z.string(),
-  author: z.string(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
-  url: z.string(),
-  // Checked against the Ticker schema in ingestItem: one malformed symbol rejects the whole
-  // item before any write (fail closed). T10 filters live symbols first.
-  symbols: z.array(z.string()),
-  source: z.string(),
-});
-export type AlpacaNewsItem = z.infer<typeof AlpacaNewsItem>;
+// The item schema lives in packages/shared with the LiveRecording that stores it.
+export { AlpacaNewsItem } from '@kesher/shared';
 
 // Display names for the publishers Alpaca reports in lower case. Any other value is kept as sent.
 const PUBLISHER_NAMES: Record<string, string> = { benzinga: 'Benzinga' };
@@ -43,7 +29,9 @@ export function toIncomingItem(item: AlpacaNewsItem): IncomingItem {
     publisher: publisherName(item.source),
     title: normalizeText(item.headline),
     text: text === '' ? null : text,
-    symbols: item.symbols,
+    // A malformed provider symbol (lower case, a slash) is dropped here rather than rejecting the
+    // whole item in ingestItem; the pre filter reads what is left.
+    symbols: item.symbols.filter((symbol) => Ticker.safeParse(symbol).success),
     publishedAt: new Date(item.created_at),
   };
 }

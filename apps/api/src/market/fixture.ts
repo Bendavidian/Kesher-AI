@@ -21,6 +21,15 @@ export const ReactionFixture = z.strictObject({
 });
 export type ReactionFixture = z.infer<typeof ReactionFixture>;
 
+// A PriceReaction written as JSON, with its times as ISO strings, parsed back with dates.
+export function reviveReaction(json: unknown): PriceReaction {
+  return PriceReaction.parse(
+    JSON.parse(JSON.stringify(json), (_key, value: unknown) =>
+      typeof value === 'string' && ISO_DATE_TIME.test(value) ? new Date(value) : value,
+    ),
+  );
+}
+
 export async function loadReactionFixture(
   externalId: string,
   dir = REACTIONS_DIR,

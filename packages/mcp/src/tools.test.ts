@@ -1,16 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import {
-  PriceReactionError,
-  priceReactionExternalId,
-  priceReactionText,
-  type PriceSymbol,
-} from '@kesher/shared';
-import { nameUuid } from './sourceIds';
+import { PriceReactionError, type PriceSymbol } from '@kesher/shared';
 import { REACTION } from './testing';
 import { TOOLS } from './registry';
-import { getPriceReaction, priceReactionFromJson, priceReactionJson, type ToolDeps } from './tools';
+import { getPriceReaction, priceReactionJson, type ToolDeps } from './tools';
 
 // Any argument that could name a user. Identity comes from the run token only (principle 5).
 const USER_LIKE = /user|owner|sub|account|persona|holder|email|identity/i;
@@ -71,11 +65,7 @@ describe('tool inputs', () => {
 
 describe('get_price_reaction', () => {
   const deps = (priceReaction: ToolDeps['priceReaction']) =>
-    ({
-      events: {},
-      sources: { findOne: () => Promise.resolve(null) },
-      priceReaction,
-    }) as unknown as ToolDeps;
+    ({ events: {}, sources: {}, priceReaction }) as unknown as ToolDeps;
   const ctx = { claims: {} } as Parameters<typeof getPriceReaction.run>[2];
   const input = { symbol: 'TSM', eventTime: '2024-04-03T03:57:09Z' } as const;
 
@@ -100,15 +90,7 @@ describe('get_price_reaction', () => {
       ctx,
     );
     expect(asked).toEqual([{ subjects: ['TSM'], headline: new Date('2024-04-03T03:57:09Z') }]);
-    expect(outcome).toEqual({
-      ok: true,
-      output: {
-        // Not stored yet: the id the agent's code will store the market_data Source under.
-        sourceId: nameUuid(`alpaca:${priceReactionExternalId(REACTION)}`),
-        text: priceReactionText(REACTION),
-        ...priceReactionJson(REACTION),
-      },
-    });
+    expect(outcome).toEqual({ ok: true, output: priceReactionJson(REACTION) });
     if (!outcome.ok) throw new Error('expected output');
     expect(outcome.output.anchor.baseTime).toBe('2024-04-02T20:00:00.000Z');
     expect(outcome.output.rows[0]!.moves[2]).toEqual({ pct: null, barTime: null });
@@ -127,12 +109,5 @@ describe('get_price_reaction', () => {
     expect(
       await getPriceReaction.run(input, failing(new Error('Alpaca bars answered 403')), ctx),
     ).toEqual({ ok: false, error: 'Market data is unavailable' });
-  });
-});
-
-describe('priceReactionFromJson', () => {
-  it('rebuilds the reaction, so the stored text equals the text the tool returned', () => {
-    const json = priceReactionJson(REACTION);
-    expect(priceReactionText(priceReactionFromJson(json))).toBe(priceReactionText(REACTION));
   });
 });

@@ -29,9 +29,4 @@ export { matchedTerms, queryTerms } from './news';
 export { GetCompanyRelationshipsOutput } from './relationships';
 export type { FilingPassage, NewsFilter, SearchBackend } from './search';
 export { nameUuid, sourceIdFor, sourceIdName } from './sourceIds';
-export {
-  GetPriceReactionOutput,
-  priceReactionFromJson,
-  priceReactionJson,
-  type ToolDeps,
-} from './tools';
+export { priceReactionJson, type ToolDeps } from './tools';

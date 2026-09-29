@@ -1,6 +1,6 @@
 import {
-  anchorNote,
-  parsePriceReactionExternalId,
+  DELAY_MINUTES,
+  joinList,
   ReportDetail,
   type ReportSource,
   type Source,
@@ -29,15 +29,15 @@ export function reportSourceFor(source: Omit<Source, 'text'>): ReportSource {
       ref: `id ${source.externalId}`,
     };
   }
-  const reaction = source.kind === 'market_data' && parsePriceReactionExternalId(source.externalId);
-  if (reaction) {
+  // The bars behind a metric's numbers (marketSource.ts): named by the symbols read.
+  if (source.kind === 'market_data') {
     return {
       _id: source._id,
       kind: source.kind,
       tier: source.tier,
-      title: source.title,
-      citeLabel: `SIP bars, ${anchorNote(reaction.kind, reaction.baseTime)}`,
-      ref: 'Delayed 15 minutes',
+      title: `SIP bars for ${joinList(source.symbols)}`,
+      citeLabel: 'SIP bars',
+      ref: `Delayed ${DELAY_MINUTES} minutes`,
     };
   }
   return {

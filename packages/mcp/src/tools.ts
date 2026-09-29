@@ -6,13 +6,11 @@ import {
   PriceReactionError,
   PriceSymbol,
   PriceWindowName,
-  priceReactionExternalId,
-  priceReactionText,
   TradingDay,
   UniverseSymbol,
   type Company,
   type MarketEvent,
-  PriceReaction,
+  type PriceReaction,
   type Relationship,
   type Source,
   type User,
@@ -21,7 +19,6 @@ import type { Collection } from 'mongodb';
 import { z } from 'zod';
 import type { CompanyConceptSource } from './facts';
 import type { SearchBackend } from './search';
-import { sourceIdFor } from './sourceIds';
 import type { RunTokenClaims, ToolName } from './token';
 
 // Read only access; the api passes its collections and its market data in.
@@ -105,11 +102,7 @@ const GetPriceReactionInput = z.strictObject({
   eventTime: IsoTime.describe('The headline time; not in the future'),
 });
 
-export const GetPriceReactionOutput = z.strictObject({
-  // The market_data Source that cites these moves; a metric claim about them names it.
-  sourceId: Id,
-  // The moves as that Source's text, written by code: a metric can quote one line exactly.
-  text: z.string(),
+const GetPriceReactionOutput = z.strictObject({
   anchor: PriceAnchor.extend({ baseTime: IsoTime, tradingDay: TradingDay }),
   windows: z.array(z.strictObject({ name: PriceWindowName, endsAt: IsoTime })),
   rows: z.array(
@@ -123,12 +116,11 @@ export const GetPriceReactionOutput = z.strictObject({
   delayed: z.literal(true),
   complete: z.boolean(),
 });
-export type GetPriceReactionOutput = z.output<typeof GetPriceReactionOutput>;
-type ReactionJson = Omit<GetPriceReactionOutput, 'sourceId' | 'text'>;
+type GetPriceReactionOutput = z.output<typeof GetPriceReactionOutput>;
 
 const iso = (date: Date | null) => date?.toISOString() ?? null;
 
-export function priceReactionJson(reaction: PriceReaction): ReactionJson {
+export function priceReactionJson(reaction: PriceReaction): GetPriceReactionOutput {
   return {
     anchor: { ...reaction.anchor, baseTime: reaction.anchor.baseTime.toISOString() },
     windows: reaction.windows.map((w) => ({ name: w.name, endsAt: w.endsAt.toISOString() })),
@@ -143,24 +135,6 @@ export function priceReactionJson(reaction: PriceReaction): ReactionJson {
   };
 }
 
-const date = (iso: string | null) => (iso === null ? null : new Date(iso));
-
-// The inverse of priceReactionJson, for code that stores what a call returned.
-export function priceReactionFromJson(json: ReactionJson | GetPriceReactionOutput): PriceReaction {
-  return PriceReaction.parse({
-    anchor: { ...json.anchor, baseTime: new Date(json.anchor.baseTime) },
-    windows: json.windows.map((w) => ({ name: w.name, endsAt: new Date(w.endsAt) })),
-    rows: json.rows.map((row) => ({
-      symbol: row.symbol,
-      basePrice: row.basePrice,
-      baseBarTime: date(row.baseBarTime),
-      moves: row.moves.map((move) => ({ pct: move.pct, barTime: date(move.barTime) })),
-    })),
-    delayed: json.delayed,
-    complete: json.complete,
-  });
-}
-
 export const getPriceReaction: ToolDefinition<
   typeof GetPriceReactionInput,
   typeof GetPriceReactionOutput
@@ -170,20 +144,17 @@ export const getPriceReaction: ToolDefinition<
     'Percent moves of a company, SMH and SPY after a headline, anchored to the regular session: from the price at the headline, or from the previous close with an open gap. SIP data delayed 15 minutes. Shows timing only, never a cause.',
   inputSchema: GetPriceReactionInput,
   outputSchema: GetPriceReactionOutput,
-  async run({ symbol, eventTime }, { priceReaction, sources }) {
-    let reaction: PriceReaction;
+  async run({ symbol, eventTime }, { priceReaction }) {
     try {
-      reaction = await priceReaction([symbol], new Date(eventTime));
+      return {
+        ok: true,
+        output: priceReactionJson(await priceReaction([symbol], new Date(eventTime))),
+      };
     } catch (error) {
       // Only the reaction's own reasons reach the agent. A provider error stays on the server,
       // which logs it where it passes priceReaction in.
       if (error instanceof PriceReactionError) return { ok: false, error: error.message };
       return { ok: false, error: 'Market data is unavailable' };
     }
-    const sourceId = await sourceIdFor(sources, 'alpaca', priceReactionExternalId(reaction));
-    return {
-      ok: true,
-      output: { sourceId, text: priceReactionText(reaction), ...priceReactionJson(reaction) },
-    };
   },
 };

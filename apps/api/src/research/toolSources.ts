@@ -1,30 +1,22 @@
 import {
   GetCompanyRelationshipsOutput,
   GetFinancialFactsOutput,
-  GetPriceReactionOutput,
-  priceReactionFromJson,
   SearchFilingsOutput,
 } from '@kesher/mcp';
 import type { Db } from 'mongodb';
 import { upsertFilingSource } from '../sources/filings';
-import { upsertPriceReactionSource } from '../sources/marketData';
 
 // After a successful tool call, code stores the Sources its output names that may not be stored
-// yet, under the ids the output gave (SPEC.md decision log, T13). The MCP tools stay read only;
-// this runs in the research agent, as every other database write of a run does. Answers the ids
-// it stored.
+// yet, under the ids the output gave (SPEC.md decision log, T13): the filings get_financial_facts
+// cites. The market data Source of a metric is written after the report (marketSource.ts, T14).
+// The MCP tools stay read only; this runs in the research agent, as every other database write of
+// a run does. Answers the ids it stored.
 export async function storeToolSources(
   db: Db,
   toolName: string,
   output: unknown,
   now: Date,
 ): Promise<string[]> {
-  if (toolName === 'get_price_reaction') {
-    // The output comes from our own MCP server; a shape it does not have stores nothing.
-    const parsed = GetPriceReactionOutput.safeParse(output);
-    if (!parsed.success) return [];
-    return [await upsertPriceReactionSource(db, priceReactionFromJson(parsed.data), now)];
-  }
   if (toolName === 'get_financial_facts') {
     const parsed = GetFinancialFactsOutput.safeParse(output);
     if (!parsed.success) return [];
@@ -58,4 +50,17 @@ export function collectPassages(
     }
   }
   return into;
+}
+
+// Joins the returned passages between markers, so a quote never matches across two of them.
+export const PASSAGE_SEPARATOR = '\n[…]\n';
+
+// The source as the checks and the verifier read it. A filing, whose Source keeps text null, gets
+// the passages a tool returned for it in this run as its text; a source with text keeps it.
+export function withPassages<S extends { text: string | null }>(
+  source: S,
+  passages: readonly string[] | undefined,
+): S {
+  if (source.text !== null || !passages || passages.length === 0) return source;
+  return { ...source, text: [...new Set(passages)].join(PASSAGE_SEPARATOR) };
 }
