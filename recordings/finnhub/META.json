@@ -1,0 +1,12 @@
+{
+  "symbol": "META",
+  "recordedAt": "2026-09-29T10:22:32.462Z",
+  "peers": ["GOOGL", "META", "RDDT", "PINS", "MTCH", "SNAP", "RUM", "PPLI", "CARG", "GRND", "DJT"],
+  "profile": {
+    "name": "Meta Platforms Inc",
+    "ticker": "META",
+    "exchange": "NASDAQ NMS - GLOBAL MARKET",
+    "country": "US",
+    "finnhubIndustry": "Media"
+  }
+}

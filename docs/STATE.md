@@ -1,9 +1,30 @@
 # State
 
-Updated: 29 Sep 2026, T12 done, merged with T09 and T13 part 1
+Updated: 29 Sep 2026, T11 done, merged with T09, T12 and T13 part 1
 
 ## Where we are
-T00 to T09 and T12 are done; T09 completed the walking skeleton. T13 part 1, the price reaction, is done too; T13 stays [~] until part 2, which waits for T11 (BACKLOG.md T13, SPEC.md decision log T13). T13 part 1 was built in parallel with T08 part 2 and T09, rebased on T08 part 2 and then merged with main after T09. T12 was built in parallel with T09 and T13 part 1 and merged with main after both.
+T00 to T09, T11 and T12 are done; T09 completed the walking skeleton. T13 part 1, the price reaction, is done too; T13 stays [~] until part 2, which T11 now unblocks (BACKLOG.md T13, SPEC.md decision log T13). T11 was built in parallel with T09, T12 and T13 part 1 and merged with main after all three.
+
+T11 built the interest graph from SEC filings and the filing chunks for RAG, all under apps/api/src/graph, as offline jobs nothing in the api server imports:
+- Decisions (SPEC.md decision log, T11): evidence stays strict, and Finnhub peers are candidates only; in_sector and has_theme stay Company attributes; the seed owns the Company reference fields and the six demo edges, T11 owns every other relationship and the filing chunks; no minimum edge count, every candidate is reviewed and the count reported; TSM and ASML 20-Fs are edge evidence only.
+- `npm run graph:candidates` (build-candidates.ts):
+  - Reads the latest 10-K or 20-F of each universe filer through the EDGAR submissions API into the gitignored .cache/sec (sec.ts, SEC_USER_AGENT, 150 ms apart). XOM falls back to CIK 0000034088.
+  - Cuts Item 1 and 1A (Intel by its cross-reference headings), and Item 4 and 3.D for 20-Fs (ASML by page ranges from its reference table); sections.ts, ported from research/edges.
+  - Every sentence that names another universe company is a candidate, keyed like docs/research/edge-candidates.md; one ASML sentence outside those sections (the TSMC supplier award) was added as borderline on request.
+  - Groq gpt-oss-120b classifies each (sentence, company) as supplies_filer, buys_from_filer, competitor or none, with no tools and the sentences quoted as untrusted data; code turns the role into an edge. 14 calls, about 24,600 tokens, once; recordings/graph/classify replays by prompt hash.
+  - Finnhub peers and profiles are recorded in recordings/finnhub; peers only flag candidates, profiles only print differences with the seed (none, ASML.AS and 2330.TW included).
+  - Writes data/graph/candidates.json: 88 sentences, 110 rows with the model's role next to the research decision (data/graph/research-decisions.json, exported from research/edges). classify.replay.test.ts rebuilds it from committed files with no provider call.
+- `npm run graph:review` (review-cli.ts): one relationship at a time with every quote, section and URL; the user types the evidence number, r, s or q. Each decision is written at once to data/graph/reviews.json; a redo keeps the earlier decision until a new one replaces it; reviews that no longer match the candidates stop everything. Nothing is accepted by default.
+- `npm run graph:apply -- [--dry-run]` (apply.ts): writes each accepted relationship with its inverse and reviewed: true, inserts the filing Sources behind the evidence once, removes only edges of relationships the user rejected, never touches the seeded edges, and prints the distinct count.
+- `npm run graph:chunks` (chunks.ts, embed.ts): Item 1 and 1A of the 15 10-K filers in chunks of at most 256 word pieces that never cross a heading, embedded locally as "heading. text" with Xenova/all-MiniLM-L6-v2 (fp32, @huggingface/transformers 4.3.0, model in the gitignored .cache/models), keyed by source and index. Only page numbers, "Table of Contents" and 10-K footers are dropped (0.25% of the text).
+- `npm run graph:search -- "<query>" [--symbol X]`: read-only $vectorSearch on filing_chunks_vector.
+- On Atlas:
+  - The user reviewed all 28 proposed relationships: 22 accepted, 6 rejected. The database holds 28 distinct reviewed relationships (6 seeded, 22 from T11) in 56 edge documents; a second apply changed nothing.
+  - 2,010 filing chunks; a second run changed nothing. Limited to NVDA, "foundry dependency" returns NVIDIA's foundry risk passages in the top 3 and "TSMC foundry dependency" the TSMC passage first (the check was reworded with the user; SPEC.md decision log, T11).
+  - The demo still scores A 0.8 through TSM supplier_of NVDA, B 1 and C 0.
+- The reviewer ran before every api commit; its blockers were fixed: a redo that could lose a decision, and an apply delete that would have removed every unlisted T11 edge.
+- embed.test.ts runs only where the model is cached and skips in CI. @huggingface/transformers is a new api dependency: check that npm ci installs it on the Ubuntu and Windows runners.
+- 720 tests are green after merging main.
 
 T12 added the research gate and automatic research, so a card goes out as soon as it is scored and research attaches to it later:
 - The gate (apps/api/src/research/gate.ts, auto.ts) runs after each scoring run has pushed its cards, for every FeedItem above relevance 0. Code only, in this order:
@@ -196,12 +217,12 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. Check that CI passes on Ubuntu and Windows for the PR "T12: gate policy and automatic research", then merge it.
-2. On each machine, once: `npm run record:bars -- --event 38062166 --symbols TSM,NVDA`. It fills the gitignored bar cache so the demo card and the local SPIKE.md test read no Alpaca at runtime. Without it, the api asks Alpaca when the keys are set, and the local test skips.
+1. Check that CI passes on Ubuntu and Windows for the PR "T11: graph build job", including the install of @huggingface/transformers, then merge it.
+2. On each machine, once: `npm run record:bars -- --event 38062166 --symbols TSM,NVDA`. It fills the gitignored bar cache so the demo card and the local SPIKE.md test read no Alpaca at runtime. Without it, the api asks Alpaca when the keys are set, and the local test skips. On a machine that runs `npm run graph:chunks` or the api's search_filings later, the embedding model downloads once to .cache/models.
 3. Phase 2 continues. Pick the next task from BACKLOG.md:
-   - T11 needs the three open decisions below first; T13 part 2 follows it (notes under T13 in BACKLOG.md).
+   - T13 part 2 is unblocked: search_filings on filing_chunks and get_company_relationships on the reviewed edges (notes under T11 and T13 in BACKLOG.md).
    - T10 must route live items through the after scoring hook that runs the gate (notes under T12 in BACKLOG.md).
-   - T14 adds the verifier; its steps and removals appear in the run screen with no screen change, since checks turn red from removedClaimIds. A metric claim can check its numbers against the same PriceReaction.
+   - T14 adds the verifier; its steps and removals appear in the run screen with no screen change, since checks turn red from removedClaimIds. A metric claim can check its numbers against the same PriceReaction, and a filing quote must be checked against FilingChunk text (notes under T11).
 4. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
@@ -213,14 +234,12 @@ Seed quotes and Source.text use the same normalization, and the T08 and T14 quot
 Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now. AUTO_RESEARCH is optional (on when unset).
 
 ## Open decisions
-For T11, listed under T11 in BACKLOG.md:
-- evidence for Finnhub peer edges, which have no quote;
-- whether in_sector and has_theme become edges;
-- whether the seed or T11 owns the company fields.
+None for T11: its three open decisions were settled on 29 Sep 2026 (SPEC.md decision log, T11).
 The UI language is settled by docs/UI.md: English interface, with Hebrew summaries as a later option.
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 29 Sep 2026, macOS (Mac mini), T11: graph build job under apps/api/src/graph: 10-K and 20-F sections from EDGAR, candidate sentences classified by Groq into roles that code turns into edges, recorded and replayed, Finnhub peers and profiles recorded, a review CLI, an apply that writes accepted edges with inverses and removes only rejected ones; the user reviewed all 28 proposed relationships, so Atlas holds 28 distinct reviewed relationships (6 seeded, 22 from T11); 2,010 heading-aware filing chunks embedded locally, the NVDA foundry checks pass; demo scores unchanged; reviewer blockers fixed; merged main after T09, T12 and T13 part 1; 720 tests green; T11 done.
 - 29 Sep 2026, macOS (Mac mini), T12: research gate after scoring (relevance 0.6, importance 4, active, recent run in 24 hours with the report attached), skipped runs stored with their reason, daily budget of 30 runs with 20 for automatic runs in research_budget, one FIFO research queue for the gate and Investigate (202 queued, 429 once spent), AUTO_RESEARCH flag on by default; on Atlas B got a real auto run and a second Replay attached both reports with no model call; reviewer found no blockers; merged main with T09 and T13 part 1; 627 tests green, 1 skipped; T12 done.
 - 29 Sep 2026, macOS (Mac mini), T13 part 1: T13 split in two under one id; price reaction in shared anchored to the regular session through the market calendar, get_price_reaction over MCP and FeedCard.priceReaction from the same function, Alpaca calendar and SIP bars behind a file-first market data layer with a gitignored bar cache and npm run record:bars, the web market table and open gap bars on live values; the demo reproduces SPIKE.md check 3 exactly; WEB_PORT and API_PORT with api-alt and web-alt; rebased on T08 part 2; merged main after T09; reviewer found no blockers; 595 tests green; T13 stays [~].
 - 29 Sep 2026, macOS (Mac mini), T09: GET /runs and GET /runs/:runId for the signed in user only, run:step and run:end to the run's user only, run screen on the api with live steps, text only step output, token scope from the run's own step, Recent runs selector and /runs opening the newest run; a real Investigate on Atlas streamed 3, 5, 7, 10 steps to Completed; reviewer found no blockers; 526 tests green; T09 done.

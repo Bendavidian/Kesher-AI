@@ -1,0 +1,13 @@
+{
+  "accession": "0001730168-25-000121",
+  "recordedAt": "2026-09-29T10:25:03.861Z",
+  "batches": [
+    {
+      "inputHash": "3e7ce49e1458b0e92d10d59063b83f9f7e74a83652632dac08812417599bad50",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "text": "{\n  \"answers\": [\n    {\n      \"sentence\": 1,\n      \"company\": \"TSM\",\n      \"role\": \"supplies_filer\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 2,\n      \"company\": \"TSM\",\n      \"role\": \"supplies_filer\",\n      \"usesPrevious\": true\n    },\n    {\n      \"sentence\": 3,\n      \"company\": \"TSM\",\n      \"role\": \"supplies_filer\",\n      \"usesPrevious\": true\n    },\n    {\n      \"sentence\": 4,\n      \"company\": \"TSM\",\n      \"role\": \"supplies_filer\",\n      \"usesPrevious\": true\n    },\n    {\n      \"sentence\": 5,\n      \"company\": \"TSM\",\n      \"role\": \"supplies_filer\",\n      \"usesPrevious\": true\n    },\n    {\n      \"sentence\": 6,\n      \"company\": \"TSM\",\n      \"role\": \"supplies_filer\",\n      \"usesPrevious\": true\n    }\n  ]\n}",
+      "usage": { "inputTokens": 1036, "outputTokens": 406, "totalTokens": 1442 }
+    }
+  ]
+}

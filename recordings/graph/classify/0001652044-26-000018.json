@@ -1,0 +1,13 @@
+{
+  "accession": "0001652044-26-000018",
+  "recordedAt": "2026-09-29T10:23:02.472Z",
+  "batches": [
+    {
+      "inputHash": "587ac1e7c40f6160831b725ce0ff09ff7547f88b8aa0d01f040e39931d50fd67",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "text": "{\n  \"answers\": [\n    {\n      \"sentence\": 1,\n      \"company\": \"MSFT\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    }\n  ]\n}",
+      "usage": { "inputTokens": 660, "outputTokens": 87, "totalTokens": 747 }
+    }
+  ]
+}

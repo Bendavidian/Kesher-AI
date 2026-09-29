@@ -63,6 +63,26 @@ export function loadAlpacaEnv(): AlpacaEnv {
   return load(AlpacaEnv);
 }
 
+// Only the graph build job reads SEC EDGAR, which requires a User-Agent with a contact.
+const SecEnv = z.object({
+  SEC_USER_AGENT: z.string().trim().min(1),
+});
+export type SecEnv = z.infer<typeof SecEnv>;
+
+export function loadSecEnv(): SecEnv {
+  return load(SecEnv);
+}
+
+// Only the graph build job reads Finnhub (peers and profiles).
+const FinnhubEnv = z.object({
+  FINNHUB_API_KEY: z.string().min(1),
+});
+export type FinnhubEnv = z.infer<typeof FinnhubEnv>;
+
+export function loadFinnhubEnv(): FinnhubEnv {
+  return load(FinnhubEnv);
+}
+
 // Optional for the api: market data not in the local cache fails naming the keys when they are
 // missing (MissingAlpacaKeysError), and everything else works without them.
 const OptionalAlpacaEnv = z.object({

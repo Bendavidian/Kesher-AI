@@ -1,0 +1,25 @@
+{
+  "symbol": "KO",
+  "recordedAt": "2026-09-29T10:22:54.473Z",
+  "peers": [
+    "KO",
+    "PEP",
+    "MNST",
+    "KDP",
+    "COKE",
+    "PRMW.TO",
+    "CELH",
+    "PRMB",
+    "COCO",
+    "FIZZ",
+    "MINE",
+    "ZVIA"
+  ],
+  "profile": {
+    "name": "Coca-Cola Co",
+    "ticker": "KO",
+    "exchange": "NEW YORK STOCK EXCHANGE, INC.",
+    "country": "US",
+    "finnhubIndustry": "Beverages"
+  }
+}

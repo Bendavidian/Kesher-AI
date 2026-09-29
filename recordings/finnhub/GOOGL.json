@@ -1,0 +1,12 @@
+{
+  "symbol": "GOOGL",
+  "recordedAt": "2026-09-29T10:22:30.270Z",
+  "peers": ["GOOGL", "META", "RDDT", "PINS", "MTCH", "SNAP", "RUM", "PPLI", "CARG", "GRND", "DJT"],
+  "profile": {
+    "name": "Alphabet Inc",
+    "ticker": "GOOGL",
+    "exchange": "NASDAQ NMS - GLOBAL MARKET",
+    "country": "US",
+    "finnhubIndustry": "Media"
+  }
+}

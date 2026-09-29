@@ -1,0 +1,12 @@
+{
+  "symbol": "INTC",
+  "recordedAt": "2026-09-29T10:22:39.062Z",
+  "peers": ["NVDA", "AVGO", "MU", "AMD", "INTC", "TXN", "MRVL", "QCOM", "ADI", "MPWR", "ALAB"],
+  "profile": {
+    "name": "Intel Corp",
+    "ticker": "INTC",
+    "exchange": "NASDAQ NMS - GLOBAL MARKET",
+    "country": "US",
+    "finnhubIndustry": "Semiconductors"
+  }
+}
