@@ -112,7 +112,7 @@ Notes for later tasks:
 
 ## Phase 2: deepen
 
-### [~] T10 Live ingestion and recording
+### [x] T10 Live ingestion and recording
 Alpaca news WebSocket and an EDGAR poller for the universe. Every live item is recorded for replay. The free Alpaca plan allows one live WebSocket, so live ingestion runs only where LIVE_INGEST is on, which is one machine only.
 Done when: a live news item reaches the feed without manual action and can be replayed later.
 Notes from T04:
@@ -146,6 +146,7 @@ Notes from T12 for later tasks:
 - Web, after T09 (new item): the run list and GET /runs now hold skipped runs (trigger gate, status skipped, startedAt null, one Gate check step with the condition and reason). The run summary in apps/web/src/view/run.ts says "Started by the research gate" for every gate run, a skipped one too; show "Skipped by the research gate" with AgentRun.gate.reason instead. The Agent runs tab opens the newest run, which after a Replay is often a skip; consider opening the newest run that was not skipped. A queued card has research.runId before its AgentRun exists, for longer than before, since the queue runs one run at a time; the run screen already loads on the first run:step.
 - T10: live items must go through the same after scoring hook as replay: createApp in apps/api/src/app.ts composes onScored with autoResearch (afterScoring). Expose it to the live ingester rather than passing server.ts's onScored alone, or live cards get no automatic research. Done in T10: createApi returns afterScoring and server.ts hands it to startLiveIngest.
 - T16: a failed run counts as recent, so the gate does not retry it for 24 hours; only Investigate does. Decide whether failed runs should leave the recent check. A queue that keeps a job waiting past 15 minutes lets the next Investigate take the card over, and the waiting job's reserved run stays counted.
+- Possible flake, found in T10: auto.integration.test.ts, "with AUTO_RESEARCH off, records auto_research_off for every card and calls no model", failed once under full suite load on macOS after merging main with T11, then passed alone and in a second full run. The failure output was not kept; if it recurs, capture it and look for a wait that depends on timing (settled, the replay's gate writes).
 - T16: tune GATE_MIN_RELEVANCE, GATE_MIN_IMPORTANCE and RECENT_RUN_MS (apps/api/src/research/gate.ts) and DAILY_RUN_LIMIT and AUTO_RUN_LIMIT (dailyBudget.ts). The research_budget collection shows the runs reserved per day.
 
 ### [~] T13 Full MCP tool set
@@ -180,6 +181,7 @@ Note from T04: count unscreened items separately. A screen that did not finish (
 
 ### [ ] T18 Deploy, README, demo
 Deployed web and api, a README with an architecture diagram and the eval numbers, and a rehearsed five minute demo from a recorded event. The deployed instance becomes the single live ingester (LIVE_INGEST on there, off on both development machines). Check that the local embedding model fits the host's memory. Decide the api production runtime: since T01 the api runs from TypeScript source through tsx and @kesher/shared exports its source, so deploy either keeps tsx or bundles the api.
+During the rehearsal, observe a live Benzinga item reaching the feed in US market hours (T10 proved the live path on Atlas with an EDGAR 8-K, and the Alpaca stream only with fake WebSocket tests).
 Done when: the demo runs end to end on the deployed app.
 
 ### [ ] T19 Live ingestion hardening
