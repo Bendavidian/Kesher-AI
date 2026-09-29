@@ -1,0 +1,18 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:42:51.977Z",
+  "item": {
+    "id": 42563518,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2024-12-18T21:02:40Z",
+    "headline": "Micron Sees Q2 Revenue $7.7B-$8.1B vs $9.00B Est; Adj. EPS $1.33-$1.53 vs $1.92 Est",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": [
+      "MU"
+    ],
+    "updated_at": "2024-12-18T21:02:40Z",
+    "url": "https://www.benzinga.com/news/24/12/42563518/micron-sees-q2-revenue-7-7b-8-1b-vs-9-00b-est-adj-eps-1-33-1-53-vs-1-92-est"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:43:00.170Z",
+  "item": {
+    "id": 44828104,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2025-04-15T21:27:37Z",
+    "headline": "The U.S. Government Informed Nvidia That The USG Requires A License For Export To China (Including Hong Kong And Macau) And D:5 Countries The Company's H20 Integrated Circuits And Any Other Circuits Achieving The H20's Memory Bandwidth, Interconnect Bandwidth; The USG Informed The Company That The License Requirement Will Be In Effect For The Indefinite Future; Q1 Results Are Expected To Include Up To ~$5.5B Of Charges Associated With H20 Products For Inventory, Purchase Commitments, And Related Reserves",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": [
+      "FXI",
+      "NVDA",
+      "SPY"
+    ],
+    "updated_at": "2025-04-15T21:27:38Z",
+    "url": "https://www.benzinga.com/news/25/04/44828104/the-u-s-government-informed-nvidia-that-the-usg-requires-a-license-for-export-to-china-including-hon"
+  }
+}

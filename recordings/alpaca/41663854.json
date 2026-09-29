@@ -1,0 +1,18 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:42:50.619Z",
+  "item": {
+    "id": 41663854,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2024-10-31T20:04:20Z",
+    "headline": "Amazon Sees Q4 Net Sales $181.5B-$188.5B",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": [
+      "AMZN"
+    ],
+    "updated_at": "2024-10-31T20:04:21Z",
+    "url": "https://www.benzinga.com/news/24/10/41663854/amazon-sees-q4-net-sales-181-5b-188-5b"
+  }
+}

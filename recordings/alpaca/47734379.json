@@ -1,0 +1,19 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:43:16.686Z",
+  "item": {
+    "id": 47734379,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2025-09-18T11:04:01Z",
+    "headline": "Nvidia And Intel To Jointly Develop AI Infrastructure And Personal Computing Products, Nvidia To Invest $5B In Intel's Stock At $23.28 Per Share",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": [
+      "INTC",
+      "NVDA"
+    ],
+    "updated_at": "2025-09-18T11:04:02Z",
+    "url": "https://www.benzinga.com/news/large-cap/25/09/47734379/nvidia-and-intel-to-jointly-develop-ai-infrastructure-and-personal-computing-products-nvidia-to-in"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:43:15.106Z",
+  "item": {
+    "id": 40964871,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2024-09-20T19:26:53Z",
+    "headline": "Wall Street Journal Reported Qualcomm Approached Intel About A Takeover",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": [
+      "INTC",
+      "QCOM"
+    ],
+    "updated_at": "2024-09-20T19:26:54Z",
+    "url": "https://www.benzinga.com/m-a/24/09/40964871/wall-street-journal-reported-qualcomm-approached-intel-about-a-takeover"
+  }
+}

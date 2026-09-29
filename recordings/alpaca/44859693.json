@@ -1,0 +1,18 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:43:08.438Z",
+  "item": {
+    "id": 44859693,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2025-04-17T10:49:56Z",
+    "headline": "Keybanc Downgrades Microsoft to Sector Weight",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": [
+      "MSFT"
+    ],
+    "updated_at": "2025-04-17T10:49:56Z",
+    "url": "https://www.benzinga.com/news/25/04/44859693/keybanc-downgrades-microsoft-to-sector-weight"
+  }
+}

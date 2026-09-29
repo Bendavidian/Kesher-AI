@@ -1,0 +1,18 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:42:49.287Z",
+  "item": {
+    "id": 38973532,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2024-05-22T20:21:22Z",
+    "headline": "Nvidia Sees Q2 2025 Revenue $28B +/- 2% Vs $26.64B Estimate",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": [
+      "NVDA"
+    ],
+    "updated_at": "2024-05-22T20:21:23Z",
+    "url": "https://www.benzinga.com/news/24/05/38973532/nvidia-sees-q2-2025-revenue-28b-2-vs-26-64b-estimate"
+  }
+}

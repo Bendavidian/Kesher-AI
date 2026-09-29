@@ -1,0 +1,19 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:43:05.622Z",
+  "item": {
+    "id": 40169246,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2024-08-05T18:47:08Z",
+    "headline": "Google Loses DOJ Antitrust Suit Over Search; Judge Finds Search Giant Violated Antitrust Law",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": [
+      "GOOG",
+      "GOOGL"
+    ],
+    "updated_at": "2024-08-05T18:47:08Z",
+    "url": "https://www.benzinga.com/news/24/08/40169246/google-loses-doj-antitrust-suit-over-search-judge-finds-search-giant-violated-antitrust-law"
+  }
+}

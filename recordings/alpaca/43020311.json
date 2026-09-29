@@ -1,0 +1,18 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:42:56.084Z",
+  "item": {
+    "id": 43020311,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2025-01-16T05:56:57Z",
+    "headline": "Taiwan Semiconductor Q4 GAAP EPS $2.24 Beats $2.16 Estimate, Sales $26.88B Beat $26.38B Estimate",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": [
+      "TSM"
+    ],
+    "updated_at": "2025-01-16T05:56:57Z",
+    "url": "https://www.benzinga.com/news/earnings/25/01/43020311/taiwan-semiconductor-q4-gaap-eps-2-24-beats-2-16-estimate-sales-26-88b-beat-26-38b-estimate"
+  }
+}
