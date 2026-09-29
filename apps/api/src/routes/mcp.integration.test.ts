@@ -470,6 +470,13 @@ describe('POST /mcp', () => {
       expect(JSON.stringify(direction.content)).toContain(
         'No reviewed supplier_of relationships from NVDA; it has competitor_of, customer_of',
       );
+      const typed0 = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'KO', types: ['supplier_of'] },
+      });
+      expect(JSON.stringify(typed0.content)).toContain(
+        'No reviewed supplier_of relationships from KO"',
+      );
       const none = await client.callTool({
         name: 'get_company_relationships',
         arguments: { symbol: 'KO' },
