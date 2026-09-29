@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { PriceReactionError, type PriceSymbol } from '@kesher/shared';
+import { PriceReactionError, priceReactionExternalId, type PriceSymbol } from '@kesher/shared';
+import { nameUuid } from './sourceIds';
 import { REACTION } from './testing';
 import { TOOLS } from './registry';
 import { getPriceReaction, priceReactionJson, type ToolDeps } from './tools';
@@ -63,7 +64,11 @@ describe('tool inputs', () => {
 
 describe('get_price_reaction', () => {
   const deps = (priceReaction: ToolDeps['priceReaction']) =>
-    ({ events: {}, sources: {}, priceReaction }) as unknown as ToolDeps;
+    ({
+      events: {},
+      sources: { findOne: () => Promise.resolve(null) },
+      priceReaction,
+    }) as unknown as ToolDeps;
   const ctx = { claims: {} } as Parameters<typeof getPriceReaction.run>[2];
   const input = { symbol: 'TSM', eventTime: '2024-04-03T03:57:09Z' } as const;
 
@@ -88,7 +93,14 @@ describe('get_price_reaction', () => {
       ctx,
     );
     expect(asked).toEqual([{ subjects: ['TSM'], headline: new Date('2024-04-03T03:57:09Z') }]);
-    expect(outcome).toEqual({ ok: true, output: priceReactionJson(REACTION) });
+    expect(outcome).toEqual({
+      ok: true,
+      output: {
+        // Not stored yet: the id the agent's code will store the market_data Source under.
+        sourceId: nameUuid(`alpaca:${priceReactionExternalId(REACTION)}`),
+        ...priceReactionJson(REACTION),
+      },
+    });
     if (!outcome.ok) throw new Error('expected output');
     expect(outcome.output.anchor.baseTime).toBe('2024-04-02T20:00:00.000Z');
     expect(outcome.output.rows[0]!.moves[2]).toEqual({ pct: null, barTime: null });

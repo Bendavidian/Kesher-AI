@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import {
   AgentRun,
   Claim,
+  priceReactionExternalId,
   Report,
   type FeedItem,
   type MarketEvent,
@@ -11,10 +12,12 @@ import {
   type User,
 } from '@kesher/shared';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { TOOLS } from '@kesher/mcp';
+import { nameUuid, sourceIdName, TOOLS } from '@kesher/mcp';
 import { createApp } from '../app';
 import { collection } from '../db/collections';
 import { ensureCollections, ensureIndexes } from '../db/indexes';
+import { loadReactionFixture } from '../market/fixture';
+import { DEMO_SOURCE_ID } from '../seed/config';
 import { createModelClient, MODELS } from '../llm/client';
 import type { Clock } from '../llm/limiter';
 import { mockModel, rateLimitError, resolveMocks, type ModelReply } from '../test/models';
@@ -172,11 +175,13 @@ describe('runResearch', () => {
     await collection(mongo.db, 'sources').insertOne(demo);
     await collection(mongo.db, 'market_events').insertOne(event);
     await collection(mongo.db, 'feed_items').insertOne(feedItem);
+    const { reaction } = await loadReactionFixture(DEMO_SOURCE_ID);
     server = createApp({
       db: mongo.db,
       devRoutes: false,
       mcp: { secret: SECRET },
       search: memorySearch(mongo.db),
+      priceReactions: () => Promise.resolve(reaction),
     }).listen(0);
     await new Promise<void>((resolve) => server.once('listening', resolve));
     mcpUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/mcp`;
@@ -405,6 +410,52 @@ describe('runResearch', () => {
       type: 'tool',
       toolName: 'submit_report',
     });
+  });
+
+  it('stores the market_data Source a price reaction names, so a metric citing it stays', async () => {
+    const { reaction } = await loadReactionFixture(DEMO_SOURCE_ID);
+    const sourceId = nameUuid(sourceIdName('alpaca', priceReactionExternalId(reaction)));
+    const price: ModelReply = {
+      toolCalls: [
+        {
+          toolName: 'get_price_reaction',
+          input: { symbol: 'TSM', eventTime: '2024-04-03T03:57:09Z' },
+        },
+      ],
+    };
+    const metric: ModelReply = {
+      toolCalls: [
+        {
+          toolName: 'submit_report',
+          input: {
+            claims: [
+              {
+                key: 'c1',
+                type: 'metric',
+                text: 'TSM opened 1.16% below the previous close, while SPY also moved.',
+                sources: [{ sourceId }],
+                premises: [],
+              },
+            ],
+            openQuestions: [],
+          },
+        },
+      ],
+    };
+
+    for (const attempt of [1, 2]) {
+      const { run } = setup([getEvent, price, metric]);
+      const outcome = await run();
+      expect(outcome.status, `run ${attempt}`).toBe('succeeded');
+      const claims = await collection(mongo.db, 'claims')
+        .find({ reportId: outcome.reportId! })
+        .toArray();
+      expect(claims.map((c) => [c.type, c.status])).toEqual([['metric', 'unverified']]);
+    }
+    const stored = await collection(mongo.db, 'sources').find({ kind: 'market_data' }).toArray();
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ _id: sourceId, provider: 'alpaca', tier: 1 });
+    expect(stored[0]?.text).toContain('TSM: base');
   });
 
   it('forces the report early when the token budget binds first', async () => {

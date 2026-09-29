@@ -1,4 +1,10 @@
-import { ReportDetail, type ReportSource, type Source } from '@kesher/shared';
+import {
+  anchorNote,
+  parsePriceReactionExternalId,
+  ReportDetail,
+  type ReportSource,
+  type Source,
+} from '@kesher/shared';
 import type { Db } from 'mongodb';
 import { collection } from '../db/collections';
 import { feedCard, type CardMarket } from '../feed/cards';
@@ -21,6 +27,17 @@ export function reportSourceFor(source: Omit<Source, 'text'>): ReportSource {
       title: source.publisher ? `${source.publisher} via ${provider}` : provider,
       citeLabel: `${outlet} headline`,
       ref: `id ${source.externalId}`,
+    };
+  }
+  const reaction = source.kind === 'market_data' && parsePriceReactionExternalId(source.externalId);
+  if (reaction) {
+    return {
+      _id: source._id,
+      kind: source.kind,
+      tier: source.tier,
+      title: source.title,
+      citeLabel: `SIP bars, ${anchorNote(reaction.kind, reaction.baseTime)}`,
+      ref: 'Delayed 15 minutes',
     };
   }
   return {

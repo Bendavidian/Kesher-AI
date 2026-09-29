@@ -18,4 +18,10 @@ export {
 export { TOOLS } from './registry';
 export { matchedTerms, queryTerms } from './news';
 export type { FilingPassage, NewsFilter, SearchBackend } from './search';
-export type { ToolDeps } from './tools';
+export { nameUuid, sourceIdFor, sourceIdName } from './sourceIds';
+export {
+  GetPriceReactionOutput,
+  priceReactionFromJson,
+  priceReactionJson,
+  type ToolDeps,
+} from './tools';

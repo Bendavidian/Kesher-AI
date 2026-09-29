@@ -18,6 +18,7 @@ import { REPORT_DRAFT_JSON_SCHEMA, ReportDraft } from './draft';
 import { openToolbox, type TokenIssued, type Toolbox } from './mcp';
 import { capStepOutput } from './output';
 import { buildBrief, quoteToolOutput, REPORT_TOOL, RESEARCH_SYSTEM } from './prompt';
+import { storeToolSources } from './toolSources';
 import type { RecordedTurn } from './recordings';
 
 // The research agent (SPEC.md Research agent). The model reads and proposes; code runs every tool
@@ -459,6 +460,11 @@ export async function runResearch(
         }
         const outcome = await toolbox.call(call.toolName, call.input);
         if (outcome.ok) collectSourceIds(outcome.output, seen);
+        const stored = outcome.ok
+          ? await storeToolSources(db, call.toolName, outcome.output, new Date(now())).catch(
+              (error: unknown) => error,
+            )
+          : [];
         await record({
           kind: 'tool',
           name: call.toolName,
@@ -468,6 +474,18 @@ export async function runResearch(
           startedAt: callStarted,
           latencyMs: now() - callStarted,
         });
+        if (!Array.isArray(stored)) {
+          // A claim that cites this source will fail sources_exist; the run goes on.
+          await record({
+            kind: 'code',
+            name: 'Source not stored',
+            input: { toolName: call.toolName },
+            outputSummary: 'The source this tool named could not be stored.',
+            output: String(stored),
+            startedAt: now(),
+            latencyMs: 0,
+          });
+        }
         const payload =
           typeof outcome.output === 'string' ? outcome.output : JSON.stringify(outcome.output);
         reply(quoteToolOutput(call.toolName, payload), outcome.ok);

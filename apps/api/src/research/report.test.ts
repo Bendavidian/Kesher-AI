@@ -61,4 +61,25 @@ describe('reportSourceFor', () => {
       ref: '0001045810-26-000021',
     });
   });
+
+  it('names a price reaction as SIP bars with its anchor, delayed 15 minutes', () => {
+    const bars: Omit<Source, 'text'> = {
+      ...news,
+      _id: '00000000-0000-4000-8000-000000000003',
+      kind: 'market_data',
+      tier: 1,
+      externalId: 'price_reaction:TSM,NVDA,SMH,SPY:previous_close:2024-04-02T20:00:00.000Z',
+      publisher: null,
+      title: 'SIP bars for TSM, NVDA, SMH and SPY',
+      symbols: ['TSM', 'NVDA', 'SMH', 'SPY'],
+    };
+    expect(reportSourceFor(bars)).toEqual({
+      _id: bars._id,
+      kind: 'market_data',
+      tier: 1,
+      title: 'SIP bars for TSM, NVDA, SMH and SPY',
+      citeLabel: 'SIP bars, anchored to the previous regular close on 2024-04-02',
+      ref: 'Delayed 15 minutes',
+    });
+  });
 });

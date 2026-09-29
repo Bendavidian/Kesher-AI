@@ -8,11 +8,12 @@ import { priceReactionJson, type ToolDeps } from './tools';
 import { REACTION } from './testing';
 
 const SECRET = 'test-secret-that-is-at-least-32-chars';
+const STORED_SOURCE_ID = randomUUID();
 
 // No database: get_event finds nothing, which is enough to prove the call got through.
 const deps = {
   events: { findOne: () => Promise.resolve(null) },
-  sources: {},
+  sources: { findOne: () => Promise.resolve({ _id: STORED_SOURCE_ID }) },
   priceReaction: () => Promise.resolve(REACTION),
 } as unknown as ToolDeps;
 
@@ -70,7 +71,11 @@ describe('createKesherServer', () => {
       arguments: { symbol: 'TSM', eventTime: '2024-04-03T03:57:09Z' },
     });
     expect(result.isError).toBeFalsy();
-    expect(result.structuredContent).toEqual(priceReactionJson(REACTION));
+    // The market_data Source is already stored, so the output names its id.
+    expect(result.structuredContent).toEqual({
+      sourceId: STORED_SOURCE_ID,
+      ...priceReactionJson(REACTION),
+    });
   });
 
   it('answers a tool error instead of an output over 8 KB', async () => {
