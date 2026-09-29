@@ -15,17 +15,25 @@ import {
   type Source,
 } from '@kesher/shared';
 import { io as connect, type Socket } from 'socket.io-client';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { collection } from '../db/collections';
 import { toIncomingItem } from '../ingest/alpaca';
 import { processItem } from '../ingest/process';
 import { loadRecording } from '../ingest/recordings';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import { loadModelRecording } from '../llm/recordings';
+import { createQueue } from '../jobs/queue';
 import { loadReactionFixture } from '../market/fixture';
 import { STALE_RESEARCH_MS, startInvestigation } from '../research/investigate';
 import { runSeed } from '../seed/seed';
-import { recordedModels, signIn, startApi, TEST_MCP_SECRET, type TestApi } from '../test/api';
+import {
+  flushPushes,
+  recordedModels,
+  signIn,
+  startApi,
+  TEST_MCP_SECRET,
+  type TestApi,
+} from '../test/api';
 import { mockModel, resolveMocks, type ModelReply } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 
@@ -188,6 +196,15 @@ describe('Investigate, GET /reports/:reportId and the run routes, on mongod', ()
     await collection(mongo.db, 'research_budget').deleteMany({});
   });
 
+  // Every test ends with the queue empty and every push received, so no push of one test lands
+  // in the next after it clears them.
+  afterEach(async () => {
+    await api.idle();
+    for (const [index, key] of (['A', 'B'] as const).entries()) {
+      await flushPushes(api, sockets[index]!, await userId(key));
+    }
+  });
+
   afterAll(async () => {
     for (const socket of sockets) socket.close();
     await api?.close();
@@ -245,6 +262,29 @@ describe('Investigate, GET /reports/:reportId and the run routes, on mongod', ()
       },
     });
     expect(await collection(mongo.db, 'research_budget').findOne()).toMatchObject({ runs: 1 });
+  });
+
+  it('puts the run in the queue at once, while the queued push is still going out', async () => {
+    const queue = createQueue();
+    let release!: () => void;
+    const pushing = new Promise<void>((resolve) => (release = resolve));
+    const start = await startInvestigation(
+      {
+        db: mongo.db,
+        models: () => research,
+        mcp: { url: `${api.url}/mcp`, secret: TEST_MCP_SECRET },
+        redact: (text) => text,
+        queue,
+        onResearch: (item) => (item.research.state === 'queued' ? pushing : undefined),
+      },
+      await userId('A'),
+      eventId,
+    );
+    if (start.outcome !== 'started') throw new Error('expected started');
+    const idle = queue.idle();
+    release();
+    await idle;
+    expect((await itemOf('A')).research.state).toBe('done');
   });
 
   it('answers 429 once the daily budget is spent, and changes nothing', async () => {
