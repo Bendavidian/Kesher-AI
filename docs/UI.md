@@ -82,6 +82,7 @@ The signature component.
 ## Agent run screen
 - **Left panel:**
   - Breadcrumb, title and status chips.
+  - A compact Recent runs selector at the right of the breadcrumb row: the user's runs, newest first, each with its time in ET, event and mode, and a status chip; choosing one opens that run. It lets the demo show a failed run next to a successful one without another screen.
   - Summary tiles: tool calls, tokens against the run budget, model, cost.
   - A legend for step kinds.
   - The step timeline: a vertical line colored by step kind (code teal, tool blue, model amber, a check that removed a claim red), with duration and tokens per step. The selected step is highlighted.
