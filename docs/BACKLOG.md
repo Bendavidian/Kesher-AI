@@ -112,10 +112,11 @@ Notes from T04:
 - The job queue should serialize work per source id. processItem skips steps that already ran and its writes are conditional, so concurrent calls for one item stay correct, but each can spend a model call before the loser's write is discarded.
 - Note from T05: graph start nodes are the extracted companies that the event's sources tagged, taken as the union over the cluster (eventCompanies, apps/api/src/relevance/score.ts). Once clustering puts several items in one event, an untrusted later item can widen that set; decide then whether to intersect per source.
 
-### [ ] T11 Graph build job
+### [~] T11 Graph build job
 Finnhub peers and profiles. LLM extraction of supplier and customer edges from 10-K sections with verbatim quotes. A review CLI to accept or reject edges. The same sections chunked and embedded into FilingChunk.
 Peers are kept only inside the demo universe. Every edge is written in both directions with its inverse type. primaryListing comes from the Finnhub profile (check ASML as well as TSM). Chunks of at most 256 tokens, embedded with local Xenova/all-MiniLM-L6-v2 (384 dimensions).
-Done when: at least 40 reviewed edges with evidence exist, and filing search returns the NVIDIA foundry passage for "foundry dependency".
+Done when: every candidate with a verbatim quote from the 10-K and 20-F filings has been reviewed, the final count of distinct reviewed relationships is reported, and filing search returns the NVIDIA foundry passage for "foundry dependency". There is no minimum count: a fixed target pushes toward weak evidence, which "no evidence, no edge" prevents (SPEC.md decision log, T11). The earlier target of 40 reviewed edges is dropped.
+Scope decided on 29 Sep 2026: candidates start from docs/research/edge-candidates.md and add evidence from the TSM and ASML 20-F filings (edge evidence only, no FilingChunks). Filing chunks cover Item 1 and Item 1A of the 15 10-K filers. Nothing is written with reviewed: true before the user approves it in the review CLI.
 Open decisions and notes from T02:
 - Evidence for Finnhub peers: CLAUDE.md requires a verbatim quote on every edge, but peers have none. Since T02 the Relationship schema requires filing evidence on every edge. Decide how competitor_of from peers fits before writing any.
 - in_sector and has_theme: T02 stores sector and themes as Company fields, not edges, because they carry no filing evidence and SPEC.md names no inverse types for them. Decide whether they become edges, and note that "same sector 0.4" as a node path is two hops.
