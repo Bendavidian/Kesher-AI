@@ -1,0 +1,216 @@
+{
+  "reviews": [
+    {
+      "key": "competitor:AMAT|ASML",
+      "decision": "accept",
+      "edge": { "from": "AMAT", "type": "competitor_of", "to": "ASML" },
+      "rowId": "fe12ba4743:AMAT",
+      "span": "sentence",
+      "quote": "We also compete with providers of applications that support or enhance complex patterning solutions, such as Applied Materials Inc. and KLA-Tencor Corporation.",
+      "decidedAt": "2026-09-29T10:54:03.715Z"
+    },
+    {
+      "key": "competitor:AMAT|LRCX",
+      "decision": "accept",
+      "edge": { "from": "AMAT", "type": "competitor_of", "to": "LRCX" },
+      "rowId": "1913cc92b7:AMAT",
+      "span": "sentence",
+      "quote": "Our primary competitor in the dielectric and metals deposition market is Applied Materials, Inc.",
+      "decidedAt": "2026-09-29T10:54:03.965Z"
+    },
+    {
+      "key": "competitor:AMD|AVGO",
+      "decision": "accept",
+      "edge": { "from": "AVGO", "type": "competitor_of", "to": "AMD" },
+      "rowId": "f1e6d6228f:AVGO",
+      "span": "sentence",
+      "quote": "We expect continued competition from our primary FPGA competitors such as Altera, Lattice Semiconductor Corporation and Microsemi Corporation, and from ASSP vendors such as Broadcom Corporation, Marvell Technology Group, Ltd., Analog Devices, Texas Instruments Incorporated, NXP Semiconductors N.V., Qualcomm Incorporated and NVIDIA.",
+      "decidedAt": "2026-09-29T10:54:04.230Z"
+    },
+    {
+      "key": "competitor:AMD|QCOM",
+      "decision": "accept",
+      "edge": { "from": "QCOM", "type": "competitor_of", "to": "AMD" },
+      "rowId": "f1e6d6228f:QCOM",
+      "span": "sentence",
+      "quote": "We expect continued competition from our primary FPGA competitors such as Altera, Lattice Semiconductor Corporation and Microsemi Corporation, and from ASSP vendors such as Broadcom Corporation, Marvell Technology Group, Ltd., Analog Devices, Texas Instruments Incorporated, NXP Semiconductors N.V., Qualcomm Incorporated and NVIDIA.",
+      "decidedAt": "2026-09-29T10:54:04.496Z"
+    },
+    {
+      "key": "competitor:AMZN|INTC",
+      "decision": "accept",
+      "edge": { "from": "AMZN", "type": "competitor_of", "to": "INTC" },
+      "rowId": "e10a588e77:AMZN",
+      "span": "sentence",
+      "quote": "DCAI competitors include AMD, which utilizes the x86 architecture and competes with us across the full spectrum of CPUs, GPUs, accelerators and other products; providers of GPU systems such as NVIDIA, whose GPU systems have experienced the highest demand in the market as AI workloads have become the dominant source of compute demand; companies developing their own custom silicon, including many hyperscalers such as Amazon, Google, Meta and Microsoft; and both new entrants and incumbents developing ARM- and RISC-V-based products tailored to specific data center and AI workloads.",
+      "decidedAt": "2026-09-29T10:54:04.750Z"
+    },
+    {
+      "key": "competitor:AMZN|NVDA",
+      "decision": "accept",
+      "edge": { "from": "AMZN", "type": "competitor_of", "to": "NVDA" },
+      "rowId": "4c15d2a9a1:AMZN",
+      "span": "sentence",
+      "quote": "Our current competitors include: • suppliers and licensors of hardware and software for discrete and integrated GPUs, custom chips and other accelerated computing solutions, including solutions offered for AI, such as Advanced Micro Devices, Inc., or AMD, Huawei Technologies Co. Ltd., or Huawei, and Intel Corporation, or Intel; • large cloud services companies with internal teams designing hardware and software that incorporate accelerated or AI computing functionality as part of their internal solutions or platforms, such as Alibaba Group, Alphabet Inc., Amazon, Inc., or Amazon, Baidu, Inc., Huawei, and Microsoft Corporation, or Microsoft; • suppliers of Arm-based CPUs and companies that incorporate hardware and software for CPUs as part of their internal solutions or platforms, such as Amazon, Huawei, and Microsoft; • suppliers of hardware and software for SoC products that are used in servers or embedded into automobiles, autonomous machines, and gaming devices, such as Ambarella, Inc., AMD, Broadcom, Intel, Qualcomm Incorporated, Renesas Electronics Corporation, and Samsung, or companies with internal teams designing SoC products for their own products and services, such as Tesla, Inc.; and • networking products consisting of switches, network adapters (including DPUs), and cable solutions (including optical modules) include such as AMD, Arista Networks, Broadcom, Cisco Systems, Inc., Hewlett Packard Enterprise Company, Huawei, Intel, Lumentum Holdings Inc., and Marvell Technology, Inc, as well as internal teams of system vendors and large cloud services companies.",
+      "decidedAt": "2026-09-29T10:54:05.023Z"
+    },
+    {
+      "key": "competitor:AVGO|INTC",
+      "decision": "accept",
+      "edge": { "from": "AVGO", "type": "competitor_of", "to": "INTC" },
+      "rowId": "43cc8f6869:AVGO",
+      "span": "sentence",
+      "quote": "We also compete with Broadcom in the custom ASICs development market.",
+      "decidedAt": "2026-09-29T10:54:05.398Z"
+    },
+    {
+      "key": "competitor:AVGO|NVDA",
+      "decision": "accept",
+      "edge": { "from": "AVGO", "type": "competitor_of", "to": "NVDA" },
+      "rowId": "4c15d2a9a1:AVGO",
+      "span": "sentence",
+      "quote": "Our current competitors include: • suppliers and licensors of hardware and software for discrete and integrated GPUs, custom chips and other accelerated computing solutions, including solutions offered for AI, such as Advanced Micro Devices, Inc., or AMD, Huawei Technologies Co. Ltd., or Huawei, and Intel Corporation, or Intel; • large cloud services companies with internal teams designing hardware and software that incorporate accelerated or AI computing functionality as part of their internal solutions or platforms, such as Alibaba Group, Alphabet Inc., Amazon, Inc., or Amazon, Baidu, Inc., Huawei, and Microsoft Corporation, or Microsoft; • suppliers of Arm-based CPUs and companies that incorporate hardware and software for CPUs as part of their internal solutions or platforms, such as Amazon, Huawei, and Microsoft; • suppliers of hardware and software for SoC products that are used in servers or embedded into automobiles, autonomous machines, and gaming devices, such as Ambarella, Inc., AMD, Broadcom, Intel, Qualcomm Incorporated, Renesas Electronics Corporation, and Samsung, or companies with internal teams designing SoC products for their own products and services, such as Tesla, Inc.; and • networking products consisting of switches, network adapters (including DPUs), and cable solutions (including optical modules) include such as AMD, Arista Networks, Broadcom, Cisco Systems, Inc., Hewlett Packard Enterprise Company, Huawei, Intel, Lumentum Holdings Inc., and Marvell Technology, Inc, as well as internal teams of system vendors and large cloud services companies.",
+      "decidedAt": "2026-09-29T10:54:05.757Z"
+    },
+    {
+      "key": "competitor:AVGO|QCOM",
+      "decision": "accept",
+      "edge": { "from": "AVGO", "type": "competitor_of", "to": "QCOM" },
+      "rowId": "720eca0b6d:AVGO",
+      "span": "sentence",
+      "quote": "Companies that provide on-device AI, high-performance and low-power computing and wireless connectivity-based integrated circuit products and/or software are generally competitors or potential competitors. Examples (some of which are strategic partners of ours in other areas) include Broadcom, HiSilicon, MediaTek, Mobileye, Nvidia, NXP Semiconductors, Qorvo, Samsung, Skyworks, Texas Instruments and UNISOC.",
+      "decidedAt": "2026-09-29T10:54:06.069Z"
+    },
+    {
+      "key": "competitor:GOOGL|INTC",
+      "decision": "accept",
+      "edge": { "from": "GOOGL", "type": "competitor_of", "to": "INTC" },
+      "rowId": "e10a588e77:GOOGL",
+      "span": "sentence",
+      "quote": "DCAI competitors include AMD, which utilizes the x86 architecture and competes with us across the full spectrum of CPUs, GPUs, accelerators and other products; providers of GPU systems such as NVIDIA, whose GPU systems have experienced the highest demand in the market as AI workloads have become the dominant source of compute demand; companies developing their own custom silicon, including many hyperscalers such as Amazon, Google, Meta and Microsoft; and both new entrants and incumbents developing ARM- and RISC-V-based products tailored to specific data center and AI workloads.",
+      "decidedAt": "2026-09-29T10:54:06.414Z"
+    },
+    {
+      "key": "competitor:GOOGL|META",
+      "decision": "accept",
+      "edge": { "from": "GOOGL", "type": "competitor_of", "to": "META" },
+      "rowId": "d7abd1d937:GOOGL",
+      "span": "sentence",
+      "quote": "For example, each of Apple and Google have integrated competitive products with iOS and Android, respectively.",
+      "decidedAt": "2026-09-29T10:58:32.619Z"
+    },
+    {
+      "key": "competitor:GOOGL|NVDA",
+      "decision": "accept",
+      "edge": { "from": "GOOGL", "type": "competitor_of", "to": "NVDA" },
+      "rowId": "4c15d2a9a1:GOOGL",
+      "span": "sentence",
+      "quote": "Our current competitors include: • suppliers and licensors of hardware and software for discrete and integrated GPUs, custom chips and other accelerated computing solutions, including solutions offered for AI, such as Advanced Micro Devices, Inc., or AMD, Huawei Technologies Co. Ltd., or Huawei, and Intel Corporation, or Intel; • large cloud services companies with internal teams designing hardware and software that incorporate accelerated or AI computing functionality as part of their internal solutions or platforms, such as Alibaba Group, Alphabet Inc., Amazon, Inc., or Amazon, Baidu, Inc., Huawei, and Microsoft Corporation, or Microsoft; • suppliers of Arm-based CPUs and companies that incorporate hardware and software for CPUs as part of their internal solutions or platforms, such as Amazon, Huawei, and Microsoft; • suppliers of hardware and software for SoC products that are used in servers or embedded into automobiles, autonomous machines, and gaming devices, such as Ambarella, Inc., AMD, Broadcom, Intel, Qualcomm Incorporated, Renesas Electronics Corporation, and Samsung, or companies with internal teams designing SoC products for their own products and services, such as Tesla, Inc.; and • networking products consisting of switches, network adapters (including DPUs), and cable solutions (including optical modules) include such as AMD, Arista Networks, Broadcom, Cisco Systems, Inc., Hewlett Packard Enterprise Company, Huawei, Intel, Lumentum Holdings Inc., and Marvell Technology, Inc, as well as internal teams of system vendors and large cloud services companies.",
+      "decidedAt": "2026-09-29T10:54:07.122Z"
+    },
+    {
+      "key": "competitor:INTC|META",
+      "decision": "accept",
+      "edge": { "from": "META", "type": "competitor_of", "to": "INTC" },
+      "rowId": "e10a588e77:META",
+      "span": "sentence",
+      "quote": "DCAI competitors include AMD, which utilizes the x86 architecture and competes with us across the full spectrum of CPUs, GPUs, accelerators and other products; providers of GPU systems such as NVIDIA, whose GPU systems have experienced the highest demand in the market as AI workloads have become the dominant source of compute demand; companies developing their own custom silicon, including many hyperscalers such as Amazon, Google, Meta and Microsoft; and both new entrants and incumbents developing ARM- and RISC-V-based products tailored to specific data center and AI workloads.",
+      "decidedAt": "2026-09-29T10:54:07.485Z"
+    },
+    {
+      "key": "competitor:INTC|MSFT",
+      "decision": "accept",
+      "edge": { "from": "MSFT", "type": "competitor_of", "to": "INTC" },
+      "rowId": "e10a588e77:MSFT",
+      "span": "sentence",
+      "quote": "DCAI competitors include AMD, which utilizes the x86 architecture and competes with us across the full spectrum of CPUs, GPUs, accelerators and other products; providers of GPU systems such as NVIDIA, whose GPU systems have experienced the highest demand in the market as AI workloads have become the dominant source of compute demand; companies developing their own custom silicon, including many hyperscalers such as Amazon, Google, Meta and Microsoft; and both new entrants and incumbents developing ARM- and RISC-V-based products tailored to specific data center and AI workloads.",
+      "decidedAt": "2026-09-29T10:55:29.166Z"
+    },
+    {
+      "key": "competitor:INTC|NVDA",
+      "decision": "reject",
+      "decidedAt": "2026-09-29T10:57:13.297Z"
+    },
+    {
+      "key": "competitor:INTC|QCOM",
+      "decision": "reject",
+      "decidedAt": "2026-09-29T10:57:28.869Z"
+    },
+    { "key": "competitor:INTC|TSM", "decision": "reject", "decidedAt": "2026-09-29T10:58:06.864Z" },
+    {
+      "key": "competitor:MSFT|NVDA",
+      "decision": "reject",
+      "decidedAt": "2026-09-29T10:58:07.446Z"
+    },
+    {
+      "key": "competitor:NVDA|QCOM",
+      "decision": "reject",
+      "decidedAt": "2026-09-29T10:58:07.898Z"
+    },
+    {
+      "key": "supply:AMD>MSFT",
+      "decision": "accept",
+      "edge": { "from": "MSFT", "type": "customer_of", "to": "AMD" },
+      "rowId": "78fec076b6:MSFT",
+      "span": "sentence",
+      "quote": "AMD semi-custom SoC products power the Sony PlayStation ® 5, the Microsoft ® Xbox Series S™ and X™ game consoles, as well as the recently revealed Valve Steam Machine PC.",
+      "decidedAt": "2026-09-29T10:53:31.005Z"
+    },
+    {
+      "key": "supply:ASML>INTC",
+      "decision": "accept",
+      "edge": { "from": "ASML", "type": "supplier_of", "to": "INTC" },
+      "rowId": "70b20aab09:ASML",
+      "span": "sentence",
+      "quote": "In some cases, however, we are reliant upon sole-source providers, such as with the EUV lithography tools manufactured by ASML that are required for leading-edge process technologies, or providers that are substantially concentrated in a single country, such as with certain rare earth minerals critical to the functioning of a range of technology products and processes where China is the primary source of global supply.",
+      "decidedAt": "2026-09-29T10:53:32.639Z"
+    },
+    {
+      "key": "supply:ASML>TSM",
+      "decision": "accept",
+      "edge": { "from": "TSM", "type": "customer_of", "to": "ASML" },
+      "rowId": "145417c49b:TSM",
+      "span": "sentence",
+      "quote": "In November 2025, we were honored to receive the TSMC Supplier ‘Excellence in Green Manufacturing’ Award, for this and other product energy- efficiency innovations.",
+      "decidedAt": "2026-09-29T10:53:39.719Z"
+    },
+    { "key": "supply:INTC>NVDA", "decision": "reject", "decidedAt": "2026-09-29T10:56:29.184Z" },
+    {
+      "key": "supply:LRCX>MU",
+      "decision": "accept",
+      "edge": { "from": "MU", "type": "customer_of", "to": "LRCX" },
+      "rowId": "aef96b1462:MU",
+      "span": "sentence",
+      "quote": "Our most significant customers during the fiscal years ending June 28, 2026, June 29, 2025, and June 30, 2024 included Micron Technology, Inc., Samsung Electronics Company, Ltd., SK hynix Inc., and Taiwan Semiconductor Manufacturing Company.",
+      "decidedAt": "2026-09-29T10:54:02.264Z"
+    },
+    { "key": "supply:MSFT>AMD", "decision": "reject", "decidedAt": "2026-09-29T10:58:11.152Z" },
+    {
+      "key": "supply:MU>NVDA",
+      "decision": "accept",
+      "edge": { "from": "MU", "type": "supplier_of", "to": "NVDA" },
+      "rowId": "5b4c5b141c:MU",
+      "span": "sentence",
+      "quote": "We purchase memory from SK Hynix Inc., Micron Technology, Inc., and Samsung.",
+      "decidedAt": "2026-09-29T10:54:02.968Z"
+    },
+    {
+      "key": "supply:TSM>INTC",
+      "decision": "accept",
+      "edge": { "from": "TSM", "type": "supplier_of", "to": "INTC" },
+      "rowId": "7ebeaf8824:TSM",
+      "span": "sentence",
+      "quote": "Some of our most advanced current and future products are or will be either exclusively manufactured by TSMC or reliant upon critical components, including various compute die, manufactured by TSMC.",
+      "decidedAt": "2026-09-29T10:58:24.034Z"
+    },
+    {
+      "key": "supply:TSM>QCOM",
+      "decision": "accept",
+      "edge": { "from": "TSM", "type": "supplier_of", "to": "QCOM" },
+      "rowId": "fe73db4da4:TSM",
+      "span": "sentence",
+      "quote": "The primary foundry suppliers for our various digital, analog/mixed-signal, RF and PM integrated circuits include Taiwan Semiconductor Manufacturing Company (TSMC), Samsung Electronics and Global Foundries.",
+      "decidedAt": "2026-09-29T10:54:03.489Z"
+    }
+  ]
+}
