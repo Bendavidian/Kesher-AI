@@ -139,8 +139,12 @@
     { "key": "competitor:INTC|TSM", "decision": "reject", "decidedAt": "2026-09-29T10:58:06.864Z" },
     {
       "key": "competitor:MSFT|NVDA",
-      "decision": "reject",
-      "decidedAt": "2026-09-29T10:58:07.446Z"
+      "decision": "accept",
+      "edge": { "from": "MSFT", "type": "competitor_of", "to": "NVDA" },
+      "rowId": "4c15d2a9a1:MSFT",
+      "span": "sentence",
+      "quote": "Our current competitors include: • suppliers and licensors of hardware and software for discrete and integrated GPUs, custom chips and other accelerated computing solutions, including solutions offered for AI, such as Advanced Micro Devices, Inc., or AMD, Huawei Technologies Co. Ltd., or Huawei, and Intel Corporation, or Intel; • large cloud services companies with internal teams designing hardware and software that incorporate accelerated or AI computing functionality as part of their internal solutions or platforms, such as Alibaba Group, Alphabet Inc., Amazon, Inc., or Amazon, Baidu, Inc., Huawei, and Microsoft Corporation, or Microsoft; • suppliers of Arm-based CPUs and companies that incorporate hardware and software for CPUs as part of their internal solutions or platforms, such as Amazon, Huawei, and Microsoft; • suppliers of hardware and software for SoC products that are used in servers or embedded into automobiles, autonomous machines, and gaming devices, such as Ambarella, Inc., AMD, Broadcom, Intel, Qualcomm Incorporated, Renesas Electronics Corporation, and Samsung, or companies with internal teams designing SoC products for their own products and services, such as Tesla, Inc.; and • networking products consisting of switches, network adapters (including DPUs), and cable solutions (including optical modules) include such as AMD, Arista Networks, Broadcom, Cisco Systems, Inc., Hewlett Packard Enterprise Company, Huawei, Intel, Lumentum Holdings Inc., and Marvell Technology, Inc, as well as internal teams of system vendors and large cloud services companies.",
+      "decidedAt": "2026-09-29T11:05:48.818Z"
     },
     {
       "key": "competitor:NVDA|QCOM",
