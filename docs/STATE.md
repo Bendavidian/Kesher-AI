@@ -1,9 +1,33 @@
 # State
 
-Updated: 29 Sep 2026, T08 done (part 2)
+Updated: 29 Sep 2026, T12 done
 
 ## Where we are
-T00 to T08 are done. T08 part 2 wired Investigate to the research agent from part 1, now that T06 gives every route a signed in user:
+T00 to T08 and T12 are done; T09, T10 and T11 are still open. T12 added the research gate and automatic research, so a card goes out as soon as it is scored and research attaches to it later:
+- The gate (apps/api/src/research/gate.ts, auto.ts) runs after each scoring run has pushed its cards, for every FeedItem above relevance 0. Code only, in this order:
+  - AUTO_RESEARCH on;
+  - relevance at least 0.6 and importance at least 4;
+  - research on the card not queued or running;
+  - no run for this user and event in the last 24 hours that was not skipped, whatever its trigger. When that run has a report and the card shows none, the report is attached to the card (done) with no model call;
+  - the daily budget.
+- A run that passes is queued in auto mode (6 tool calls, 12,000 tokens) with trigger gate, and its reason names each condition and its place in the budget.
+- Every skip on a card above relevance 0 is stored as an AgentRun with status skipped, the reason, and one Gate check step naming the condition. Relevance 0 stores nothing.
+- Daily budget (dailyBudget.ts): research runs per UTC day in the new research_budget collection (ResearchBudgetDay in shared), one document per day that both machines share, reserved with one atomic conditional $inc. 30 a day in total, and automatic runs stop at 20, so at least 10 stay for Investigate. A reserved run stays counted even if it never starts.
+- One in process FIFO queue (apps/api/src/jobs/queue.ts) runs one research run at a time, for the gate and for Investigate. enqueueResearch (enqueue.ts) is the one path:
+  - it claims the card as queued, reserves the budget or gives the card back its previous state, then moves the card queued → running → done or failed;
+  - every change is pushed as feed:update;
+  - the 15 minute takeover now covers queued as well as running.
+- Investigate answers 202 with the card queued, and 429 with "Today's research budget is spent (30 of 30 runs). It resets at 00:00 UTC." once the day is spent; a 429 changes nothing.
+- createApp composes the hook that runs after scoring: first the socket push (a failed push is logged), then autoResearch. Only replay uses it today; T10 must route live items through it.
+- AUTO_RESEARCH env flag: true or false, on when unset, any other value stops the api at startup. Off, the gate stores a skip with condition auto_research_off for every card, calls no model and reserves no budget. Investigate is unchanged.
+- The web needed no change: queued shows the same line as running, and the 429 text shows under the button.
+- On Atlas, with the browser:
+  - First Replay: B got a real auto run on Gemini (5,293 tokens, succeeded) and its report renders ("Auto mode, 2 of 6 tool calls"). A was skipped as recent, since it had an Investigate run from T08 that day, and that report was attached to its card.
+  - Second Replay: both were skipped with their reports attached, with no model call, and the budget stayed at 1.
+- The reviewer found no blockers. Its points on the push failure, errors while reserving, attaching from an earlier run, and the notes on queue depth and failed runs were fixed or documented.
+- 529 tests are green.
+
+T08 part 2 wired Investigate to the research agent from part 1, now that T06 gives every route a signed in user:
 - POST /events/:eventId/investigate (apps/api/src/routes/research.ts, apps/api/src/research/investigate.ts):
   - The user comes from the session cookie only.
   - One conditional write moves the user's FeedItem to research running, with a new run id, and the route answers 202 with that card. Two requests never start two runs: the second gets 409.
@@ -114,8 +138,8 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. Check that CI passes on Ubuntu and Windows for the PR "T08: Investigate route, button and report", then merge it.
-2. T09 Agent Runs view. Read the notes from T08 part 2 under T08 in BACKLOG.md:
+1. Check that CI passes on Ubuntu and Windows for the PR "T12: gate policy and automatic research", then merge it.
+2. T09 Agent Runs view. Read the notes under T08 part 2 and under T12 in BACKLOG.md. T12 adds skipped runs to the list and the gate decision and reason to show; queued cards have a runId before their AgentRun exists. Notes from T08 part 2:
    - GET /runs/:runId and the run list for the signed in user; decode steps as decodeReport does, keeping AgentStep.input as sent;
    - the run screen shows AgentStep.output instead of DEMO_STEP_OUTPUTS, and the Agent runs tab uses the run list;
    - enable View agent run on the card (research.runId is set from the start; the AgentRun appears a moment later) and point the report screen's run links at real runs;
@@ -126,8 +150,9 @@ Seed quotes and Source.text use the same normalization, and the T08 and T14 quot
    - The first npm run test downloads mongod 8.0.32, about 100 MB.
    - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay, Investigate and research:dev, MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start.
    - Run `npm run seed` once if that machine uses its own database, so older Sources get publisher and older FeedItems get research.reportId.
+   - Both machines share one daily research budget on Atlas (30 runs, automatic runs stop at 20). Set AUTO_RESEARCH=false in a machine's .env if it should not start automatic runs; the research_budget collection is created when the api starts.
 
-Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now.
+Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now. AUTO_RESEARCH is optional (on when unset).
 
 ## Open decisions
 For T11, listed under T11 in BACKLOG.md:
@@ -135,9 +160,11 @@ For T11, listed under T11 in BACKLOG.md:
 - whether in_sector and has_theme become edges;
 - whether the seed or T11 owns the company fields.
 The UI language is settled by docs/UI.md: English interface, with Hebrew summaries as a later option.
+SPEC.md and STATE.md refer to numbered design points (design point 1, and design point 4 for AUTO_RESEARCH), but the list itself is not in the repository. Add it under docs/ if it should stay a reference.
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 29 Sep 2026, macOS (Mac mini), T12: research gate after scoring (relevance 0.6, importance 4, active, recent run in 24 hours with the report attached), skipped runs stored with their reason, daily budget of 30 runs with 20 for automatic runs in research_budget, one FIFO research queue for the gate and Investigate (202 queued, 429 once spent), AUTO_RESEARCH flag on by default; on Atlas B got a real auto run and a second Replay attached both reports with no model call; reviewer found no blockers; 529 tests green; T12 done.
 - 29 Sep 2026, macOS (Mac mini), T08 part 2: POST /events/:eventId/investigate answers 202 and runs deep research in the background with the user from the session, one run per item (409), stale takeover after 15 minutes; GET /reports/:reportId with ReportSource labels; FeedItem.research.reportId with a seed backfill; Investigate button states and the report screen on the api; only removed claims count as removed, waiting inferences get a neutral line; one real run on Atlas gave two facts with verified quotes; reviewer found no blockers; 496 tests green; T08 done.
 - 29 Sep 2026, macOS (Mac mini), T08 part 1: T08 split in two under one id; research agent over MCP with scoped run tokens and refresh, code planned turns and budgets (12,000 auto, 20,000 deep), the in-run 429 policy, steps written as they happen with 8 KB redacted output, quote checks that remove or keep claims unverified, research:dev; one real Gemini run on Atlas recorded and replayed; reviewer found no blockers; rebased on T06, 463 tests green; T06 marked done from PR 8; T08 stays [~].
 - 29 Sep 2026, macOS (Mac mini), T06: cookie sign in with the persona switcher, GET /feed above 0, explain on request for None, Socket.IO pushes with event:scored, dev reset plus replay; one Replay updated three browser sessions to A 0.80, B 1.00, C None on Atlas; reviewer found no blockers and the socket closes on logout and expiry; 405 tests green, CI green on PR 8; STATE and the BACKLOG mark came with the T08 part 1 wrap.
