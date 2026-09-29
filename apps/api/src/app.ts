@@ -2,11 +2,13 @@ import { HealthResponse } from '@kesher/shared';
 import express, { type ErrorRequestHandler, type Express } from 'express';
 import type { Db } from 'mongodb';
 import type { ProcessDeps } from './ingest/process';
+import type { InvestigateDeps } from './research/investigate';
 import { createModelClient, resolveFromKeys, type ModelClient } from './llm/client';
 import { authRouter, type AuthOptions } from './routes/auth';
 import { devRouter } from './routes/dev';
 import { feedRouter } from './routes/feed';
 import { mcpRouter } from './routes/mcp';
+import { researchRouter } from './routes/research';
 
 export interface AppDeps {
   db: Db;
@@ -24,6 +26,11 @@ export interface AppDeps {
   log?: (message: string) => void;
   // The model client, built on first use. Without it every model call fails naming its key.
   models?: () => ModelClient;
+  // Mounts Investigate and GET /reports/:reportId when set, with mcp and auth. mcpUrl is the
+  // api's own POST /mcp, read when a run starts; redact is applied to every run step.
+  research?: { mcpUrl: () => string; redact: (text: string) => string };
+  // Gets each FeedItem whose research state changed; the server passes the feed:update push.
+  onResearch?: InvestigateDeps['onResearch'];
 }
 
 const logMessage = (error: unknown) =>
@@ -40,6 +47,8 @@ export function createApp({
   logError = logMessage,
   log = console.log,
   models = noKeys,
+  research,
+  onResearch,
 }: AppDeps): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -52,6 +61,23 @@ export function createApp({
   if (auth) {
     app.use(authRouter(db, auth));
     app.use(feedRouter(db, auth.secret));
+    if (mcp && research) {
+      const deps: InvestigateDeps = {
+        db,
+        models,
+        mcp: {
+          secret: mcp.secret,
+          // Read when a run starts, after the server listens.
+          get url() {
+            return research.mcpUrl();
+          },
+        },
+        redact: research.redact,
+        logError,
+        ...(onResearch ? { onResearch } : {}),
+      };
+      app.use(researchRouter(deps, auth.secret));
+    }
   }
   if (devRoutes) app.use(devRouter(db, models, log, onScored));
 

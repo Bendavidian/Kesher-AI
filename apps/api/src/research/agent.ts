@@ -43,6 +43,8 @@ export interface ResearchRequest {
   mode: RunMode;
   trigger: AgentRun['trigger'];
   gateReason: string;
+  // The id for the AgentRun, when the caller has already put it on the card (Investigate).
+  runId?: string;
 }
 
 export interface ResearchOutcome {
@@ -127,7 +129,7 @@ export async function runResearch(
   const stepBudget = STEP_BUDGET[request.mode];
   const tokenBudget = TOKEN_BUDGET[request.mode];
   const ref = models.pickRunProvider(tokenBudget);
-  const runId = newId();
+  const runId = request.runId ?? newId();
   const createdAt = new Date(now());
   await runs.insertOne(
     AgentRun.parse({

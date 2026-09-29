@@ -12,7 +12,13 @@ const port = z.coerce.number().int().min(1).max(65535).default(3001).parse(proce
 const env = loadEnv();
 const mcpEnv = loadMcpEnv();
 const authEnv = loadAuthEnv();
-const redact = redactor(env.MONGODB_URI, [mcpEnv.MCP_TOKEN_SECRET, authEnv.JWT_SECRET]);
+const modelKeys = loadModelKeys();
+const redact = redactor(env.MONGODB_URI, [
+  mcpEnv.MCP_TOKEN_SECRET,
+  authEnv.JWT_SECRET,
+  modelKeys.groq ?? '',
+  modelKeys.google ?? '',
+]);
 
 const client = await connect(env.MONGODB_URI).catch((error: unknown) => {
   console.error(redact(`Could not connect to MongoDB: ${describeError(error)}`));
@@ -23,10 +29,10 @@ const db = client.db(DB_NAME);
 await ensureCollections(db);
 await ensureIndexes(db);
 
-// Model keys are read on the first call that needs a model, so the api starts without them.
+// Model keys are optional: the api starts without them, and a call that needs a missing key
+// fails naming it. The client is built on first use.
 let modelClient: ModelClient | undefined;
-const models = () =>
-  (modelClient ??= createModelClient({ resolve: resolveFromKeys(loadModelKeys()) }));
+const models = () => (modelClient ??= createModelClient({ resolve: resolveFromKeys(modelKeys) }));
 
 const devRoutes = env.NODE_ENV !== 'production';
 const app = createApp({
@@ -43,6 +49,9 @@ const app = createApp({
   logError: (error) => console.error(redact(describeError(error))),
   log: (message) => console.log(redact(message)),
   models,
+  // Investigate reaches the api's own POST /mcp as a real MCP client.
+  research: { mcpUrl: () => `http://127.0.0.1:${port}/mcp`, redact },
+  onResearch: (item) => realtime.publishItem(item),
 });
 const server = createServer(app);
 const realtime = createRealtime(server, { db, secret: authEnv.JWT_SECRET });

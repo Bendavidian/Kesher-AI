@@ -1,9 +1,9 @@
 import type { Server as HttpServer } from 'node:http';
-import { SOCKET_EVENTS, type EventScored, type FeedCard } from '@kesher/shared';
+import { SOCKET_EVENTS, type EventScored, type FeedCard, type FeedItem } from '@kesher/shared';
 import type { Db } from 'mongodb';
 import { Server } from 'socket.io';
 import { sessionFromCookie } from '../auth/session';
-import { assembleCards } from '../feed/cards';
+import { assembleCards, feedCard } from '../feed/cards';
 import type { ScoredItem } from '../relevance/feed';
 
 // Socket.IO events the server sends (docs/INTERFACES.md). Dates travel as ISO strings.
@@ -26,6 +26,8 @@ export interface Realtime {
   // Pushes what one scoring run wrote: a card to each user whose item is above 0, then
   // event:scored to every signed in socket.
   publishScored(eventId: string, scored: readonly ScoredItem[]): Promise<void>;
+  // Pushes feed:update to the item's user after its research state changed.
+  publishItem(item: FeedItem): Promise<void>;
   // Disconnects every socket of a user that signed out, so none keeps receiving their cards.
   signOut(userId: string): void;
   close(): Promise<void>;
@@ -82,6 +84,11 @@ export function createRealtime(httpServer: HttpServer, { db, secret }: { db: Db;
       }
       // After the cards, so a client that got one never needs to ask why it has none.
       io.emit(SOCKET_EVENTS.eventScored, { eventId });
+    },
+    async publishItem(item) {
+      if (item.relevance <= 0) return;
+      const card = await feedCard(db, item);
+      if (card) io.to(roomOf(item.userId)).emit(SOCKET_EVENTS.feedUpdate, card);
     },
     signOut(userId) {
       io.in(roomOf(userId)).disconnectSockets(true);
