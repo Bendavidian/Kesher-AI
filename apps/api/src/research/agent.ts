@@ -25,6 +25,7 @@ import { openToolbox, type TokenIssued, type Toolbox } from './mcp';
 import { capStepOutput } from './output';
 import { buildBrief, quoteToolOutput, REPORT_TOOL, RESEARCH_SYSTEM } from './prompt';
 import type { RecordedTurn, RecordedVerifierCall } from './recordings';
+import { collectPassages, storeToolSources, withPassages } from './toolSources';
 import { applyVerdicts, VERIFIER_TOKEN_CAP, verifyClaims, type VerifierCall } from './verifier';
 
 // The research agent (SPEC.md Research agent). The model reads and proposes; code runs every tool
@@ -425,6 +426,7 @@ export async function runResearch(
     ];
 
     const seen = new Set<string>();
+    const passages = new Map<string, string[]>();
     let toolCallsUsed = 0;
     let reportAttempts = 0;
     let mustReport = false;
@@ -595,7 +597,16 @@ export async function runResearch(
           continue;
         }
         const outcome = await toolbox.call(call.toolName, call.input);
-        if (outcome.ok) collectSourceIds(outcome.output, seen);
+        if (outcome.ok) {
+          collectSourceIds(outcome.output, seen);
+          // The same output the model reads below; tools keep it within 8 KB, so nothing is cut.
+          collectPassages(call.toolName, outcome.output, passages);
+        }
+        const stored = outcome.ok
+          ? await storeToolSources(db, call.toolName, outcome.output, new Date(now())).catch(
+              (error: unknown) => error,
+            )
+          : [];
         await record({
           kind: 'tool',
           name: call.toolName,
@@ -605,6 +616,18 @@ export async function runResearch(
           startedAt: callStarted,
           latencyMs: now() - callStarted,
         });
+        if (!Array.isArray(stored)) {
+          // A claim that cites this source will fail sources_exist; the run goes on.
+          await record({
+            kind: 'code',
+            name: 'Source not stored',
+            input: { toolName: call.toolName },
+            outputSummary: 'The source this tool named could not be stored.',
+            output: String(stored),
+            startedAt: now(),
+            latencyMs: 0,
+          });
+        }
         const payload =
           typeof outcome.output === 'string' ? outcome.output : JSON.stringify(outcome.output);
         reply(quoteToolOutput(call.toolName, payload), outcome.ok);
@@ -619,7 +642,9 @@ export async function runResearch(
     const sources = await collection(db, 'sources')
       .find({ _id: { $in: [...seen] } }, { projection: { title: 1, text: 1 } })
       .toArray();
-    const seenSources = new Map(sources.map((s) => [s._id, s]));
+    // A filing keeps text null; what a tool returned from it in this run stands in, so the quote
+    // check and the verifier read exactly what the model read.
+    const seenSources = new Map(sources.map((s) => [s._id, withPassages(s, passages.get(s._id))]));
     const reportId = newId();
 
     const figures = draft.claims.flatMap((c) => (c.type === 'metric' ? c.figures : []));

@@ -1,12 +1,11 @@
-import { mintRunToken, RUN_TOKEN_TTL_SECONDS, type ToolName } from '@kesher/mcp';
+import { AGENT_TOOLS, mintRunToken, RUN_TOKEN_TTL_SECONDS, type ToolName } from '@kesher/mcp';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 
 // The research agent's tools, reached as a real MCP client over POST /mcp with a run token
 // (docs/INTERFACES.md). The token carries the user; nothing here passes a user id to a tool.
 
-// Read only. get_price_reaction gives the numbers a metric claim cites (SPEC.md decision log,
-// T14); T13 part 2 adds the rest.
-export const RESEARCH_TOOLS: ToolName[] = ['get_event', 'search_news', 'get_price_reaction'];
+// The research agent's tool set (AGENT_TOOLS in packages/shared), all read only.
+export const RESEARCH_TOOLS: readonly ToolName[] = AGENT_TOOLS.research;
 
 // A token this old is replaced before the next tool call, so no call runs on one about to expire.
 export const TOKEN_REFRESH_AFTER_MS = (RUN_TOKEN_TTL_SECONDS - 60) * 1000;
@@ -68,7 +67,7 @@ export async function openToolbox({
     const issuedAt = new Date(start);
     const token = await mintRunToken(
       secret,
-      { userId, agent: 'research', tools: RESEARCH_TOOLS },
+      { userId, agent: 'research', tools: [...RESEARCH_TOOLS] },
       issuedAt,
     );
     const client = new Client({ name: 'kesher-research', version: '0.1.0' });
@@ -81,7 +80,7 @@ export async function openToolbox({
       await onToken({
         kind,
         agent: 'research',
-        tools: RESEARCH_TOOLS,
+        tools: [...RESEARCH_TOOLS],
         ttlSeconds: RUN_TOKEN_TTL_SECONDS,
         issuedAt,
         latencyMs: now() - start,

@@ -13,7 +13,7 @@ export const DraftClaim = z.strictObject({
   type: z
     .enum(['fact', 'metric', 'inference'])
     .describe(
-      'fact: stated by a source, with a verbatim quote. metric: price moves from get_price_reaction, listed in figures. inference: your reasoning from other claims, in hedged language.',
+      'fact: stated by a source, with a verbatim quote. metric: price moves from get_price_reaction, listed in figures, or a value from get_financial_facts with its sourceId. inference: your reasoning from other claims, in hedged language.',
     ),
   text: z.string().trim().min(1).max(500).describe('The claim in one sentence'),
   sources: z
@@ -23,7 +23,9 @@ export const DraftClaim = z.strictObject({
         quote: z
           .string()
           .optional()
-          .describe('Text copied exactly, character for character, from that source'),
+          .describe(
+            'Required for a fact: at least 20 characters copied exactly, character for character, from what a tool returned for that source. A fact without a quote is dropped. Leave it out for a metric.',
+          ),
       }),
     )
     .max(5),

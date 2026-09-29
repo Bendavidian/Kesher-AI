@@ -12,6 +12,7 @@ import {
 import type { Db } from 'mongodb';
 import type { Socket } from 'socket.io-client';
 import { createApi } from '../app';
+import { memorySearch } from './search';
 import { SESSION_COOKIE } from '../auth/session';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import type { ProcessDeps } from '../ingest/process';
@@ -86,6 +87,7 @@ export async function startApi(
     ...(research
       ? {
           mcp: { secret: TEST_MCP_SECRET },
+          search: memorySearch(db),
           research: {
             mcpUrl: () => `${url}/mcp`,
             redact: (text: string) => text.split(TEST_MCP_SECRET).join('[REDACTED]'),

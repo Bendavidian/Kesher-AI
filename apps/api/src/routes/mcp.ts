@@ -1,6 +1,11 @@
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { createMcpFetch, type ToolDeps } from '@kesher/mcp';
+import {
+  createMcpFetch,
+  type CompanyConceptSource,
+  type SearchBackend,
+  type ToolDeps,
+} from '@kesher/mcp';
 import { PriceReactionError } from '@kesher/shared';
 import express, {
   Router,
@@ -10,6 +15,7 @@ import express, {
 } from 'express';
 import type { Db } from 'mongodb';
 import { collection } from '../db/collections';
+import { loggedSearch } from '../search/atlas';
 
 // The JSON body is passed to the SDK already parsed, so the web Request carries headers only.
 function toWebRequest(req: ExpressRequest): Request {
@@ -46,18 +52,41 @@ const onBadJson: ErrorRequestHandler = (error: { type?: string }, _req, res, nex
 const noMarketData: ToolDeps['priceReaction'] = () =>
   Promise.reject(new PriceReactionError('market data is not configured'));
 
+// Without SEC access, get_financial_facts answers that SEC data is unavailable.
+const noSecData: CompanyConceptSource = () =>
+  Promise.reject(new Error('SEC data is not configured'));
+
+export interface McpRouterOptions {
+  onError?: (error: Error) => void;
+  priceReaction?: ToolDeps['priceReaction'];
+  // SEC XBRL values (sec/xbrl.ts), recorded ones in tests.
+  companyConcept?: CompanyConceptSource;
+  // Atlas search in the api (search/atlas.ts), an in memory backend in tests.
+  search: SearchBackend;
+}
+
 // POST /mcp (docs/INTERFACES.md): stateless MCP over HTTP, authorized by the run token alone.
 export function mcpRouter(
   db: Db,
   secret: string,
-  onError?: (error: Error) => void,
-  priceReaction: ToolDeps['priceReaction'] = noMarketData,
+  { onError, priceReaction = noMarketData, search, companyConcept = noSecData }: McpRouterOptions,
 ): Router {
   const serve = createMcpFetch({
     secret,
     deps: {
+      users: collection(db, 'users'),
       events: collection(db, 'market_events'),
       sources: collection(db, 'sources'),
+      relationships: collection(db, 'relationships'),
+      companies: collection(db, 'companies'),
+      search: loggedSearch(search, onError),
+      // Logged here, like the other outside services; the tool tells the agent only that SEC
+      // data is unavailable.
+      companyConcept: (symbol, concept) =>
+        companyConcept(symbol, concept).catch((error: unknown) => {
+          if (error instanceof Error) onError?.(error);
+          throw error;
+        }),
       // A provider failure is logged here and rethrown on purpose: the tool turns it into
       // "Market data is unavailable", so the agent never sees the provider's message.
       priceReaction: (subjects, headline) =>

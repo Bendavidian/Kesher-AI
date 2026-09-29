@@ -1,12 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { chunkSentences } from './chunks';
-import { localEmbedder, MAX_CHUNK_TOKENS, modelCached, type Embedder } from './embed';
+import { chunkSentences } from '../graph/chunks';
+import { eventEmbeddingText } from './event';
+import { localEmbedder, MAX_CHUNK_TOKENS, modelCached, type Embedder } from './local';
 
 // Runs the real local model when it is in .cache/models (npm run graph:chunks downloads it once);
 // otherwise it skips, so CI never downloads the model.
 const cached = modelCached();
 if (!cached)
-  console.warn('embed.test.ts skipped: run npm run graph:chunks once to cache the model.');
+  console.warn('local.test.ts skipped: run npm run graph:chunks once to cache the model.');
 
 const dot = (a: number[], b: number[]) => a.reduce((sum, x, i) => sum + x * (b[i] ?? 0), 0);
 
@@ -35,6 +36,13 @@ describe.runIf(cached)('localEmbedder with Xenova/all-MiniLM-L6-v2', () => {
     expect(chunks.length).toBeGreaterThan(1);
     for (const chunk of chunks)
       expect(embedder.countTokens(chunk)).toBeLessThanOrEqual(MAX_CHUNK_TOKENS);
+  });
+
+  it('cuts an event body to the model limit with the real tokenizer', () => {
+    const body = 'Taiwan Semiconductor evacuated fabs after the earthquake. '.repeat(80);
+    const text = eventEmbeddingText(embedder, 'TSMC Suspends Chip Production', body);
+    expect(embedder.countTokens(text)).toBeLessThanOrEqual(MAX_CHUNK_TOKENS);
+    expect(embedder.countTokens(text)).toBeGreaterThan(MAX_CHUNK_TOKENS - 10);
   });
 
   it('ranks the NVIDIA foundry passage first for "foundry dependency", as in the spike', async () => {

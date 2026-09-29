@@ -2,11 +2,10 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
+import type { Fetcher } from '../sec/fetch';
 
 // SEC EDGAR access for the graph build job: the latest annual report of a filer, cached on disk.
-// Fair access: a User-Agent with a contact (SEC_USER_AGENT, never printed) and at most 10
-// requests per second. The job awaits every request, so they run one at a time, at least
-// 150 ms apart.
+// Requests go through secFetcher (sec/fetch.ts), which keeps to SEC fair access.
 
 // The repo root .cache/sec, gitignored. The .raw extension keeps Prettier away from cached HTML.
 export const SEC_CACHE_DIR = resolve(import.meta.dirname, '../../../../.cache/sec');
@@ -24,26 +23,6 @@ export interface Filing {
   // EDGAR acceptance time, used as Source.publishedAt.
   acceptedAt: string;
   url: string;
-}
-
-const MIN_GAP_MS = 150;
-
-export type Fetcher = (url: string, accept: string) => Promise<string>;
-
-export function secFetcher(userAgent: string): Fetcher {
-  let lastRequest = 0;
-  return async (url, accept) => {
-    const wait = lastRequest + MIN_GAP_MS - Date.now();
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    lastRequest = Date.now();
-    const res = await fetch(url, {
-      headers: { 'User-Agent': userAgent, Accept: accept },
-      signal: AbortSignal.timeout(60_000),
-    });
-    const body = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-    return body;
-  };
 }
 
 // Only the entry that is used gets validated; the arrays hold every recent filing.

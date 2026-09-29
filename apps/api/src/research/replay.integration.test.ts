@@ -25,6 +25,7 @@ import type { PriceReactions } from '../market/reactions';
 import { DEMO_SOURCE_ID, PERSONAS } from '../seed/config';
 import { mockModel, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
+import { memorySearch } from '../test/search';
 import { runResearch } from './agent';
 import { loadResearchRecording, type ResearchRecording } from './recordings';
 import { PRICE_CAUSE_REASON } from './verifier';
@@ -116,6 +117,7 @@ describe('research replay of the demo item', () => {
       db: mongo.db,
       devRoutes: false,
       mcp: { secret: SECRET },
+      search: memorySearch(mongo.db),
       priceReactions,
     }).listen(0);
     await new Promise<void>((resolve) => server.once('listening', resolve));

@@ -4,10 +4,14 @@ import type { AddressInfo } from 'node:net';
 import { mintRunToken, type ToolName } from '@kesher/mcp';
 import {
   EMBEDDING_DIMENSIONS,
+  type Company,
+  type FilingChunk,
   PriceReactionError,
   type MarketEvent,
   type PriceSymbol,
+  type Relationship,
   type Source,
+  type User,
 } from '@kesher/shared';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -17,7 +21,10 @@ import { ensureCollections, ensureIndexes } from '../db/indexes';
 import { loadReactionFixture } from '../market/fixture';
 import type { PriceReactions } from '../market/reactions';
 import { DEMO_SOURCE_ID } from '../seed/config';
+import { oneHot } from '../test/embedder';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
+import { memorySearch } from '../test/search';
+import { createCompanyConcepts, recordedConcepts } from '../sec/xbrl';
 
 const SECRET = 'integration-secret-that-is-long-enough';
 const personaA = randomUUID();
@@ -66,6 +73,22 @@ const filing = source({
   tier: 1,
   publishedAt: new Date('2024-04-05T00:00:00Z'),
 });
+// Found by meaning only: none of its words are in the query, but its event is the nearest.
+const OUTAGE_QUERY = 'plant outage';
+const meaningOnly = source({
+  title: 'Fab shutdown hits supply',
+  publishedAt: new Date('2024-04-06T00:00:00Z'),
+});
+const meaningEvent: MarketEvent = {
+  _id: randomUUID(),
+  sourceIds: [meaningOnly._id],
+  headline: meaningOnly.title,
+  publishedAt: meaningOnly.publishedAt,
+  status: 'confirmed',
+  extraction: null,
+  embedding: oneHot(OUTAGE_QUERY),
+  createdAt: new Date('2024-04-06T00:00:00Z'),
+};
 const filler = Array.from({ length: 12 }, (_, i) =>
   source({
     title: `TSMC daily note ${i}`,
@@ -92,6 +115,86 @@ const event: MarketEvent = {
   createdAt: new Date('2024-04-03T04:00:00Z'),
 };
 
+const nvidia10k = source({
+  externalId: '0001045810-26-000021',
+  title: 'NVIDIA 10-K for the fiscal year ended 2026-01-25',
+  kind: 'filing',
+  provider: 'sec_edgar',
+  tier: 1,
+  publisher: null,
+  publishedAt: new Date('2026-02-25T00:00:00Z'),
+  symbols: ['NVDA'],
+});
+const TSMC_QUOTE =
+  'We utilize foundries, such as Taiwan Semiconductor Manufacturing Company Limited, or TSMC, and Samsung Electronics Co., Ltd., or Samsung, to produce our semiconductor wafers.';
+
+function edge(
+  from: Relationship['from'],
+  to: Relationship['to'],
+  type: Relationship['type'],
+  quote: string,
+  reviewed = true,
+): Relationship {
+  return {
+    _id: randomUUID(),
+    from,
+    to,
+    type,
+    weight: 0.8,
+    evidence: {
+      sourceId: nvidia10k._id,
+      quote,
+      filingDate: '2026-02-25',
+      url: 'https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm',
+      reviewed,
+    },
+    createdAt: new Date('2026-09-29T00:00:00Z'),
+  };
+}
+
+const FOUNDRY_TEXT =
+  'We depend on foundries to manufacture our semiconductor wafers and have no fabs of our own.';
+
+function chunk(chunkIndex: number, text: string, symbol: FilingChunk['symbol'] = 'NVDA') {
+  return {
+    _id: randomUUID(),
+    sourceId: symbol === 'NVDA' ? nvidia10k._id : randomUUID(),
+    symbol,
+    form: '10-K',
+    section: 'Item 1A. Risk Factors',
+    chunkIndex,
+    text,
+    embedding: oneHot(text),
+    createdAt: new Date('2026-09-29T00:00:00Z'),
+  } satisfies FilingChunk;
+}
+
+function company(symbol: Company['symbol'], filerType: Company['filerType']): Company {
+  return {
+    _id: randomUUID(),
+    symbol,
+    primaryListing: symbol,
+    name: symbol,
+    cik: String(Math.floor(Math.random() * 1e10)).padStart(10, '0'),
+    filerType,
+    sector: 'semiconductors',
+    themes: [],
+    createdAt: new Date('2026-09-28T00:00:00Z'),
+  };
+}
+
+function user(_id: string, holdings: User['holdings']): User {
+  return {
+    _id,
+    email: `${_id}@example.com`,
+    passwordHash: 'not-a-real-hash',
+    displayName: 'Persona',
+    holdings,
+    interests: [],
+    createdAt: new Date('2026-09-28T00:00:00Z'),
+  };
+}
+
 async function listen(server: Server): Promise<string> {
   await new Promise<void>((resolve) => server.once('listening', resolve));
   const { port } = server.address() as AddressInfo;
@@ -110,8 +213,47 @@ describe('POST /mcp', () => {
     mongo = await startTestMongo('kesher_mcp_test');
     await ensureCollections(mongo.db);
     await ensureIndexes(mongo.db);
-    await collection(mongo.db, 'sources').insertMany([demo, later, older, filing, ...filler]);
-    await collection(mongo.db, 'market_events').insertOne(event);
+    await collection(mongo.db, 'sources').insertMany([
+      demo,
+      later,
+      older,
+      filing,
+      nvidia10k,
+      meaningOnly,
+      ...filler,
+    ]);
+    await collection(mongo.db, 'relationships').insertMany([
+      edge('NVDA', 'TSM', 'customer_of', TSMC_QUOTE),
+      edge('TSM', 'NVDA', 'supplier_of', TSMC_QUOTE),
+      edge('NVDA', 'AMD', 'competitor_of', 'AMD competes with us in GPUs.'),
+      // Not reviewed: never returned.
+      edge('NVDA', 'INTC', 'competitor_of', 'Intel is an unreviewed candidate.', false),
+      // Many long quotes for AVGO, to overflow 8 KB.
+      ...(['AMD', 'ASML', 'INTC', 'LRCX', 'MSFT', 'NVDA', 'TSM', 'AMZN'] as const).map((to) =>
+        edge('AVGO', to, 'competitor_of', `${to} ${'is a long quoted sentence. '.repeat(40)}`),
+      ),
+    ]);
+    await collection(mongo.db, 'market_events').insertMany([event, meaningEvent]);
+    await collection(mongo.db, 'filing_chunks').insertMany([
+      chunk(0, 'Our business is accelerated computing for data centers and gaming.'),
+      chunk(1, FOUNDRY_TEXT),
+      chunk(2, 'We face intense competition in every market we serve.'),
+      chunk(3, 'Export controls restrict sales of some products to China.'),
+      chunk(0, 'AMD designs processors and graphics chips.', 'AMD'),
+    ]);
+    await collection(mongo.db, 'companies').insertMany([
+      company('NVDA', '10-K'),
+      company('TSM', '20-F'),
+      company('KO', '10-K'),
+    ]);
+    await collection(mongo.db, 'users').insertMany([
+      user(personaA, [
+        { symbol: 'TSM', quantity: 5 },
+        { symbol: 'NVDA', quantity: 10 },
+      ]),
+      user(personaB, [{ symbol: 'KO', quantity: 40 }]),
+    ]);
+    const search = memorySearch(mongo.db);
     const { reaction } = await loadReactionFixture(DEMO_SOURCE_ID);
     // The committed demo reaction for any past headline; the real computation is tested in market.
     const priceReactions: PriceReactions = (subjects, headline) => {
@@ -127,6 +269,28 @@ describe('POST /mcp', () => {
       devRoutes: false,
       mcp: { secret: SECRET },
       priceReactions,
+      search: {
+        ...search,
+        // A text index that is still building, and both lists down.
+        newsText: (query, filter, limit) =>
+          query.includes('building') || query.includes('down')
+            ? Promise.reject(new Error('sources_text is not READY'))
+            : search.newsText(query, filter, limit),
+        embedQuery: (text) =>
+          text.includes('down')
+            ? Promise.reject(new Error('model file missing'))
+            : search.embedQuery(text),
+        filingPassages: (symbol, vector, limit) =>
+          symbol === 'KO'
+            ? Promise.reject(new Error('filing_chunks_vector is not READY'))
+            : search.filingPassages(symbol, vector, limit),
+      },
+      // The committed NVDA recordings; MSFT stands for SEC being down.
+      companyConcept: createCompanyConcepts((symbol, concept) =>
+        symbol === 'MSFT'
+          ? Promise.reject(new Error('HTTP 503 from data.sec.gov'))
+          : recordedConcepts()(symbol, concept),
+      ),
       logError: (error) => logged.push(error),
     }).listen(0);
     baseUrl = await listen(server);
@@ -229,6 +393,243 @@ describe('POST /mcp', () => {
     });
   });
 
+  describe('get_my_portfolio', () => {
+    it("returns the token user's holdings and nothing about anyone else", async () => {
+      for (const [userId, holdings] of [
+        [
+          personaA,
+          [
+            { symbol: 'NVDA', quantity: 10 },
+            { symbol: 'TSM', quantity: 5 },
+          ],
+        ],
+        [personaB, [{ symbol: 'KO', quantity: 40 }]],
+      ] as const) {
+        const client = await connect(['get_my_portfolio'], userId);
+        const result = await client.callTool({ name: 'get_my_portfolio', arguments: {} });
+        expect(result.structuredContent).toEqual({ holdings });
+        expect(JSON.stringify(result.content)).not.toContain('@example.com');
+      }
+    });
+
+    it('rejects any argument, so a call cannot name another user', async () => {
+      const client = await connect(['get_my_portfolio'], personaA);
+      const result = await client.callTool({
+        name: 'get_my_portfolio',
+        arguments: { userId: personaB },
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).not.toContain('KO');
+    });
+  });
+
+  describe('get_company_relationships', () => {
+    it('returns reviewed edges only, with their evidence and filing title', async () => {
+      const client = await connect(['get_company_relationships']);
+      const result = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'NVDA' },
+      });
+      expect(result.isError).toBeFalsy();
+      const { edges, omitted } = result.structuredContent as {
+        edges: { to: string; type: string; evidence: { quote: string; sourceId: string } }[];
+        omitted: number;
+      };
+      expect(omitted).toBe(0);
+      expect(edges.map((e) => [e.type, e.to])).toEqual([
+        ['competitor_of', 'AMD'],
+        ['customer_of', 'TSM'],
+      ]);
+      expect(edges[1]).toEqual({
+        from: 'NVDA',
+        to: 'TSM',
+        type: 'customer_of',
+        evidence: {
+          sourceId: nvidia10k._id,
+          quote: TSMC_QUOTE,
+          filingDate: '2026-02-25',
+          url: expect.stringContaining('sec.gov') as string,
+        },
+        sourceTitle: nvidia10k.title,
+      });
+      expect(JSON.stringify(result.structuredContent)).not.toContain('unreviewed');
+    });
+
+    it('filters by type and answers a tool error when nothing is reviewed', async () => {
+      const client = await connect(['get_company_relationships']);
+      const typed = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'NVDA', types: ['customer_of'] },
+      });
+      expect((typed.structuredContent as { edges: unknown[] }).edges).toHaveLength(1);
+      const direction = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'NVDA', types: ['supplier_of'] },
+      });
+      expect(direction.isError).toBe(true);
+      expect(JSON.stringify(direction.content)).toContain(
+        'No reviewed supplier_of relationships from NVDA; it has competitor_of, customer_of',
+      );
+      const typed0 = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'KO', types: ['supplier_of'] },
+      });
+      expect(JSON.stringify(typed0.content)).toContain(
+        'No reviewed supplier_of relationships from KO"',
+      );
+      const none = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'KO' },
+      });
+      expect(none.isError).toBe(true);
+      expect(JSON.stringify(none.content)).toContain('No reviewed relationships for KO');
+    });
+
+    it('keeps its output within 8 KB and says how many edges it left out', async () => {
+      const client = await connect(['get_company_relationships']);
+      const result = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'AVGO' },
+      });
+      const output = result.structuredContent as { edges: unknown[]; omitted: number };
+      expect(Buffer.byteLength(JSON.stringify(output))).toBeLessThanOrEqual(8_192);
+      expect(output.omitted).toBeGreaterThan(0);
+      expect(output.edges.length + output.omitted).toBe(8);
+    });
+  });
+
+  describe('search_filings', () => {
+    it('returns at most 3 passages of one filer, nearest first, with the filing source', async () => {
+      const client = await connect(['search_filings']);
+      const result = await client.callTool({
+        name: 'search_filings',
+        arguments: { symbol: 'NVDA', query: FOUNDRY_TEXT },
+      });
+      expect(result.isError).toBeFalsy();
+      const { passages, omitted } = result.structuredContent as {
+        passages: { text: string; symbol: string; sourceId: string; sourceTitle: string }[];
+        omitted: number;
+      };
+      expect(passages).toHaveLength(3);
+      expect(omitted).toBe(0);
+      expect(passages[0]).toEqual({
+        sourceId: nvidia10k._id,
+        symbol: 'NVDA',
+        form: '10-K',
+        section: 'Item 1A. Risk Factors',
+        chunkIndex: 1,
+        text: FOUNDRY_TEXT,
+        sourceTitle: nvidia10k.title,
+        url: nvidia10k.url,
+      });
+      expect(passages.every((p) => p.symbol === 'NVDA')).toBe(true);
+    });
+
+    it('answers a tool error for a 20-F filer and for a filer without chunks', async () => {
+      const client = await connect(['search_filings']);
+      const foreign = await client.callTool({
+        name: 'search_filings',
+        arguments: { symbol: 'TSM', query: 'foundry' },
+      });
+      expect(foreign.isError).toBe(true);
+      expect(JSON.stringify(foreign.content)).toContain('TSM files a 20-F');
+      const none = await client.callTool({
+        name: 'search_filings',
+        arguments: { symbol: 'MSFT', query: 'cloud' },
+      });
+      expect(none.isError).toBe(true);
+      expect(JSON.stringify(none.content)).toContain('No filing passages for MSFT');
+    });
+
+    it('logs a failed search and tells the agent only that search is unavailable', async () => {
+      const client = await connect(['search_filings']);
+      logged.length = 0;
+      const result = await client.callTool({
+        name: 'search_filings',
+        arguments: { symbol: 'KO', query: 'bottlers' },
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain('Filing search is unavailable');
+      expect(JSON.stringify(result.content)).not.toContain('READY');
+      expect(String(logged[0])).toContain('filing_chunks_vector is not READY');
+    });
+  });
+
+  describe('get_financial_facts', () => {
+    interface Facts {
+      metrics: {
+        metric: string;
+        concept: string | null;
+        unit: string | null;
+        annual: { end: string; accn: string; sourceId: string; form: string }[];
+        quarterly: { end: string; accn: string; sourceId: string; form: string }[];
+      }[];
+      filings: { sourceId: string; accn: string; url: string; title: string }[];
+      omitted: number;
+    }
+    const call = async (args: Record<string, unknown>) => {
+      const client = await connect(['get_financial_facts']);
+      return client.callTool({ name: 'get_financial_facts', arguments: args });
+    };
+
+    it('returns the newest annual and quarterly values as filed, each citing its filing', async () => {
+      const result = await call({ symbol: 'NVDA', metrics: ['revenue', 'eps_diluted'] });
+      expect(result.isError).toBeFalsy();
+      const facts = result.structuredContent as Facts;
+      const [revenue, eps] = facts.metrics;
+      expect(revenue).toMatchObject({ metric: 'revenue', concept: 'Revenues', unit: 'USD' });
+      expect(revenue?.annual).toHaveLength(3);
+      expect(revenue?.annual[0]).toMatchObject({
+        end: '2026-01-25',
+        value: 215938000000,
+        form: '10-K',
+        accn: '0001045810-26-000021',
+        // The 10-K is stored already, so the value cites that Source.
+        sourceId: nvidia10k._id,
+      });
+      expect(revenue?.quarterly.length).toBeGreaterThan(0);
+      expect(eps).toMatchObject({ metric: 'eps_diluted', unit: 'USD/shares' });
+      const cited = new Set(
+        facts.metrics.flatMap((m) => [...m.annual, ...m.quarterly]).map((v) => v.accn),
+      );
+      expect(new Set(facts.filings.map((f) => f.accn))).toEqual(cited);
+      expect(facts.filings.every((f) => f.url.startsWith('https://www.sec.gov/Archives/'))).toBe(
+        true,
+      );
+    });
+
+    it('fits four metrics within 8 KB', async () => {
+      const result = await call({
+        symbol: 'NVDA',
+        metrics: ['revenue', 'net_income', 'gross_profit', 'rnd_expense'],
+      });
+      expect(Buffer.byteLength(JSON.stringify(result.structuredContent))).toBeLessThanOrEqual(
+        8_192,
+      );
+      expect((result.structuredContent as Facts).omitted).toBe(0);
+    });
+
+    it('answers a tool error for a 20-F filer, and hides an SEC failure but logs it', async () => {
+      const foreign = await call({ symbol: 'TSM', metrics: ['revenue'] });
+      expect(foreign.isError).toBe(true);
+      expect(JSON.stringify(foreign.content)).toContain('TSM files a 20-F');
+
+      logged.length = 0;
+      const down = await call({ symbol: 'MSFT', metrics: ['revenue'] });
+      expect(down.isError).toBe(true);
+      expect(JSON.stringify(down.content)).toContain('SEC data is unavailable');
+      expect(JSON.stringify(down.content)).not.toContain('503');
+      expect(String(logged[0])).toContain('HTTP 503');
+    });
+
+    it('rejects a metric outside the list and a repeated one', async () => {
+      for (const metrics of [['ebitda'], ['revenue', 'revenue'], []]) {
+        const result = await call({ symbol: 'NVDA', metrics });
+        expect(result.isError, JSON.stringify(metrics)).toBe(true);
+      }
+    });
+  });
+
   describe('get_event', () => {
     it('returns the event with its extraction and source ids, without the embedding', async () => {
       const client = await connect(['get_event']);
@@ -271,9 +672,10 @@ describe('POST /mcp', () => {
       return (result.structuredContent as { items: Hit[] }).items;
     }
 
-    it('ranks by words matched, then recency, links the event and caps at 10', async () => {
+    it('fuses the word and meaning lists, links the event and caps at 10', async () => {
       const items = await search({ query: 'TSMC earthquake' });
       expect(items).toHaveLength(10);
+      // First in both lists.
       expect(items[0]).toMatchObject({
         sourceId: demo._id,
         eventId: event._id,
@@ -281,20 +683,49 @@ describe('POST /mcp', () => {
         injectionFlagged: false,
       });
       expect(items[0]?.excerpt).toHaveLength(500);
-      expect(items[1]).toMatchObject({ sourceId: later._id, eventId: null, matchedTerms: 1 });
+      // The word list keeps its order among the items it found.
+      const byWords = items.filter((item) => item.matchedTerms > 0);
+      expect(byWords[1]).toMatchObject({ sourceId: later._id, eventId: null, matchedTerms: 1 });
+      // No score cuts the meaning list: the other event is second in it and ties with later's
+      // second place in the word list, and the newer item wins the tie.
+      expect(items[1]).toMatchObject({ sourceId: meaningOnly._id, matchedTerms: 0 });
       expect(items.map((item) => item.sourceId)).not.toContain(filing._id);
     });
 
-    it('filters by symbols and since', async () => {
+    it('filters both lists by symbols and since', async () => {
       const bySymbol = await search({ query: 'earthquake', symbols: ['ASML'] });
       expect(bySymbol.map((item) => item.sourceId)).toEqual([older._id]);
 
       const recent = await search({ query: 'TSMC earthquake', since: '2024-04-01T00:00:00Z' });
-      expect(recent.map((item) => item.sourceId)).toEqual([demo._id, later._id]);
+      expect(recent.map((item) => item.sourceId)).toEqual([demo._id, meaningOnly._id, later._id]);
     });
 
     it('treats the query as plain words', async () => {
-      expect(await search({ query: '.* (TSMC|' })).toEqual([]);
+      const items = await search({ query: '.* (TSMC|' });
+      // Only the vector list can find anything; no word of the pattern matches.
+      expect(items.every((item) => item.matchedTerms === 0)).toBe(true);
+    });
+
+    it('finds an item by meaning alone, through its event vector', async () => {
+      const items = await search({ query: OUTAGE_QUERY });
+      expect(items[0]).toMatchObject({
+        sourceId: meaningOnly._id,
+        eventId: meaningEvent._id,
+        matchedTerms: 0,
+      });
+    });
+
+    it('answers from the other list when one fails, and logs the failure', async () => {
+      logged.length = 0;
+      const items = await search({ query: 'TSMC index building' });
+      expect(items.map((item) => item.sourceId)).toContain(demo._id);
+      expect(String(logged[0])).toContain('sources_text is not READY');
+
+      const client = await connect(['search_news']);
+      const down = await client.callTool({ name: 'search_news', arguments: { query: 'all down' } });
+      expect(down.isError).toBe(true);
+      expect(JSON.stringify(down.content)).toContain('News search is unavailable');
+      expect(JSON.stringify(down.content)).not.toContain('READY');
     });
 
     it('returns the same results whoever the token names', async () => {

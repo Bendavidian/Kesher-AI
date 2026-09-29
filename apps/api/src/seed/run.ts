@@ -28,7 +28,7 @@ try {
     `Runs given verification null: ${verification.runs}; metric claims given figures: ${verification.claims}`,
   );
   const searchIndexes = await ensureSearchIndexes(db);
-  console.log('Vector search indexes:');
+  console.log('Search indexes:');
   console.table(searchIndexes);
 } catch (error) {
   console.error(redact(describeError(error)));

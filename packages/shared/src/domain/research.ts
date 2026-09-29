@@ -76,6 +76,26 @@ export const TOOL_NAMES = [
 export const ToolName = z.enum(TOOL_NAMES);
 export type ToolName = z.infer<typeof ToolName>;
 
+// The tool set of each agent (SPEC.md decision log, T13). A run token lists only tools from its
+// agent's set. The verifier has no tools by design: it judges the claims and the sources it is
+// given, and never searches for new ones.
+export const AGENT_TOOLS: Readonly<Record<AgentName, readonly ToolName[]>> = {
+  research: [
+    'get_my_portfolio',
+    'get_event',
+    'search_news',
+    'search_filings',
+    'get_company_relationships',
+    'get_price_reaction',
+    'get_financial_facts',
+  ],
+  verifier: [],
+};
+
+export function toolsAllowed(agent: AgentName, tools: readonly ToolName[]): boolean {
+  return tools.every((tool) => AGENT_TOOLS[agent].includes(tool));
+}
+
 // Why a run ended as failed. rate_limited: a provider asked for a wait over 30 seconds or kept
 // answering 429 after 3 retries. invalid_report: the report never passed its schema.
 export const RunFailureReason = z.enum(['rate_limited', 'invalid_report', 'error']);

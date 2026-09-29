@@ -3,14 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { PriceReactionError, type PriceSymbol } from '@kesher/shared';
 import { REACTION } from './testing';
-import {
-  TOOLS,
-  getPriceReaction,
-  priceReactionJson,
-  queryTerms,
-  rankNews,
-  type ToolDeps,
-} from './tools';
+import { TOOLS } from './registry';
+import { getPriceReaction, priceReactionJson, type ToolDeps } from './tools';
 
 // Any argument that could name a user. Identity comes from the run token only (principle 5).
 const USER_LIKE = /user|owner|sub|account|persona|holder|email|identity/i;
@@ -29,26 +23,35 @@ function propertyNames(schema: unknown): string[] {
 describe('tool inputs', () => {
   it('registers the implemented tools', () => {
     expect(TOOLS.map((tool) => tool.name)).toEqual([
+      'get_my_portfolio',
       'get_event',
       'search_news',
+      'search_filings',
+      'get_company_relationships',
       'get_price_reaction',
+      'get_financial_facts',
     ]);
   });
 
   it.each(TOOLS.map((tool) => [tool.name, tool] as const))(
     '%s has no argument that names a user',
-    (_name, tool) => {
+    (name, tool) => {
       const names = propertyNames(z.toJSONSchema(tool.inputSchema));
-      expect(names.length).toBeGreaterThan(0);
-      expect(names.filter((name) => USER_LIKE.test(name))).toEqual([]);
+      // get_my_portfolio takes no argument at all: the user comes from the token.
+      if (name !== 'get_my_portfolio') expect(names.length).toBeGreaterThan(0);
+      expect(names.filter((property) => USER_LIKE.test(property))).toEqual([]);
     },
   );
 
   it('rejects a user id smuggled in as an extra argument', () => {
     const userId = randomUUID();
     const valid: Record<string, object> = {
+      get_my_portfolio: {},
       get_event: { eventId: randomUUID() },
       search_news: { query: 'TSMC earthquake' },
+      get_company_relationships: { symbol: 'NVDA', types: ['customer_of'] },
+      search_filings: { symbol: 'NVDA', query: 'foundry dependency' },
+      get_financial_facts: { symbol: 'NVDA', metrics: ['revenue'] },
       get_price_reaction: { symbol: 'TSM', eventTime: '2024-04-03T03:57:09Z' },
     };
     for (const tool of TOOLS) {
@@ -57,31 +60,6 @@ describe('tool inputs', () => {
       expect(tool.inputSchema.safeParse({ ...args, userId }).success).toBe(false);
       expect(tool.inputSchema.safeParse({ ...args, user_id: userId }).success).toBe(false);
     }
-  });
-});
-
-describe('search_news query terms', () => {
-  it('lowercases, dedupes and caps the terms', () => {
-    expect(queryTerms('  TSMC  tsmc Earthquake ')).toEqual(['tsmc', 'earthquake']);
-    expect(queryTerms('a b c d e f g h i j')).toHaveLength(8);
-  });
-});
-
-describe('rankNews', () => {
-  const doc = (title: string, text: string | null, iso: string) => ({
-    _id: randomUUID(),
-    title,
-    text,
-    publishedAt: new Date(iso),
-  });
-
-  it('ranks by distinct terms matched, then by recency, and caps the list', () => {
-    const both = doc('TSMC halts production', 'after an earthquake', '2024-04-03T03:00:00Z');
-    const oneNew = doc('TSMC shares', null, '2024-04-05T00:00:00Z');
-    const oneOld = doc('Quake hits Taiwan', 'earthquake', '2024-04-02T00:00:00Z');
-    const ranked = rankNews([oneOld, oneNew, both], ['tsmc', 'earthquake'], 2);
-    expect(ranked.map((hit) => hit.doc)).toEqual([both, oneNew]);
-    expect(ranked.map((hit) => hit.matchedTerms)).toEqual([2, 1]);
   });
 });
 

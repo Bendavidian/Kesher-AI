@@ -216,7 +216,7 @@ describe('automatic research through the gate, on mongod', () => {
       trigger: 'gate',
       status: 'succeeded',
       stepBudget: 6,
-      tokenBudget: 12_000,
+      tokenBudget: 16_000,
     });
     expect(runA!.gate.decision).toBe('run');
     const [runB] = await runsOf('B');

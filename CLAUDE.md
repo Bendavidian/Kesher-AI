@@ -45,6 +45,8 @@ Created in T01. Keep this list current when scripts change.
 - npm run graph:apply -- [--dry-run]: writes the relationships accepted in data/graph/reviews.json to MONGODB_URI, each with its inverse and reviewed: true, removes only edges of relationships the user rejected, never touches the six seeded edges, and prints the count of distinct reviewed relationships; --dry-run prints the plan and writes nothing. Safe to rerun
 - npm run graph:chunks: splits Item 1 and Item 1A of the 15 10-K filings pinned in data/graph/candidates.json into FilingChunks of at most 256 word pieces, embeds them locally (Xenova/all-MiniLM-L6-v2, downloaded once to the gitignored .cache/models) and writes them to MONGODB_URI; safe to rerun. Needs SEC_USER_AGENT only when a filing is missing from .cache/sec. embed.test.ts skips until the model is cached
 - npm run graph:search -- "<query>" [--symbol <ticker>] [--limit n]: development check of filing retrieval, $vectorSearch on filing_chunks_vector in MONGODB_URI; reads only
+- npm run embed:events: embeds every MarketEvent in MONGODB_URI whose embedding is still null, with the local MiniLM in .cache/models (the api embeds new events at extraction); safe to rerun
+- npm run record:xbrl -- --symbols <T1,T2> [--force]: records SEC companyconcept answers for the concepts get_financial_facts reads to recordings/sec-xbrl/<SYMBOL>/ (committed, framed values only); tests replay them and never call SEC. Needs SEC_USER_AGENT
 - npm run typecheck
 - npm run lint: ESLint, then a Prettier check
 - npm run format: Prettier write

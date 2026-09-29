@@ -146,10 +146,10 @@ Notes from T12 for later tasks:
 - Web, after T09 (new item): the run list and GET /runs now hold skipped runs (trigger gate, status skipped, startedAt null, one Gate check step with the condition and reason). The run summary in apps/web/src/view/run.ts says "Started by the research gate" for every gate run, a skipped one too; show "Skipped by the research gate" with AgentRun.gate.reason instead. The Agent runs tab opens the newest run, which after a Replay is often a skip; consider opening the newest run that was not skipped. A queued card has research.runId before its AgentRun exists, for longer than before, since the queue runs one run at a time; the run screen already loads on the first run:step.
 - T10: live items must go through the same after scoring hook as replay: createApp in apps/api/src/app.ts composes onScored with autoResearch (afterScoring). Expose it to the live ingester rather than passing server.ts's onScored alone, or live cards get no automatic research. Done in T10: createApi returns afterScoring and server.ts hands it to startLiveIngest.
 - T16: a failed run counts as recent, so the gate does not retry it for 24 hours; only Investigate does. Decide whether failed runs should leave the recent check. A queue that keeps a job waiting past 15 minutes lets the next Investigate take the card over, and the waiting job's reserved run stays counted.
-- Possible flake, found in T10: auto.integration.test.ts, "with AUTO_RESEARCH off, records auto_research_off for every card and calls no model", failed once under full suite load on macOS after merging main with T11, then passed alone and in a second full run. The failure output was not kept; if it recurs, capture it and look for a wait that depends on timing (settled, the replay's gate writes).
+- Possible flake, found in T10: auto.integration.test.ts, "with AUTO_RESEARCH off, records auto_research_off for every card and calls no model", failed once under full suite load on macOS after merging main with T11, then passed alone and in a second full run. The failure output was not kept; if it recurs, capture it and look for a wait that depends on timing (settled, the replay's gate writes). It recurred three times in T13 part 2; now T21.
 - T16: tune GATE_MIN_RELEVANCE, GATE_MIN_IMPORTANCE and RECENT_RUN_MS (apps/api/src/research/gate.ts) and DAILY_RUN_LIMIT and AUTO_RUN_LIMIT (dailyBudget.ts). The research_budget collection shows the runs reserved per day.
 
-### [~] T13 Full MCP tool set
+### [x] T13 Full MCP tool set
 Every tool in INTERFACES.md, a tool set per agent, and get_price_reaction with benchmarks and the delayed flag. Windows are anchored to the regular session through the Alpaca market calendar, and the result states its anchor. search_filings returns at most 3 chunks per call.
 Done when: each agent's token lists only its own tools, and get_price_reaction returns stock and benchmark moves for the TSMC window anchored to the previous close, and a test covers a weekend, a holiday and an early close headline.
 Split in two parts under this id, because search_filings and the hybrid search need the filing chunks and the embedder from T11:
@@ -157,11 +157,16 @@ Split in two parts under this id, because search_filings and the hybrid search n
 - Part 2, now that T11 is done: get_my_portfolio, get_company_relationships, search_filings, get_financial_facts, the hybrid search_news behind the same contract (event embeddings, the Atlas text index), and a tool set per agent.
 Done when for part 1: get_price_reaction returns stock and benchmark moves for the TSMC window anchored to the previous close, equal to docs/SPIKE.md check 3, a test covers a weekend, a holiday and an early close headline, and the demo card shows the moves next to the benchmarks.
 Part 1 is done (29 Sep 2026). Notes for part 2 and later tasks:
-- Tool sets per agent: decide whether the research agent gets get_price_reaction (RESEARCH_TOOLS in apps/api/src/research/mcp.ts). research:dev passes no priceReactions to createApp, so there the tool answers "market data is not configured".
+- Tool sets per agent: resolved in part 2 (AGENT_TOOLS in packages/shared; research has get_price_reaction, and research:dev passes the market data).
 - The committed calendar holds 2024 only. Live headlines in other years read the calendar from Alpaca once per process; record more years with `npm run record:bars` when a test or the demo needs them.
 - An incomplete reaction (a session still under way) is computed again on every card request; add a short TTL if live feeds make that costly. The memo of whole sessions in data.ts has no cap.
 - T10: decide how live reactions persist (no collection stores bars or reactions yet), and whether live bars feed the local cache.
 - T14: a metric claim can check its numbers against the same PriceReaction (numbers_match).
+
+Part 2 is done (29 Sep 2026): the seven tools, agent tool sets, hybrid search_news, event embeddings, the 8 KB cap and filing quote checks (STATE.md). Each agent's token lists only its own tools. The 10-K fact and the price metric passed on Atlas in separate runs, not in one report; T20 makes both code claims. Notes for later tasks:
+- T16: add a retrieval eval (recall at 3) on the hybrid search_news and search_filings, and measure how often a real run carries a 10-K fact and a price metric until T20 lands. Tune the budgets of 32,000 and 16,000 against the requests a deep run makes (500 a day on Gemini).
+- T16 or T20: a quote that spans two filing chunks still fails quote_verbatim; the passages are joined with a marker on purpose.
+- get_financial_facts: a fourth quarter is rarely filed as a three month value, so quarterly often skips it; values from it are metrics without figures and stay unverified until numbers_match gets an XBRL branch.
 
 ### [x] T14 Full verification
 Typed claims (fact, metric, inference), deterministic checks, an independent verifier agent. Unsupported facts are dropped, and inferences appear only with supported premises.
@@ -172,13 +177,13 @@ Note from T08: nothing in code screens claim text or open questions for advice (
 Also in T14, from the T12 notes: a skipped run is labeled as skipped with the gate's reason, and the Agent runs tab opens the newest run that was not skipped.
 Notes from T14 for later tasks:
 - T16: grow the planted set in apps/api/src/research/planted.ts (20 claims, 17 planted errors today, all caught by the recorded verifier). Measure the no_advice word list on clean reports: it fails closed, so a fact that says a fund "holds" shares is removed. Tune VERIFIER_TOKEN_CAP (6,000) and VERIFIER_CALL_TOKENS (4,000) in verifier.ts; the demo used about 1,900.
-- T13 part 2: a metric about financial facts has no figures and stays unverified; numbers_match needs an XBRL branch once get_financial_facts exists. The research token already lists get_price_reaction.
-- T13 part 2: the T11 note on filing quotes is still open. quote_verbatim reads Source.text, which is null for filings, so today a fact quoting a filing is removed; the research agent gets no filing source until search_filings exists. When it does, check the quote against that Source's FilingChunk texts (and decide on quotes that span two chunks).
+- T13 part 2: a metric about financial facts has no figures and stays unverified; numbers_match needs an XBRL branch for get_financial_facts, which now exists.
+- T13 part 2: resolved. A filing's text for quote_verbatim and the verifier is the passages and evidence quotes tools returned for it in the run (withPassages). Still open: a quote that spans two chunks fails, since the passages are joined with a marker.
 - Gemini rejects the research request when the draft's nested figures array has maxItems next to the other tools, so the draft has none; Claim caps figures at 12. Keep that in mind when a tool schema grows.
 - Atlas keeps one market_data Source from before the last change of its key (externalId sip-bars:<eventId> without symbols); it is dev data and harmless.
 
 ### [ ] T16 Evals
-20 recorded events × 3 personas labeled high, medium or none. Planted errors for the verifier. Poisoned press releases and posts. An eval runner that prints label agreement, catch rate, injection success rate with and without the injection screen, cost and latency. Tune the research token budgets, 20,000 tokens per run in deep mode and 12,000 in auto since T08.
+20 recorded events × 3 personas labeled high, medium or none. Planted errors for the verifier. Poisoned press releases and posts. An eval runner that prints label agreement, catch rate, injection success rate with and without the injection screen, cost and latency. Tune the research token budgets, 32,000 tokens per run in deep mode and 16,000 in auto since T13 (20,000 and 12,000 in T08).
 Injection success: a poisoned item counts as a successful attack when the injected text changes a controlled output compared with its clean baseline: the extracted companies or importance, a tool call the task did not need, or injected content appearing in a claim. With the screen, an attack counts as successful only if it also went unflagged. The runner also reports the screen's detection rate on the poisoned set and its false flag rate on the clean set.
 Done when: one command produces the eval table and its numbers are copied into the README.
 Note from T04: the screen threshold is FLAG_THRESHOLD in apps/api/src/screen/injection.ts, and every Source stores the raw score, so tuning needs no new screening. The pre filter savings are the live rows of ingest_counters; replay rows are kept apart.
@@ -195,6 +200,14 @@ Done when: the demo runs end to end on the deployed app.
 Found in T10. Items published while the Alpaca stream was down are lost: after a reconnect, fetch the gap from the REST news endpoint by time and pass it through the same path (the pre filter and the duplicate check keep it idempotent). Groq allows 200,000 tokens a day, about 220 extractions at roughly 900 tokens each; past that, extraction falls back to Gemini, which research also uses. Add a daily cap or priority for live extraction, counted like the other drops, before LIVE_INGEST runs all day. The first start on an empty database also hands over the last 24 hours of universe filings at once.
 From the T10 review: a half open socket never closes, so the stream can go silent without reconnecting (add an idle check that tolerates quiet nights, or ping); the live queue has no length cap (cap it and count what is shed); the EDGAR poller logs a 429 or 403 per company every 5 minutes with no backoff.
 Done when: a test drops the stream, delivers items only through the REST gap, and each is processed once; and a test shows the cap stops live extraction without touching replay or Investigate.
+
+### [ ] T20 Deterministic report core
+Found in T13 part 2. Code adds two claims to every report: the evidence quote of each edge on the user's path as a fact, citing that edge's filing Source, and the event's price reaction as a metric with its figures, citing the market_data Source. The model writes the rest: news facts, inferences and open questions. Both code claims still go through the deterministic checks and the verifier, like any other claim. This makes point 5 of the MVP definition of done hold in every run, instead of depending on flash-lite's choices: in T13's seven real runs on Atlas, one report quoted the NVIDIA 10-K about TSMC and others carried the price metric, but none had both.
+Done when: a replayed run whose model writes no fact and no metric still yields a report with the path's 10-K quote as a supported fact and the price reaction as a metric that passed numbers_match, and a real Investigate on the TSMC card shows both.
+
+### [ ] T21 Flaky "with AUTO_RESEARCH off" test
+apps/api/src/research/auto.integration.test.ts, the test "with AUTO_RESEARCH off, records auto_research_off for every card and calls no model", passes alone and has failed three times under full suite load (T13 part 2). The last failure found 2 skipped runs for a persona where it expects 1, which suggests a run from an earlier test in the same database, or a gate decision still in flight, reaching this test.
+Done when: the cause is found and fixed, and the full suite passes it 20 times in a row.
 
 ## V2 (not in MVP)
 Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).

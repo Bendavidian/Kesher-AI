@@ -51,3 +51,14 @@ export async function localEmbedder(dir = MODEL_CACHE_DIR): Promise<Embedder> {
     },
   };
 }
+
+// One model per process, loaded on the first call. A failed load is not kept, so the next call
+// tries again.
+export function lazyLocalEmbedder(dir = MODEL_CACHE_DIR): () => Promise<Embedder> {
+  let loading: Promise<Embedder> | undefined;
+  return () =>
+    (loading ??= localEmbedder(dir).catch((error: unknown) => {
+      loading = undefined;
+      throw error;
+    }));
+}

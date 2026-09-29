@@ -13,9 +13,9 @@ import {
 const deep = { stepBudget: STEP_BUDGET.deep, tokenBudget: TOKEN_BUDGET.deep };
 
 describe('budgets', () => {
-  it('counts tool calls, 6 in auto and 15 in deep, with 12,000 and 20,000 tokens', () => {
+  it('counts tool calls, 6 in auto and 15 in deep, with 16,000 and 32,000 tokens', () => {
     expect(STEP_BUDGET).toEqual({ auto: 6, deep: 15 });
-    expect(TOKEN_BUDGET).toEqual({ auto: 12_000, deep: 20_000 });
+    expect(TOKEN_BUDGET).toEqual({ auto: 16_000, deep: 32_000 });
     expect(REPORT_RESERVE_TOKENS).toBe(1_500);
   });
 });
@@ -62,7 +62,8 @@ describe('planTurn', () => {
   });
 
   it('gives the report only what remains, never more than the reserve', () => {
-    const turn = planTurn({ ...deep, toolCallsUsed: 3, tokensUsed: 15_000, promptTokens: 4_000 });
+    const tokensUsed = deep.tokenBudget - 5_000;
+    const turn = planTurn({ ...deep, toolCallsUsed: 3, tokensUsed, promptTokens: 4_000 });
     expect(turn).toEqual({ kind: 'report', reason: 'token_budget', maxOutputTokens: 1_000 });
   });
 
@@ -75,7 +76,8 @@ describe('planTurn', () => {
   });
 
   it('stops when the budget is already overspent', () => {
-    expect(planTurn({ ...deep, toolCallsUsed: 1, tokensUsed: 21_000, promptTokens: 500 })).toEqual({
+    const tokensUsed = deep.tokenBudget + 1_000;
+    expect(planTurn({ ...deep, toolCallsUsed: 1, tokensUsed, promptTokens: 500 })).toEqual({
       kind: 'stop',
     });
   });

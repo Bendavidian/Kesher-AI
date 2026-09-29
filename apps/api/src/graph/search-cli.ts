@@ -5,7 +5,7 @@ import { loadEnv } from '../config/env';
 import { describeError, redactor } from '../config/redact';
 import { connect, DB_NAME } from '../db/client';
 import { collection } from '../db/collections';
-import { localEmbedder } from './embed';
+import { localEmbedder } from '../embed/local';
 
 // npm run graph:search -- "<query>" [--symbol NVDA] [--limit 3]
 // Development check of filing retrieval: embeds the query locally and runs $vectorSearch on the
