@@ -9,11 +9,7 @@
     "images": [],
     "source": "benzinga",
     "summary": "",
-    "symbols": [
-      "FXI",
-      "NVDA",
-      "SPY"
-    ],
+    "symbols": ["FXI", "NVDA", "SPY"],
     "updated_at": "2025-04-15T21:27:38Z",
     "url": "https://www.benzinga.com/news/25/04/44828104/the-u-s-government-informed-nvidia-that-the-usg-requires-a-license-for-export-to-china-including-hon"
   }

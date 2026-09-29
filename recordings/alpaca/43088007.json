@@ -22,11 +22,7 @@
     ],
     "source": "benzinga",
     "summary": "A 6.4 magnitude earthquake struck southern Taiwan early Tuesday, forcing Taiwan Semiconductor Manufacturing Co. to evacuate facilities in a region critical to global chip supply, marking the second significant seismic event to impact semiconductor operations in recent months.",
-    "symbols": [
-      "AAPL",
-      "NVDA",
-      "TSM"
-    ],
+    "symbols": ["AAPL", "NVDA", "TSM"],
     "updated_at": "2025-01-21T01:29:23Z",
     "url": "https://www.benzinga.com/markets/asia/25/01/43088007/nvidia-apple-supplier-tsmc-halts-production-as-6-4-magnitude-earthquake-strikes-taiwan"
   }

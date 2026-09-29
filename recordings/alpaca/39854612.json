@@ -22,10 +22,7 @@
     ],
     "source": "benzinga",
     "summary": "A recent update to a service by cybersecurity firm Crowdstrike has been causing Microsoft Corp.&#39;s Windows PCs to crash, displaying the Blue Screen of Death and rendering them unable to reboot.",
-    "symbols": [
-      "CRWD",
-      "MSFT"
-    ],
+    "symbols": ["CRWD", "MSFT"],
     "updated_at": "2024-07-19T10:59:47Z",
     "url": "https://www.benzinga.com/markets/equities/24/07/39854612/windows-pcs-crash-worldwide-with-users-experiencing-blue-screen-of-death-issue-crowdstrike-updat"
   }

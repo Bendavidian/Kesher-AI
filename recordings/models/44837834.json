@@ -1,0 +1,21 @@
+{
+  "externalId": "44837834",
+  "recordedAt": "2026-09-29T12:52:18.871Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "AMD Completes Initial Assessment Of New U.S. Export Controls Impacting MI308 Chip Sales To China And D:5 Countries, Expects To Apply For Licenses Amid Uncertainty And Anticipates Up To $800M In Potential Charges From Inventory, Purchase Commitments, And Reserves",
+    "chunks": ["0.0006111765978857875"],
+    "latencyMs": [233]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"AMD\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"regulatory\",\n  \"importance\": 4,\n  \"themes\": [\n    \"chip_design\",\n    \"regulation\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 687,
+      "outputTokens": 145,
+      "totalTokens": 832
+    },
+    "latencyMs": 629
+  }
+}

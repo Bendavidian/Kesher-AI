@@ -1,0 +1,21 @@
+{
+  "externalId": "48297781",
+  "recordedAt": "2026-09-29T12:51:17.464Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "'Major AWS Outage Takes Down Fortnite, Alexa, Snapchat, And More' - The Verge",
+    "chunks": ["0.0004047395195811987"],
+    "latencyMs": [226]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"AMZN\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"production_disruption\",\n  \"importance\": 4,\n  \"themes\": [\n    \"cloud\",\n    \"data_centers\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 654,
+      "outputTokens": 183,
+      "totalTokens": 837
+    },
+    "latencyMs": 2128
+  }
+}

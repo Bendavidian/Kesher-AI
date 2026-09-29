@@ -9,10 +9,7 @@
     "images": [],
     "source": "benzinga",
     "summary": "",
-    "symbols": [
-      "INTC",
-      "NVDA"
-    ],
+    "symbols": ["INTC", "NVDA"],
     "updated_at": "2025-09-18T11:04:02Z",
     "url": "https://www.benzinga.com/news/large-cap/25/09/47734379/nvidia-and-intel-to-jointly-develop-ai-infrastructure-and-personal-computing-products-nvidia-to-in"
   }

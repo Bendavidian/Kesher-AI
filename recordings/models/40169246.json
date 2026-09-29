@@ -1,0 +1,21 @@
+{
+  "externalId": "40169246",
+  "recordedAt": "2026-09-29T12:52:23.594Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Google Loses DOJ Antitrust Suit Over Search; Judge Finds Search Giant Violated Antitrust Law",
+    "chunks": ["0.0004912660224363208"],
+    "latencyMs": [205]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"GOOGL\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"regulatory\",\n  \"importance\": 5,\n  \"themes\": [\n    \"regulation\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 653,
+      "outputTokens": 149,
+      "totalTokens": 802
+    },
+    "latencyMs": 582
+  }
+}

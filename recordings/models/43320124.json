@@ -1,0 +1,21 @@
+{
+  "externalId": "43320124",
+  "recordedAt": "2026-09-29T12:51:23.645Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Microsoft Shares Slide After Q2 Results, Cloud Revenue Misses Expectations: Details\n\nMicrosoft reports its second-quarter financial results after Wednesday's closing bell. Here's a look at the key figures from the quarter.",
+    "chunks": ["0.000380836398107931"],
+    "latencyMs": [210]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"MSFT\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"earnings\",\n  \"importance\": 4,\n  \"themes\": [\"cloud\"]\n}",
+    "usage": {
+      "inputTokens": 666,
+      "outputTokens": 133,
+      "totalTokens": 799
+    },
+    "latencyMs": 495
+  }
+}

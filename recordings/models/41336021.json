@@ -1,0 +1,21 @@
+{
+  "externalId": "41336021",
+  "recordedAt": "2026-09-29T12:51:22.717Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "ASML Holding NV 3Q Bookings €2.63 Billion, Est. €5.39 Billion; Sees 2025 Net Sales €30 Billion To €35 Billion, Est. €35.94 Billion",
+    "chunks": ["0.000486941629787907"],
+    "latencyMs": [205]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"ASML\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"guidance\",\n  \"importance\": 3,\n  \"themes\": [\n    \"semicap_equipment\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 675,
+      "outputTokens": 146,
+      "totalTokens": 821
+    },
+    "latencyMs": 722
+  }
+}

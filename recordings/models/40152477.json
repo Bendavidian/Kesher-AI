@@ -1,0 +1,21 @@
+{
+  "externalId": "40152477",
+  "recordedAt": "2026-09-29T12:51:15.683Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Nvidia Upcoming Chip Launch Faces Delay Due To Design Flaws — Setback Expected To Impact Meta, Microsoft And Google: Report (UPDATED)\n\nNvidia is facing production delays for its new AI chips due to design issues, potentially impacting major clients such as Meta Platforms Inc., Alphabet Inc.'s Google, and Microsoft Corporation, with large shipments now expected in the first quarter of 2025.",
+    "chunks": ["0.0004133801267016679"],
+    "latencyMs": [213]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"NVDA\",\n      \"impact\": \"negative\"\n    },\n    {\n      \"symbol\": \"META\",\n      \"impact\": \"negative\"\n    },\n    {\n      \"symbol\": \"MSFT\",\n      \"impact\": \"negative\"\n    },\n    {\n      \"symbol\": \"GOOGL\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"production_disruption\",\n  \"importance\": 4,\n  \"themes\": [\n    \"ai_accelerators\",\n    \"chip_design\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 714,
+      "outputTokens": 236,
+      "totalTokens": 950
+    },
+    "latencyMs": 687
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "externalId": "42472206",
+  "recordedAt": "2026-09-29T12:52:16.342Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Broadcom Q4 2024 Adj. EPS $1.42 Beats $1.38 Estimate, Sales $14.054B Miss $14.091B Estimate",
+    "chunks": ["0.00041782253538258374"],
+    "latencyMs": [193]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"AVGO\",\n      \"impact\": \"unclear\"\n    }\n  ],\n  \"eventType\": \"earnings\",\n  \"importance\": 4,\n  \"themes\": [\"semicap_equipment\"]\n}",
+    "usage": {
+      "inputTokens": 664,
+      "outputTokens": 144,
+      "totalTokens": 808
+    },
+    "latencyMs": 436
+  }
+}

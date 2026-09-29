@@ -1,0 +1,21 @@
+{
+  "externalId": "39646124",
+  "recordedAt": "2026-09-29T12:52:24.382Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "New Street Research Downgrades NVIDIA to Neutral",
+    "chunks": ["0.0004873630532529205"],
+    "latencyMs": [219]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"NVDA\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"other\",\n  \"importance\": 3,\n  \"themes\": []\n}",
+    "usage": {
+      "inputTokens": 639,
+      "outputTokens": 167,
+      "totalTokens": 806
+    },
+    "latencyMs": 481
+  }
+}

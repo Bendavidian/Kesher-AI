@@ -1,15 +1,13 @@
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import { loadModelKeys } from '../config/env';
 import { toIncomingItem } from '../ingest/alpaca';
 import { loadRecording } from '../ingest/recordings';
+import { writeJson } from '../graph/json';
 import { createModelClient, resolveFromKeys } from '../llm/client';
-import { ModelRecording, modelRecordingPath } from '../llm/recordings';
-import { chunkText, screenInput } from '../screen/injection';
-import { extractSource } from './extraction';
+import { modelRecordingPath } from '../llm/recordings';
+import { countingClock, recordModels } from './recordModels';
 
 // npm run record:models -- --id 38062166 [--force]
 // Runs the injection screen and the extraction for real, once, on an item that is already in
@@ -42,37 +40,15 @@ if (!recording) {
   process.exit(1);
 }
 
-const item = toIncomingItem(recording.item);
-const client = createModelClient({ resolve: resolveFromKeys(loadModelKeys()) });
-
-const input = screenInput(item);
-const chunks: string[] = [];
-let screenModel = '';
-for (const chunk of chunkText(input)) {
-  const answer = await client.screenChunk(chunk);
-  chunks.push(answer.text);
-  screenModel = answer.model;
-}
-
-const result = await extractSource(client, item);
-const models = ModelRecording.parse({
-  externalId: id,
-  recordedAt: new Date().toISOString(),
-  screen: { model: screenModel, input, chunks },
-  extraction: {
-    provider: result.extraction.provider,
-    model: result.extraction.model,
-    text: result.text,
-    usage: {
-      inputTokens: result.usage.inputTokens ?? null,
-      outputTokens: result.usage.outputTokens ?? null,
-      totalTokens: result.usage.totalTokens ?? null,
-    },
-  },
+const clock = countingClock();
+const client = createModelClient({ resolve: resolveFromKeys(loadModelKeys()), clock });
+const models = await recordModels(client, id, toIncomingItem(recording.item), {
+  waitedMs: clock.waitedMs,
 });
+const chunks = models.screen.chunks;
 
-await mkdir(dirname(path), { recursive: true });
-await writeFile(path, `${JSON.stringify(models, null, 2)}\n`);
+// Formatted the way npm run lint checks it.
+await writeJson(path, models);
 console.log(
   `Recorded ${chunks.length} screen answer(s) and one extraction (${models.extraction.provider} ${models.extraction.model}, ${models.extraction.usage.totalTokens ?? '?'} tokens) to ${path}`,
 );

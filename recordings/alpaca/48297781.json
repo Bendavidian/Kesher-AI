@@ -9,11 +9,7 @@
     "images": [],
     "source": "benzinga",
     "summary": "",
-    "symbols": [
-      "AMZN",
-      "COIN",
-      "SNAP"
-    ],
+    "symbols": ["AMZN", "COIN", "SNAP"],
     "updated_at": "2025-10-20T10:16:06Z",
     "url": "https://www.benzinga.com/news/25/10/48297781/major-aws-outage-takes-down-fortnite-alexa-snapchat-and-more-the-verge"
   }

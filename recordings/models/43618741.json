@@ -1,0 +1,21 @@
+{
+  "externalId": "43618741",
+  "recordedAt": "2026-09-29T12:53:28.845Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Coca-Cola Q4 2024 Adj. EPS $0.55 Beats $0.52 Estimate, Sales $11.5B Beat $10.677B Estimate",
+    "chunks": ["0.0004028032417409122"],
+    "latencyMs": [205]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"KO\",\n      \"impact\": \"positive\"\n    }\n  ],\n  \"eventType\": \"earnings\",\n  \"importance\": 4,\n  \"themes\": [\"consumer_staples\"]\n}",
+    "usage": {
+      "inputTokens": 663,
+      "outputTokens": 97,
+      "totalTokens": 760
+    },
+    "latencyMs": 746
+  }
+}

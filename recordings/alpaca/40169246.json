@@ -9,10 +9,7 @@
     "images": [],
     "source": "benzinga",
     "summary": "",
-    "symbols": [
-      "GOOG",
-      "GOOGL"
-    ],
+    "symbols": ["GOOG", "GOOGL"],
     "updated_at": "2024-08-05T18:47:08Z",
     "url": "https://www.benzinga.com/news/24/08/40169246/google-loses-doj-antitrust-suit-over-search-judge-finds-search-giant-violated-antitrust-law"
   }

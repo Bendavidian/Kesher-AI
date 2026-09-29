@@ -1,0 +1,21 @@
+{
+  "externalId": "40964871",
+  "recordedAt": "2026-09-29T12:53:21.419Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Wall Street Journal Reported Qualcomm Approached Intel About A Takeover",
+    "chunks": ["0.0005186810740269721"],
+    "latencyMs": [195]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"INTC\",\n      \"impact\": \"unclear\"\n    },\n    {\n      \"symbol\": \"QCOM\",\n      \"impact\": \"unclear\"\n    }\n  ],\n  \"eventType\": \"m_and_a\",\n  \"importance\": 5,\n  \"themes\": []\n}",
+    "usage": {
+      "inputTokens": 646,
+      "outputTokens": 258,
+      "totalTokens": 904
+    },
+    "latencyMs": 2242
+  }
+}
