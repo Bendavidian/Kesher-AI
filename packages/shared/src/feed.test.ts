@@ -24,7 +24,7 @@ describe('FeedCard', () => {
       path: { eventCompany: 'TSM', holding: 'TSM', hops: [] },
       confidence: 'medium',
       status: 'confirmed',
-      research: { state: 'none', runId: null },
+      research: { state: 'none', runId: null, reportId: null },
       createdAt: at,
       updatedAt: at,
     },

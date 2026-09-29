@@ -1,4 +1,4 @@
-import type { Company, FeedItem, MarketEvent, Relationship } from '@kesher/shared';
+import type { Company, FeedItem, MarketEvent, Relationship, ReportDetail } from '@kesher/shared';
 import type { FilingView, NewsSourceView, PriceReaction } from '../view/types';
 import {
   COMPANIES,
@@ -9,16 +9,11 @@ import {
   FILINGS,
   RELATIONSHIPS,
 } from './demoEvent';
-import {
-  DEMO_CLAIMS,
-  DEMO_REPORT,
-  DEMO_REPORT_SOURCES,
-  DEMO_RUN,
-  DEMO_STEP_OUTPUTS,
-  DEMO_TOKEN_SCOPE,
-} from './research';
+import { DEMO_CLAIMS, DEMO_REPORT, DEMO_REPORT_SOURCES, DEMO_RUN } from './research';
 
 export { PERSONAS, PUBLIC_USERS } from './personas';
+import { DEMO_CARDS } from './cards';
+
 export { DEMO_CARDS, DEMO_EXPLAINS } from './cards';
 
 // The demo event's documents, for the report and agent run screens until T08 and T09 read them
@@ -45,12 +40,11 @@ export const DEMO_STORE: FixtureStore = {
   replayedEventId: DEMO_EVENT._id,
 };
 
-// The demo research report and its agent run, until T08 and T09 read them from the api.
-export const DEMO_RESEARCH = {
-  runs: [DEMO_RUN],
-  reports: [DEMO_REPORT],
+// The demo report as GET /reports/:reportId answers it for persona A, for the report screen tests.
+export const DEMO_REPORT_DETAIL: ReportDetail = {
+  report: DEMO_REPORT,
   claims: DEMO_CLAIMS,
   sources: DEMO_REPORT_SOURCES,
-  stepOutputs: { [DEMO_RUN._id]: DEMO_STEP_OUTPUTS },
-  tokenScopes: { [DEMO_RUN._id]: DEMO_TOKEN_SCOPE },
+  run: DEMO_RUN,
+  card: DEMO_CARDS.A[0]!,
 };

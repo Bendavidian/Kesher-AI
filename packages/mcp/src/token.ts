@@ -1,19 +1,9 @@
-import { AgentName, Id, MIN_SECRET_LENGTH } from '@kesher/shared';
+import { AgentName, Id, MIN_SECRET_LENGTH, TOOL_NAMES, ToolName } from '@kesher/shared';
 import { SignJWT, jwtVerify } from 'jose';
 import { z } from 'zod';
 
-// The MVP tools in docs/INTERFACES.md. A token may list a tool before the server implements it.
-export const TOOL_NAMES = [
-  'get_my_portfolio',
-  'get_event',
-  'get_company_relationships',
-  'search_news',
-  'search_filings',
-  'get_price_reaction',
-  'get_financial_facts',
-] as const;
-export const ToolName = z.enum(TOOL_NAMES);
-export type ToolName = z.infer<typeof ToolName>;
+// The tool names live in packages/shared, so the web can name a token's scope.
+export { TOOL_NAMES, ToolName };
 
 // Fixed by the contract; callers cannot choose a longer lifetime.
 export const RUN_TOKEN_TTL_SECONDS = 300;

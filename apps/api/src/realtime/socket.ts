@@ -1,9 +1,16 @@
 import type { Server as HttpServer } from 'node:http';
-import { SOCKET_EVENTS, type EventScored, type FeedCard } from '@kesher/shared';
+import {
+  SOCKET_EVENTS,
+  type EventScored,
+  type FeedCard,
+  type FeedItem,
+  type RunEnded,
+  type RunStepPushed,
+} from '@kesher/shared';
 import type { Db } from 'mongodb';
 import { Server } from 'socket.io';
 import { sessionFromCookie } from '../auth/session';
-import { assembleCards } from '../feed/cards';
+import { assembleCards, feedCard, type CardMarket } from '../feed/cards';
 import type { ScoredItem } from '../relevance/feed';
 
 // Socket.IO events the server sends (docs/INTERFACES.md). Dates travel as ISO strings.
@@ -11,6 +18,8 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.feedItem]: (card: FeedCard) => void;
   [SOCKET_EVENTS.feedUpdate]: (card: FeedCard) => void;
   [SOCKET_EVENTS.eventScored]: (scored: EventScored) => void;
+  [SOCKET_EVENTS.runStep]: (pushed: RunStepPushed) => void;
+  [SOCKET_EVENTS.runEnd]: (ended: RunEnded) => void;
 }
 
 // The client sends nothing: every push is decided on the server.
@@ -26,6 +35,11 @@ export interface Realtime {
   // Pushes what one scoring run wrote: a card to each user whose item is above 0, then
   // event:scored to every signed in socket.
   publishScored(eventId: string, scored: readonly ScoredItem[]): Promise<void>;
+  // Pushes feed:update to the item's user after its research state changed.
+  publishItem(item: FeedItem): Promise<void>;
+  // Pushes run:step and run:end to the run's own user only. userId is the run's stored user.
+  publishRunStep(userId: string, pushed: RunStepPushed): void;
+  publishRunEnd(userId: string, ended: RunEnded): void;
   // Disconnects every socket of a user that signed out, so none keeps receiving their cards.
   signOut(userId: string): void;
   close(): Promise<void>;
@@ -35,7 +49,10 @@ const roomOf = (userId: string) => `user:${userId}`;
 
 // Attaches Socket.IO to the api's HTTP server. The handshake needs the session cookie, and the
 // verified user decides the room; the client never names a user (principle 5).
-export function createRealtime(httpServer: HttpServer, { db, secret }: { db: Db; secret: string }) {
+export function createRealtime(
+  httpServer: HttpServer,
+  { db, secret, market }: { db: Db; secret: string; market?: CardMarket },
+) {
   const io = new Server<
     ClientToServerEvents,
     ServerToClientEvents,
@@ -73,6 +90,7 @@ export function createRealtime(httpServer: HttpServer, { db, secret }: { db: Db;
       const cards = await assembleCards(
         db,
         shown.map((s) => s.item),
+        market,
       );
       for (const card of cards) {
         const event = created.has(card.item._id)
@@ -82,6 +100,17 @@ export function createRealtime(httpServer: HttpServer, { db, secret }: { db: Db;
       }
       // After the cards, so a client that got one never needs to ask why it has none.
       io.emit(SOCKET_EVENTS.eventScored, { eventId });
+    },
+    async publishItem(item) {
+      if (item.relevance <= 0) return;
+      const card = await feedCard(db, item, market);
+      if (card) io.to(roomOf(item.userId)).emit(SOCKET_EVENTS.feedUpdate, card);
+    },
+    publishRunStep(userId, pushed) {
+      io.to(roomOf(userId)).emit(SOCKET_EVENTS.runStep, pushed);
+    },
+    publishRunEnd(userId, ended) {
+      io.to(roomOf(userId)).emit(SOCKET_EVENTS.runEnd, ended);
     },
     signOut(userId) {
       io.in(roomOf(userId)).disconnectSockets(true);

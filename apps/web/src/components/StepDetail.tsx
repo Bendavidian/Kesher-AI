@@ -1,5 +1,5 @@
-import { PROVIDER_LABEL, TONE_LABEL, type StepView } from '../view/run';
-import type { RunTokenScope, StepOutput } from '../view/types';
+import { PROVIDER_LABEL, TONE_LABEL, type OutputView, type StepView } from '../view/run';
+import type { RunTokenScope } from '../view/types';
 import { JsonBlock } from './JsonBlock';
 import { TONE_CLASS } from './stepTone';
 
@@ -32,11 +32,7 @@ function AccessBlock({ scope }: { scope: RunTokenScope }) {
           </ul>
         </dd>
         <dt className="text-text-3">Writes</dt>
-        <dd>
-          {scope.writes.length === 0
-            ? 'None. Every tool this agent holds is read only.'
-            : scope.writes.join(', ')}
-        </dd>
+        <dd>None. Every tool this agent holds is read only.</dd>
         <dt className="text-text-3">Expires</dt>
         <dd>{scope.ttlMinutes} minutes after the run starts.</dd>
       </dl>
@@ -50,8 +46,8 @@ function AccessBlock({ scope }: { scope: RunTokenScope }) {
 interface Props {
   view: StepView;
   total: number;
-  output: StepOutput | undefined;
-  scope: RunTokenScope | undefined;
+  output: OutputView;
+  scope: RunTokenScope | null;
   className?: string;
 }
 
@@ -104,15 +100,22 @@ export function StepDetail({ view, total, output, scope, className = '' }: Props
 
       <div className="flex flex-col gap-2">
         <h3 className="text-[13px] font-extrabold text-text-2">
-          {output?.note ? `Output, ${output.note}` : 'Output'}
+          {output.format !== 'none' && output.note ? `Output, ${output.note}` : 'Output'}
         </h3>
-        {output ? (
-          <JsonBlock value={output.value} label="Step output" />
-        ) : (
-          <p className="rounded-button border border-border bg-inset px-4 py-3.5 text-[13px] leading-normal text-text-2">
-            {step.outputSummary}
-          </p>
+        {/* Output may quote untrusted text; it is rendered as text only, never as markup. */}
+        {output.format === 'json' && <JsonBlock value={output.value} label="Step output" />}
+        {output.format === 'text' && (
+          <pre
+            aria-label="Step output"
+            tabIndex={0}
+            className="overflow-x-auto rounded-button border border-border bg-inset px-4 py-3.5 font-mono text-[12.5px] leading-[1.65] whitespace-pre-wrap text-text focus-visible:outline-2 focus-visible:outline-you"
+          >
+            {output.text}
+          </pre>
         )}
+        <p className="rounded-button border border-border bg-inset px-4 py-3.5 text-[13px] leading-normal text-text-2">
+          {step.outputSummary}
+        </p>
       </div>
 
       {/* Only tool calls go through the run token; model and code steps do not use it. */}

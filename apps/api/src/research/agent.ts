@@ -3,7 +3,9 @@ import {
   AgentRun,
   AgentStep,
   Report,
+  type RunEnded,
   type RunFailureReason,
+  type RunStepPushed,
   type TokenUsage,
 } from '@kesher/shared';
 import { jsonSchema, tool, type ModelMessage, type ToolResultPart, type ToolSet } from 'ai';
@@ -33,6 +35,12 @@ export interface ResearchDeps {
   newId?: () => string;
   // Each raw model turn, for npm run research:dev -- --record.
   onTurn?: (turn: RecordedTurn) => void;
+  // Each step once it is stored, and the final status once the run is finished, for run:step
+  // and run:end to the run's user. A push that fails is logged and never stops the run.
+  onStep?: (userId: string, pushed: RunStepPushed) => Promise<void> | void;
+  onEnd?: (userId: string, ended: RunEnded) => Promise<void> | void;
+  // Where a background failure goes, such as a failed push. Redacted by the server.
+  logError?: (error: unknown) => void;
 }
 
 export interface ResearchRequest {
@@ -43,6 +51,8 @@ export interface ResearchRequest {
   mode: RunMode;
   trigger: AgentRun['trigger'];
   gateReason: string;
+  // The id for the AgentRun, when the caller has already put it on the card (Investigate).
+  runId?: string;
 }
 
 export interface ResearchOutcome {
@@ -127,7 +137,7 @@ export async function runResearch(
   const stepBudget = STEP_BUDGET[request.mode];
   const tokenBudget = TOKEN_BUDGET[request.mode];
   const ref = models.pickRunProvider(tokenBudget);
-  const runId = newId();
+  const runId = request.runId ?? newId();
   const createdAt = new Date(now());
   await runs.insertOne(
     AgentRun.parse({
@@ -161,8 +171,19 @@ export async function runResearch(
     }
   };
 
+  const push = async (send: () => Promise<void> | void) => {
+    try {
+      await send();
+    } catch (error) {
+      deps.logError?.(error);
+    }
+  };
+
   let tokensUsed = 0;
-  // Written as it happens, redacted, output capped at 8 KB.
+  let stepCount = 0;
+  // Written as it happens, redacted, output capped at 8 KB, then pushed as run:step. The count is
+  // the step's place in AgentRun.steps only while steps are recorded one at a time: every caller
+  // awaits record, and none may start two at once. A client that sees a gap reads the run again.
   async function record(step: StepInput): Promise<void> {
     const { output, outputTruncated } = capStepOutput(step.output, redact);
     const stored = AgentStep.parse({
@@ -178,6 +199,9 @@ export async function runResearch(
       { _id: runId },
       { $push: { steps: stored }, ...(tokens > 0 ? { $inc: { tokensUsed: tokens } } : {}) },
     );
+    const index = stepCount;
+    stepCount += 1;
+    await push(() => deps.onStep?.(request.userId, { runId, index, step: stored }));
   }
 
   async function finish(
@@ -189,6 +213,7 @@ export async function runResearch(
       { _id: runId },
       { $set: { status, failureReason, finishedAt: new Date(now()) } },
     );
+    await push(() => deps.onEnd?.(request.userId, { runId, status }));
     return { runId, status, failureReason, reportId };
   }
 

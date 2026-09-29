@@ -1,9 +1,94 @@
 # State
 
-Updated: 29 Sep 2026, T08 part 1 done
+Updated: 29 Sep 2026, T09 done; T13 part 1 done (price reaction), T13 stays [~] until part 2
 
 ## Where we are
-T00 to T07 are done. T08 part 1 is done and T08 stays [~] until part 2. T08 was split under one id because Investigate needs the auth context from T06 (BACKLOG.md T08, SPEC.md decision log T08). The UI track part 2 (PR 6) added the web report and agent run screens on fixtures; their wiring notes are under T08, T09 and T14 in BACKLOG.md.
+T00 to T09 are done, which completes the walking skeleton. T13 part 1, the price reaction, is done too; T13 stays [~] until part 2, which waits for T11 (BACKLOG.md T13, SPEC.md decision log T13). T13 part 1 was built in parallel with T08 part 2 and T09, rebased on T08 part 2 and then merged with main after T09.
+
+T09 made the agent run inspectable from its card:
+- api (apps/api/src/research/runs.ts, apps/api/src/routes/research.ts):
+  - GET /runs lists the signed in user's runs, newest first, without steps.
+  - GET /runs/:runId returns RunDetail `{ run, reportId, claims, eventSymbol, limits }`.
+  - Both take the user from the session only; another user's run answers 404.
+  - limits are the free tier limits of the models the run's steps used, from MODEL_LIMITS and the new REQUESTS_PER_DAY in llm/limits.ts. A test keeps the two tables on the same models.
+- Socket.IO:
+  - runResearch has onStep and onEnd hooks. realtime pushes run:step `{ runId, index, step }` for each stored step and run:end `{ runId, status }`, to the run's user room only.
+  - A failed push is logged and never stops the run.
+  - The index relies on record() staying sequential; a client that sees a gap reads the run again.
+- packages/shared: ToolName moved here from packages/mcp, which re-exports it. New RunDetail, RunSummary, FreeTierLimit, RunStepPushed and RunEnded.
+- Web:
+  - The run screen reads the api, then adds pushed steps and reads the run again on run:end. A run id that answers 404 (the window before runResearch stores it) loads on its first run:step.
+  - Step output renders as JSON or as plain text, never as markup; a cut output says "capped at 8 KB".
+  - The access block reads the run's own Run token issued step. A check is red when its output lists removedClaimIds.
+  - The Agent runs tab (/runs) opens the newest run, or says there is none.
+  - A Recent runs selector in the header lists the user's runs with time in ET, mode and status, and switches between them (docs/UI.md).
+  - View agent run on the card links to research.runId from the start of a run.
+  - DEMO_STEP_OUTPUTS, DEMO_TOKEN_SCOPE and the web's FREE_TIER copy are gone; the demo fixtures now store step output as JSON text, like the api.
+- On Atlas, persona A, Investigate again and then View agent run: the timeline grew 3, 5, 7, 10 steps while the run went, then turned Completed after 4.9 s, 5.3k of 20k tokens on gemini-3.5-flash-lite. Screens were checked at 1440px and 1279px; the selector listed 7 real runs. Atlas has no failed run yet, so failed next to succeeded is shown in tests only.
+- The reviewer found no blockers; two nits were fixed (the sequential record() comment, the limit table test).
+- 526 tests are green.
+
+T13 part 1 computes the price reaction in code and shows it on the card:
+- packages/shared/src/price.ts, pure and browser safe:
+  - resolveAnchor anchors a headline to the regular session from the market calendar. Inside [open, close) the base is the headline; otherwise the previous close, with the windows in the next session (weekends, holidays, after an early close, premarket).
+  - computeReaction follows the spike. The base is the close of the bar at the headline or the previous session's last bar. open_gap uses the first open; 15m, 2h and session_close use the last bar at or before their end, capped at the close.
+  - A bar counts once it closed 15 minutes ago, and the base only once it is final; a window not ready is null. complete says the result can no longer change.
+  - priceReactionFor(market, subjects, headline, now) reads through a MarketData interface and always appends SMH, then SPY.
+  - FeedCard.priceReaction is PriceReaction.nullable().
+- apps/api/src/market:
+  - alpaca.ts: the calendar (paper-api) and SIP 1Min bars, zod validated, with a 10 second timeout per request.
+  - data.ts: createMarketData reads local files first and asks Alpaca only for what they lack. Alpaca keys are optional (loadAlpacaKeys), so the api starts without them and only uncached data fails.
+    - recordings/alpaca-calendar/<year>.json is committed; only 2024 so far.
+    - recordings/alpaca-bars/<SYMBOL>/<date>.json is a gitignored local cache (Alpaca's data terms; the repo becomes public).
+  - reactions.ts: createPriceReactions keeps complete results in process (at most 1,000).
+  - `npm run record:bars -- --event 38062166 --symbols TSM,NVDA` fills the cache for the demo and writes the computed reaction to recordings/price-reactions/38062166.json, the committed fixture.
+- get_price_reaction in packages/mcp:
+  - Its input is a universe company and an ISO time with an offset, and its output is ISO JSON.
+  - Only PriceReactionError reasons reach the agent. A provider error becomes "Market data is unavailable" and is logged, redacted, by /mcp.
+  - The research token still lists get_event and search_news only.
+- Cards:
+  - One createPriceReactions instance in server.ts serves /mcp, GET /feed, the scoring pushes, publishItem, the Investigate 202 card and the report's card. T09's run routes, run:step and run:end carry no card, so no push clears the market table.
+  - A card asks for the path's event company and holding, waits at most 5 seconds (CARD_REACTION_TIMEOUT_MS), and carries null on failure; the feed never breaks.
+  - The redactor masks the Alpaca keys.
+- Web:
+  - priceReactionView maps the api's reaction into the market table, the open gap bars and the ticker footer.
+  - A window not ready shows a dash with "not available yet" for screen readers, and the open gap sentence waits for every benchmark. Without a reaction the empty state stays.
+- Dev servers read WEB_PORT, API_PORT and PORT; .claude/launch.json has api-alt on 3011 and web-alt on 5183 for a parallel session.
+- Proof:
+  - The demo event from real bars reproduces SPIKE.md check 3 exactly (TSM −1.16, −0.38, +1.31, +1.25; NVDA, SMH and SPY too). The local test that checks this skips with a message when the cache is missing.
+  - Tests cover a weekend, Good Friday and the 13:00 close on 29 Nov 2024 on the committed calendar.
+  - On Atlas through 5183, persona A's card showed that table next to NVDA (you hold), and persona B's showed TSM, SMH and SPY, at 1440px and 1279px.
+- The reviewer ran on every api, mcp and shared commit. It found no blockers; its points (a base that was not final, Alpaca stalls, cards without the market after the rebase) were fixed.
+- 595 tests are green after the merge with T09 (the real bars test included; it skips where the cache is missing).
+
+T08 part 2 wired Investigate to the research agent from part 1, now that T06 gives every route a signed in user:
+- POST /events/:eventId/investigate (apps/api/src/routes/research.ts, apps/api/src/research/investigate.ts):
+  - The user comes from the session cookie only.
+  - One conditional write moves the user's FeedItem to research running, with a new run id, and the route answers 202 with that card. Two requests never start two runs: the second gets 409.
+  - 404 when the user has no FeedItem with a path for the event (relevance 0 or unknown); 400 for a bad id; 401 without a session.
+  - runResearch (deep, trigger investigate) runs in the background as a promise in the api process. It now takes an optional runId, so the card names its run from the start.
+  - When the run ends, the item becomes done with its reportId, or failed. Each change is pushed as feed:update by realtime.publishItem. A failed push is logged and never stops the run; the final write is retried once and only replaces this run's state, so a dev reset or a newer run is left alone.
+  - Investigate again is allowed after done or failed. A run left running for 15 minutes (STALE_RESEARCH_MS), for example after an api restart, is taken over by the next Investigate. There is no startup recovery, because two machines may share one database; the lost AgentRun stays in status running.
+- GET /reports/:reportId returns ReportDetail `{ report, claims, sources, run, card }` for the report's own user and 404 for anyone else.
+  - sources are ReportSource labels built by code (Benzinga via Alpaca, Benzinga headline, id 38062166), without the body text.
+  - run keeps its steps, as the run screen shows them.
+- packages/shared:
+  - FeedItem.research is `{ state, runId, reportId }`, with reportId present exactly when done, and NO_RESEARCH.
+  - New ReportSource and ReportDetail.
+  - `npm run seed` backfills research.reportId null on older FeedItems (backfillResearchReports); it set 3 on Atlas. Any other database needs `npm run seed` once, or GET /feed fails on the strict schema.
+- server.ts passes the api's own http://127.0.0.1:<port>/mcp as the research MCP URL, and redact now masks the model keys too.
+- Web:
+  - ScoresPanel shows Investigate, then "Investigating…" with a status line. Once done it offers "Open research report" (link to /reports/:reportId) and "Investigate again"; a failed run gets a failure line. POST errors show under the button.
+  - View agent run stays disabled until T09.
+  - FeedScreen applies the 202 card through useLiveFeed's upsert, which drops a card from a persona the user switched away from.
+  - ReportScreen reads api.report and api.me (new) instead of fixtures. decodeReport keeps AgentStep.input as sent, because reviveDates had turned ISO strings in step inputs into Dates. ReportSourceView is now the shared ReportSource.
+- The report screen counts as removed only claims with status removed. An inference whose premises are not supported yet stays hidden with a neutral line ("1 inference waits for verification"), and so does a claim whose source cannot be listed. Until T14, every inference waits.
+- On Atlas, persona A, Investigate on the TSMC card:
+  - The run was get_event, then search_news, then a report: 1,383, 1,679 and 2,289 tokens, 5,351 of 20,000, on gemini-3.5-flash-lite.
+  - Two facts, each citing the Benzinga source with sources_exist and quote_verbatim passed, and one inference waiting for verification.
+  - The card went from running to done, and the report screen rendered from the api at 1440px and 1279px.
+- The reviewer found no blockers; its points on push failures, the settle retry and stale comments were fixed.
+- 496 tests are green.
 
 T08 part 1 added the research agent in apps/api/src/research, with no route yet:
 - runResearch (agent.ts) loads the user's FeedItem path and holdings, picks one provider for the run (pickRunProvider), and mints a run token through openToolbox (mcp.ts) with get_event and search_news only. It connects as a real MCP client to POST /mcp and replaces the token before a call once it is 4 minutes old; every issue and refresh is a code step with the same scope. The user id goes into the token only, never into a prompt or a tool argument. The brief holds only code written text (the "Why you" line from whyYou, held symbols, the budget); the untrusted headline arrives through get_event.
@@ -87,19 +172,18 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. Check that CI passes on Ubuntu and Windows for the PR "T08 part 1: research agent", then merge it.
-2. T08 part 2, now that T06 is merged. Read the notes from part 1 and from T06 under T08 in BACKLOG.md:
-   - POST /events/:eventId/investigate calls runResearch with the user from currentUser (the session cookie) and mode deep; ResearchInputError means nothing was written (answer 404 or 409);
-   - decide whether the route waits for the run or answers 202 and pushes run:step and feed:update; set FeedItem.research;
-   - wire the Investigate button in ScoresPanel.tsx and render the basic report on the card, filtering claims by status;
-   - the remaining UI track notes under T08 (shared AgentName and ToolName on the web, report source read model and routes, served free tier limits).
-3. T09 then reads the stored runs: GET /runs/:runId and the run list, and the run screen shows AgentStep.output instead of DEMO_STEP_OUTPUTS.
+1. Check that CI passes on Ubuntu and Windows for the PR "T13 part 1: price reaction", then merge it.
+2. On each machine, once: `npm run record:bars -- --event 38062166 --symbols TSM,NVDA`. It fills the gitignored bar cache so the demo card and the local SPIKE.md test read no Alpaca at runtime. Without it, the api asks Alpaca when the keys are set, and the local test skips.
+3. Phase 2 continues. Pick the next task from BACKLOG.md:
+   - T11 needs the three open decisions below first; T13 part 2 follows it (notes under T13 in BACKLOG.md).
+   - T12 puts the daily budget check in startInvestigation and adds gate runs; they will show in Agent runs with trigger gate.
+   - T14 adds the verifier; its steps and removals appear in the run screen with no screen change, since checks turn red from removedClaimIds. A metric claim can check its numbers against the same PriceReaction.
 4. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
    - The first npm run test downloads mongod 8.0.32, about 100 MB.
-   - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay and research:dev, MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start.
-   - Run `npm run seed` once if that machine uses its own database, so older Sources get publisher.
+   - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay, Investigate and research:dev, MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start.
+   - Run `npm run seed` once if that machine uses its own database, so older Sources get publisher and older FeedItems get research.reportId.
 
 Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now.
 
@@ -108,11 +192,13 @@ For T11, listed under T11 in BACKLOG.md:
 - evidence for Finnhub peer edges, which have no quote;
 - whether in_sector and has_theme become edges;
 - whether the seed or T11 owns the company fields.
-For T08 part 2: whether POST /events/:eventId/investigate waits for the run (seconds) or answers 202 and pushes progress over Socket.IO.
 The UI language is settled by docs/UI.md: English interface, with Hebrew summaries as a later option.
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 29 Sep 2026, macOS (Mac mini), T13 part 1: T13 split in two under one id; price reaction in shared anchored to the regular session through the market calendar, get_price_reaction over MCP and FeedCard.priceReaction from the same function, Alpaca calendar and SIP bars behind a file-first market data layer with a gitignored bar cache and npm run record:bars, the web market table and open gap bars on live values; the demo reproduces SPIKE.md check 3 exactly; WEB_PORT and API_PORT with api-alt and web-alt; rebased on T08 part 2; merged main after T09; reviewer found no blockers; 595 tests green; T13 stays [~].
+- 29 Sep 2026, macOS (Mac mini), T09: GET /runs and GET /runs/:runId for the signed in user only, run:step and run:end to the run's user only, run screen on the api with live steps, text only step output, token scope from the run's own step, Recent runs selector and /runs opening the newest run; a real Investigate on Atlas streamed 3, 5, 7, 10 steps to Completed; reviewer found no blockers; 526 tests green; T09 done.
+- 29 Sep 2026, macOS (Mac mini), T08 part 2: POST /events/:eventId/investigate answers 202 and runs deep research in the background with the user from the session, one run per item (409), stale takeover after 15 minutes; GET /reports/:reportId with ReportSource labels; FeedItem.research.reportId with a seed backfill; Investigate button states and the report screen on the api; only removed claims count as removed, waiting inferences get a neutral line; one real run on Atlas gave two facts with verified quotes; reviewer found no blockers; 496 tests green; T08 done.
 - 29 Sep 2026, macOS (Mac mini), T08 part 1: T08 split in two under one id; research agent over MCP with scoped run tokens and refresh, code planned turns and budgets (12,000 auto, 20,000 deep), the in-run 429 policy, steps written as they happen with 8 KB redacted output, quote checks that remove or keep claims unverified, research:dev; one real Gemini run on Atlas recorded and replayed; reviewer found no blockers; rebased on T06, 463 tests green; T06 marked done from PR 8; T08 stays [~].
 - 29 Sep 2026, macOS (Mac mini), T06: cookie sign in with the persona switcher, GET /feed above 0, explain on request for None, Socket.IO pushes with event:scored, dev reset plus replay; one Replay updated three browser sessions to A 0.80, B 1.00, C None on Atlas; reviewer found no blockers and the socket closes on logout and expiry; 405 tests green, CI green on PR 8; STATE and the BACKLOG mark came with the T08 part 1 wrap.
 - 28 Sep 2026, macOS (Mac mini), T05: $graphLookup propagation, relevance, confidence and one FeedItem per user after extraction; start nodes limited to provider tagged companies; FeedCard read model and assembler; Source.publisher with a seed backfill; Why you templates and bands in shared; rebased on T07 and the UI track part 2; on Atlas the demo event scored A 0.8, B 1, C 0 and a second replay was a duplicate; 347 tests green; T05 done.

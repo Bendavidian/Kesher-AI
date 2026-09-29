@@ -1,5 +1,5 @@
 import type { EventExplain, FeedCard, PersonaKey, PublicUser } from '@kesher/shared';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveDeps } from './deps';
 import type { FeedSocket } from './socket';
 
@@ -13,6 +13,11 @@ export interface LiveFeed {
   // Scored events that stay out of this user's feed, explained on request (relevance 0).
   explains: EventExplain[];
   connected: boolean;
+}
+
+export interface LiveFeedControls extends LiveFeed {
+  // Applies a card the api answered with, as a push would.
+  upsert(card: FeedCard): void;
 }
 
 const START: LiveFeed = {
@@ -41,12 +46,14 @@ export function useLiveFeed(
   personaKey: PersonaKey,
   lastScoredEventId: string | null,
   onScored: (eventId: string) => void,
-): LiveFeed {
+): LiveFeedControls {
   const { api, connectFeed } = useLiveDeps();
   const [session, setSession] = useState<Session>({ ...START, persona: personaKey });
 
   // Read by socket handlers, which outlive a render.
   const cardsRef = useRef<FeedCard[]>([]);
+  // Set once the current persona signed in; a card from before a switch is dropped.
+  const upsertRef = useRef<(card: FeedCard) => void>(() => undefined);
   const lastScoredRef = useRef(lastScoredEventId);
   const onScoredRef = useRef(onScored);
   useEffect(() => {
@@ -75,6 +82,8 @@ export function useLiveFeed(
       }));
     };
 
+    upsertRef.current = () => undefined;
+
     const explainHidden = async (eventId: string) => {
       const carded = () => cardsRef.current.some((card) => card.event._id === eventId);
       if (carded()) return;
@@ -95,6 +104,10 @@ export function useLiveFeed(
       try {
         const user = await api.signInAs(personaKey);
         if (!active) return;
+        // Only this user's cards: an answer that arrives after a switch is dropped.
+        upsertRef.current = (card) => {
+          if (active && card.item.userId === user._id) setCards(upsertCard(cardsRef.current, card));
+        };
         // After sign in, so the handshake carries this persona's cookie.
         socket = connectFeed({
           onCard: (card) => {
@@ -127,5 +140,6 @@ export function useLiveFeed(
     };
   }, [personaKey, api, connectFeed]);
 
-  return session.persona === personaKey ? session : START;
+  const upsert = useCallback((card: FeedCard) => upsertRef.current(card), []);
+  return { ...(session.persona === personaKey ? session : START), upsert };
 }

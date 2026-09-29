@@ -4,7 +4,7 @@ import { LiveDepsContext, type LiveDeps } from './live/deps';
 import { FeedScreen } from './screens/FeedScreen';
 import { NotFoundScreen } from './screens/NotFoundScreen';
 import { ReportScreen } from './screens/ReportScreen';
-import { RunScreen } from './screens/RunScreen';
+import { RunScreen, RunsIndexScreen } from './screens/RunScreen';
 import type { PersonaKey } from './view/types';
 
 export function AppRoutes() {
@@ -25,6 +25,7 @@ export function AppRoutes() {
         }
       />
       <Route path="/reports/:reportId" element={<ReportScreen />} />
+      <Route path="/runs" element={<RunsIndexScreen />} />
       <Route path="/runs/:runId" element={<RunScreen />} />
       <Route path="*" element={<NotFoundScreen />} />
     </Routes>

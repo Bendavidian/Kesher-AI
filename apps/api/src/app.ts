@@ -2,11 +2,14 @@ import { HealthResponse } from '@kesher/shared';
 import express, { type ErrorRequestHandler, type Express } from 'express';
 import type { Db } from 'mongodb';
 import type { ProcessDeps } from './ingest/process';
+import type { InvestigateDeps } from './research/investigate';
+import type { PriceReactions } from './market/reactions';
 import { createModelClient, resolveFromKeys, type ModelClient } from './llm/client';
 import { authRouter, type AuthOptions } from './routes/auth';
 import { devRouter } from './routes/dev';
 import { feedRouter } from './routes/feed';
 import { mcpRouter } from './routes/mcp';
+import { researchRouter } from './routes/research';
 
 export interface AppDeps {
   db: Db;
@@ -24,6 +27,17 @@ export interface AppDeps {
   log?: (message: string) => void;
   // The model client, built on first use. Without it every model call fails naming its key.
   models?: () => ModelClient;
+  // Mounts Investigate, GET /reports/:reportId and the run routes when set, with mcp and auth. mcpUrl is the
+  // api's own POST /mcp, read when a run starts; redact is applied to every run step.
+  research?: { mcpUrl: () => string; redact: (text: string) => string };
+  // Gets each FeedItem whose research state changed; the server passes the feed:update push.
+  onResearch?: InvestigateDeps['onResearch'];
+  // Get each stored run step and each run's end; the server passes run:step and run:end.
+  onRunStep?: InvestigateDeps['onStep'];
+  onRunEnd?: InvestigateDeps['onEnd'];
+  // The price reaction over the api's market data (createPriceReactions), for get_price_reaction
+  // and FeedCard.priceReaction. Without it cards carry null and the tool answers unavailable.
+  priceReactions?: PriceReactions;
 }
 
 const logMessage = (error: unknown) =>
@@ -40,6 +54,11 @@ export function createApp({
   logError = logMessage,
   log = console.log,
   models = noKeys,
+  research,
+  onResearch,
+  onRunStep,
+  onRunEnd,
+  priceReactions,
 }: AppDeps): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -48,10 +67,31 @@ export function createApp({
     res.json(HealthResponse.parse({ status: 'ok' }));
   });
 
-  if (mcp) app.use(mcpRouter(db, mcp.secret, logError));
+  if (mcp) app.use(mcpRouter(db, mcp.secret, logError, priceReactions));
   if (auth) {
     app.use(authRouter(db, auth));
-    app.use(feedRouter(db, auth.secret));
+    // Every card the api sends carries the same price reaction.
+    const market = priceReactions && { priceReaction: priceReactions, logError };
+    app.use(feedRouter(db, auth.secret, market));
+    if (mcp && research) {
+      const deps: InvestigateDeps = {
+        db,
+        models,
+        mcp: {
+          secret: mcp.secret,
+          // Read when a run starts, after the server listens.
+          get url() {
+            return research.mcpUrl();
+          },
+        },
+        redact: research.redact,
+        logError,
+        ...(onResearch ? { onResearch } : {}),
+        ...(onRunStep ? { onStep: onRunStep } : {}),
+        ...(onRunEnd ? { onEnd: onRunEnd } : {}),
+      };
+      app.use(researchRouter(deps, auth.secret, market));
+    }
   }
   if (devRoutes) app.use(devRouter(db, models, log, onScored));
 

@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router';
+import { reportPath, runPath } from '../routes';
 import { formatScore, joinList } from '../view/format';
 import { CONFIDENCE_LABEL, CONFIDENCE_NOTE, IMPORTANCE_LABEL, type EventView } from '../view/feed';
 import { EvidenceCard } from './EvidenceCard';
@@ -55,15 +57,91 @@ const PRIMARY =
 const SECONDARY =
   'flex h-11 items-center justify-center rounded-button border border-border-strong text-sm font-bold text-text';
 
+// The Investigate request itself: busy until the api answers, then the card carries the state.
+export interface InvestigateRequest {
+  busy: boolean;
+  error: string | null;
+}
+
+// Investigate, the research state on the card and the link to its report. The state comes from
+// the FeedItem, written by code as the run goes (docs/INTERFACES.md).
+function ResearchActions({
+  view,
+  request,
+  onInvestigate,
+}: {
+  view: EventView;
+  request: InvestigateRequest;
+  onInvestigate: () => void;
+}) {
+  const research = view.research;
+  const running = request.busy || research?.state === 'running' || research?.state === 'queued';
+  const reportId = research?.state === 'done' ? research.reportId : null;
+  // Set from the start of a run, so its steps can be watched while it goes.
+  const runId = research?.runId ?? null;
+
+  let status: string | null = null;
+  if (running) status = 'Researching this event. The card updates when the report is ready.';
+  else if (research?.state === 'failed') status = 'The last research run ended without a report.';
+
+  const investigate = (label: string, className: string) => (
+    <button
+      type="button"
+      disabled={running}
+      onClick={onInvestigate}
+      className={`${className} disabled:opacity-60`}
+    >
+      {running ? 'Investigating…' : label}
+    </button>
+  );
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p aria-live="polite" className="text-xs text-text-2 empty:hidden">
+        {status}
+      </p>
+      {request.error && (
+        <p role="alert" className="text-xs text-text-2">
+          {request.error}
+        </p>
+      )}
+      {reportId && !running ? (
+        <>
+          <Link to={reportPath(reportId)} className={PRIMARY}>
+            Open research report
+          </Link>
+          {investigate('Investigate again', SECONDARY)}
+        </>
+      ) : (
+        investigate('Investigate this event', PRIMARY)
+      )}
+      {runId ? (
+        <Link to={runPath(runId)} className={`${SECONDARY} hover:bg-raised`}>
+          View agent run
+        </Link>
+      ) : (
+        <button type="button" disabled className={`${SECONDARY} disabled:opacity-60`}>
+          View agent run
+        </button>
+      )}
+    </div>
+  );
+}
+
+const IDLE: InvestigateRequest = { busy: false, error: null };
+
 export function ScoresPanel({
   view,
+  investigate = IDLE,
+  onInvestigate = () => undefined,
   className = '',
 }: {
   view: EventView | null;
+  investigate?: InvestigateRequest;
+  onInvestigate?: () => void;
   className?: string;
 }) {
   const importance = view?.event.extraction?.importance;
-  const canInvestigate = view !== null && view.score.relevance > 0;
 
   let evidence: ReactNode = null;
   if (view?.path.kind === 'none') {
@@ -126,18 +204,10 @@ export function ScoresPanel({
           {evidence}
 
           <div className="mt-auto flex flex-col gap-2 pt-2">
-            {canInvestigate && (
-              // Research (T08) and the agent run view (T09) are not wired yet.
-              <div className="flex flex-col gap-2">
-                <button type="button" disabled className={`${PRIMARY} disabled:opacity-60`}>
-                  Investigate this event
-                </button>
-                <button type="button" disabled className={`${SECONDARY} disabled:opacity-60`}>
-                  View agent run
-                </button>
-              </div>
+            {view && view.score.relevance > 0 && (
+              <ResearchActions view={view} request={investigate} onInvestigate={onInvestigate} />
             )}
-            {view && !canInvestigate && (
+            {view && view.score.relevance <= 0 && (
               <p className="text-xs text-text-2">
                 This event is not in your feed, so there is nothing to investigate for you.
               </p>

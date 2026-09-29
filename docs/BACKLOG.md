@@ -78,7 +78,7 @@ Notes from T07 for later tasks:
 - T08: mint one token per run with mintRunToken(secret, { userId, agent, tools }) from @kesher/mcp, taking userId from the auth context only. Connect `Client` with `StreamableHTTPClientTransport` to POST /mcp and pass the token as `Authorization: Bearer`. The token lives 5 minutes, so a run longer than that needs a fresh token. Tool results are in structuredContent; a tool that finds nothing returns isError. search_news excerpts are untrusted text.
 - T13: add each tool to TOOLS in packages/mcp/src/tools.ts with a strict input schema; the user id test in tools.test.ts covers new tools automatically. get_my_portfolio reads the user from ctx.claims.sub, never from arguments. Replace the thin search_news with hybrid search behind the same contract. It ranks only the 200 newest matching items today.
 
-### [~] T08 Research agent, thin
+### [x] T08 Research agent, thin
 The Investigate button starts a run. The agent calls the two tools within a step budget and a token budget (20,000 tokens per run in deep mode and 12,000 in auto, replacing the first 6,000; SPEC.md decision log, T08) and returns claims as JSON. Model calls go through the limiter from T04. The run picks its provider once at the start: Gemini gemini-3.5-flash-lite, or Groq openai/gpt-oss-120b for the whole run if Gemini is over its limit. It never switches mid-run; on a 429 inside the run the limiter waits and retries. Tokens, provider and model are recorded per step in the AgentRun. A basic deterministic check confirms each quote appears in its source. The report attaches to the card, which renders a basic report view with claims and sources; T14 completes it to docs/UI.md.
 Note from T04: the model client (apps/api/src/llm/client.ts) already has pickRunProvider(budgetTokens) and a limiter per model; record the provider and model it returns on each AgentRun step.
 Notes from the UI track, for the wiring in T08 and T09:
@@ -95,11 +95,20 @@ Notes from part 1 for part 2:
 - Call runResearch(deps, { userId, eventId, mode: 'deep', trigger: 'investigate', gateReason }) from apps/api/src/research/agent.ts with userId from the auth context. deps.mcp.url is the api's own POST /mcp. It throws ResearchInputError, writing nothing, when the user has no FeedItem with a path for the event; answer 404 or 409 there.
 - The run is inline and takes seconds; part 2 decides whether the route waits or answers 202 and emits run:step and feed:update. FeedItem.research is not written yet.
 - The report lists removed claims too, so the card and report views filter on status.
+Notes from part 2 for later tasks:
+- T09: the card carries research.runId from the start of a run, but the AgentRun document appears only once runResearch inserts it, a moment later; GET /runs/:runId may answer 404 in that window. View agent run stays disabled on the card, and the report screen's run links still open the fixture run screen. run:step is not sent yet.
+- T09: the web revives ISO strings to dates everywhere except step inputs (decodeReport keeps AgentStep.input as sent); decode GET /runs/:runId the same way.
+- T12: the daily budget check belongs in startInvestigation (apps/api/src/research/investigate.ts), which Investigate must not skip. The run is a fire and forget promise in the api process; the job queue replaces it. A run lost to a restart leaves its AgentRun in status running; only its FeedItem is taken over after 15 minutes (STALE_RESEARCH_MS).
+- T14: until the verifier supports facts, every inference stays hidden on the report screen with a neutral line ("1 inference waits for verification", buildReportView in apps/web/src/view/report.ts). The removed block and the red segments count only claims with status removed.
 
-### [ ] T09 Agent Runs view, thin
+### [x] T09 Agent Runs view, thin
 A timeline of one run: trigger, steps, tool calls with latency, sources, check results, token usage.
 Build to docs/UI.md. docs/design/agent-run.dc.html is markup reference only; it needs the design canvas runtime and does not run on its own.
 Done when: the run from T08 is fully inspectable from its card.
+Notes for later tasks:
+- T12: gate runs appear in GET /runs and the run screen as they are; the summary line already words trigger gate. A run lost to a restart stays running in the list, since only its FeedItem is taken over.
+- T14: a check step turns red when its output lists removedClaimIds, so the verifier should record removals the same way. Its model steps add their provider and model to the served limits by themselves.
+- Each run screen opens its own socket next to the feed's; share one connection if more screens listen.
 
 ## Phase 2: deepen
 
@@ -128,9 +137,19 @@ Open decisions and notes from T02:
 The gate from SPEC.md: relevance threshold, importance of at least 4, dedupe per event cluster, daily budget. Cards appear immediately and research attaches asynchronously.
 Done when: tests cover every gate condition, and a card is visible before its research completes.
 
-### [ ] T13 Full MCP tool set
+### [~] T13 Full MCP tool set
 Every tool in INTERFACES.md, a tool set per agent, and get_price_reaction with benchmarks and the delayed flag. Windows are anchored to the regular session through the Alpaca market calendar, and the result states its anchor. search_filings returns at most 3 chunks per call.
 Done when: each agent's token lists only its own tools, and get_price_reaction returns stock and benchmark moves for the TSMC window anchored to the previous close, and a test covers a weekend, a holiday and an early close headline.
+Split in two parts under this id, because search_filings and the hybrid search need the filing chunks and the embedder from T11:
+- Part 1, now: the price reaction. get_price_reaction as an MCP tool, and FeedCard.priceReaction filled by the same code: SIP bars from Alpaca, windows anchored as decided in T00 finding A, the Alpaca market calendar for weekends, holidays and early closes, the anchor stated in the output, SMH and SPY in the same windows, always labeled as delayed 15 minutes and never stated as a cause. The web market table and open gap bars show the values instead of the empty state. Raw SIP bars stay out of git (Alpaca's data terms; the repo becomes public): recordings/alpaca-bars/ is a gitignored local cache that `npm run record:bars` fills. The market calendar recordings and the computed PriceReaction of the demo event are committed. CI tests use synthetic bars and that fixture; the test that reproduces SPIKE.md from real bars runs locally and skips when the cache is missing.
+- Part 2, after T11: get_my_portfolio, get_company_relationships, search_filings, get_financial_facts, the hybrid search_news behind the same contract (event embeddings, the Atlas text index), and a tool set per agent.
+Done when for part 1: get_price_reaction returns stock and benchmark moves for the TSMC window anchored to the previous close, equal to docs/SPIKE.md check 3, a test covers a weekend, a holiday and an early close headline, and the demo card shows the moves next to the benchmarks.
+Part 1 is done (29 Sep 2026). Notes for part 2 and later tasks:
+- Tool sets per agent: decide whether the research agent gets get_price_reaction (RESEARCH_TOOLS in apps/api/src/research/mcp.ts). research:dev passes no priceReactions to createApp, so there the tool answers "market data is not configured".
+- The committed calendar holds 2024 only. Live headlines in other years read the calendar from Alpaca once per process; record more years with `npm run record:bars` when a test or the demo needs them.
+- An incomplete reaction (a session still under way) is computed again on every card request; add a short TTL if live feeds make that costly. The memo of whole sessions in data.ts has no cap.
+- T10: decide how live reactions persist (no collection stores bars or reactions yet), and whether live bars feed the local cache.
+- T14: a metric claim can check its numbers against the same PriceReaction (numbers_match).
 
 ### [ ] T14 Full verification
 Typed claims (fact, metric, inference), deterministic checks, an independent verifier agent. Unsupported facts are dropped, and inferences appear only with supported premises.

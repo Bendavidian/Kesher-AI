@@ -1,14 +1,17 @@
-import { AgentRun, Claim, Report } from '@kesher/shared';
+import { AgentRun, Claim, Report, ReportDetail, RunDetail, RunSummary } from '@kesher/shared';
 import { describe, expect, it } from 'vitest';
 import { formatPercent } from '../view/format';
 import { DEMO_EVENT, DEMO_PRICE_REACTION, RELATIONSHIPS } from './demoEvent';
+import { DEMO_REPORT_DETAIL } from './index';
 import {
   DEMO_CLAIMS,
   DEMO_REPORT,
   DEMO_REPORT_SOURCES,
+  DEMO_FAILED_RUN_DETAIL,
   DEMO_RUN,
-  DEMO_STEP_OUTPUTS,
-  DEMO_TOKEN_SCOPE,
+  DEMO_RUN_DETAIL,
+  DEMO_RUN_SUMMARIES,
+  DEMO_TOOLS,
 } from './research';
 
 describe('research fixtures', () => {
@@ -16,6 +19,15 @@ describe('research fixtures', () => {
     expect(AgentRun.parse(DEMO_RUN)).toEqual(DEMO_RUN);
     expect(Report.parse(DEMO_REPORT)).toEqual(DEMO_REPORT);
     for (const claim of DEMO_CLAIMS) expect(Claim.parse(claim)).toEqual(claim);
+    expect(ReportDetail.parse(DEMO_REPORT_DETAIL)).toEqual(DEMO_REPORT_DETAIL);
+    expect(RunDetail.parse(DEMO_RUN_DETAIL)).toEqual(DEMO_RUN_DETAIL);
+    expect(RunDetail.parse(DEMO_FAILED_RUN_DETAIL)).toEqual(DEMO_FAILED_RUN_DETAIL);
+    for (const row of DEMO_RUN_SUMMARIES) expect(RunSummary.parse(row)).toEqual(row);
+  });
+
+  it('answer the report for the user and event of its card', () => {
+    const { run, card } = DEMO_REPORT_DETAIL;
+    expect(card?.item).toMatchObject({ userId: run.userId, eventId: run.eventId });
   });
 
   it('hold the eleven design steps, with provider, model and tokens on every model step', () => {
@@ -36,14 +48,12 @@ describe('research fixtures', () => {
 
   it('call only tools the run token allows', () => {
     const called = DEMO_RUN.steps.filter((step) => step.kind === 'tool').map((step) => step.name);
-    expect(called.every((name) => DEMO_TOKEN_SCOPE.tools.includes(name))).toBe(true);
-    expect(DEMO_TOKEN_SCOPE.writes).toEqual([]);
-    expect(DEMO_RUN.agent).toBe(DEMO_TOKEN_SCOPE.agent);
+    expect(called.every((name) => (DEMO_TOOLS as string[]).includes(name))).toBe(true);
   });
 
-  it('key step outputs by existing steps', () => {
-    for (const index of Object.keys(DEMO_STEP_OUTPUTS).map(Number)) {
-      expect(DEMO_RUN.steps[index]).toBeDefined();
+  it('store every non empty step output as JSON text', () => {
+    for (const step of DEMO_RUN.steps) {
+      if (step.output !== '') expect(() => JSON.parse(step.output) as unknown).not.toThrow();
     }
   });
 

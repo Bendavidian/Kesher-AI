@@ -92,7 +92,7 @@ describe('research replay of the demo item', () => {
       },
       confidence: 'medium',
       status: 'unconfirmed',
-      research: { state: 'none', runId: null },
+      research: { state: 'none', runId: null, reportId: null },
       createdAt: new Date(),
       updatedAt: new Date(),
     };
