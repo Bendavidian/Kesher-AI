@@ -22,7 +22,9 @@ export const DraftClaim = z.strictObject({
         quote: z
           .string()
           .optional()
-          .describe('Text copied exactly, character for character, from that source'),
+          .describe(
+            'Required for a fact: at least 20 characters copied exactly, character for character, from what a tool returned for that source. A fact without a quote is dropped. Leave it out for a metric from get_price_reaction or get_financial_facts.',
+          ),
       }),
     )
     .max(5),

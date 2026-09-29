@@ -1,12 +1,14 @@
 import type { AgentRun } from '@kesher/shared';
 
-// Research budgets (SPEC.md Research agent, decision log T08). The step budget counts tool calls.
-// The token budget replaced the first 6,000 once research moved to Gemini, where the history
-// resent on every turn fits the free tier easily. T16 tunes both.
+// Research budgets (SPEC.md Research agent, decision log T08 and T13). The step budget counts
+// tool calls. The token budget replaced the first 6,000 once research moved to Gemini, where the
+// history resent on every turn fits the free tier easily, and grew with the seven MCP tools of
+// T13, whose schemas go out on every turn. Gemini's free tier limits requests, not daily tokens.
+// T16 tunes both.
 export type RunMode = AgentRun['mode'];
 
 export const STEP_BUDGET: Record<RunMode, number> = { auto: 6, deep: 15 };
-export const TOKEN_BUDGET: Record<RunMode, number> = { auto: 12_000, deep: 20_000 };
+export const TOKEN_BUDGET: Record<RunMode, number> = { auto: 16_000, deep: 32_000 };
 
 // Kept for the report's output. A tool turn gets the same output cap, so a report the model
 // submits early is not cut short.

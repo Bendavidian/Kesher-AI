@@ -277,7 +277,7 @@ describe('runResearch', () => {
       mode: 'deep',
       trigger: 'investigate',
       stepBudget: 15,
-      tokenBudget: 20_000,
+      tokenBudget: 32_000,
       tokensUsed: 2_400,
       costUsd: 0,
       status: 'succeeded',
@@ -531,10 +531,10 @@ describe('runResearch', () => {
   });
 
   it('forces the report early when the token budget binds first', async () => {
-    // At 4,300 tokens a turn, the fourth turn must be the report: after three turns only 7,100
-    // remain, less than a tool turn and a report after it with the seven tool schemas.
+    // At 7,300 tokens a turn, the fourth turn must be the report: after three turns only 10,100
+    // of 32,000 remain, less than a tool turn and a report after it with the seven tool schemas.
     const { run } = setup([getEvent, searchNews, searchNews, report], {
-      usage: { input: 4_000, output: 300 },
+      usage: { input: 7_000, output: 300 },
     });
 
     const outcome = await run();
@@ -545,13 +545,16 @@ describe('runResearch', () => {
     expect(stored.steps.find((s) => s.name === 'Report turn')?.input).toMatchObject({
       reason: 'token_budget',
     });
-    expect(stored.tokensUsed).toBe(4 * 4_300);
+    expect(stored.tokensUsed).toBe(4 * 7_300);
   });
 
   it('counts a report turn that calls another tool as a failed attempt, and runs nothing', async () => {
     // The skipped report turn is charged its estimate and output cap; a second report still fits.
-    const { run } = setup([getEvent, searchNews, searchNews, searchNews, report], {
-      usage: { input: 3_000, output: 300 },
+    // Three tool turns of 7,300 leave 10,100: the fourth turn must report, and a report still
+    // fits after the rejected one, which costs 3,300.
+    const rejected: ModelReply = { ...searchNews, usage: { input: 3_000, output: 300 } };
+    const { run } = setup([getEvent, searchNews, searchNews, rejected, report], {
+      usage: { input: 7_000, output: 300 },
     });
 
     const outcome = await run();
@@ -564,7 +567,7 @@ describe('runResearch', () => {
   });
 
   it('ends as budget_exhausted without a report when no report fits', async () => {
-    const { run } = setup([getEvent, report], { usage: { input: 19_000, output: 500 } });
+    const { run } = setup([getEvent, report], { usage: { input: 31_000, output: 500 } });
 
     const outcome = await run();
 

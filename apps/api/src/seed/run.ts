@@ -24,7 +24,7 @@ try {
   console.log(`Sources given a publisher: ${await backfillPublishers(db)}`);
   console.log(`Feed items given a research reportId: ${await backfillResearchReports(db)}`);
   const searchIndexes = await ensureSearchIndexes(db);
-  console.log('Vector search indexes:');
+  console.log('Search indexes:');
   console.table(searchIndexes);
 } catch (error) {
   console.error(redact(describeError(error)));
