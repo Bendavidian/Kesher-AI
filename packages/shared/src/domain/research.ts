@@ -8,11 +8,31 @@ export const TokenUsage = z.strictObject({
 });
 export type TokenUsage = z.infer<typeof TokenUsage>;
 
+// A step keeps at most 8 KB of its output, measured in UTF-8 bytes.
+export const MAX_STEP_OUTPUT_BYTES = 8_192;
+
+// UTF-8 bytes without TextEncoder, which this package's libs do not declare. A lone surrogate
+// counts 3, as the U+FFFD it is encoded as.
+export function utf8Length(text: string): number {
+  let bytes = 0;
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+  }
+  return bytes;
+}
+
 const stepFields = {
   // The tool, check or code step name, or what the model call was for.
   name: z.string().min(1),
   input: z.record(z.string(), z.unknown()),
   outputSummary: z.string(),
+  // The step's output as JSON text, redacted before it was capped. outputTruncated says whether
+  // the cap cut it, so the text may not parse as JSON.
+  output: z.string().refine((text) => utf8Length(text) <= MAX_STEP_OUTPUT_BYTES, {
+    error: `step output is capped at ${MAX_STEP_OUTPUT_BYTES} bytes`,
+  }),
+  outputTruncated: z.boolean(),
   latencyMs: z.number().min(0),
   startedAt: z.date(),
 };
@@ -37,26 +57,37 @@ export type AgentStep = z.infer<typeof AgentStep>;
 export const AgentName = z.enum(['research', 'verifier']);
 export type AgentName = z.infer<typeof AgentName>;
 
-export const AgentRun = z.strictObject({
-  _id: Id,
-  userId: Id,
-  eventId: Id,
-  agent: AgentName,
-  mode: z.enum(['auto', 'deep']),
-  trigger: z.enum(['gate', 'investigate']),
-  // Decided by code policy, with the reason shown in Agent Runs.
-  gate: z.strictObject({ decision: z.enum(['run', 'skip']), reason: NonBlank }),
-  stepBudget: z.int().positive(),
-  tokenBudget: z.int().positive(),
-  steps: z.array(AgentStep),
-  tokensUsed: z.int().min(0),
-  // Computed by code; 0 on the free tiers, where any paid call is a bug.
-  costUsd: z.number().min(0),
-  status: z.enum(['queued', 'running', 'succeeded', 'failed', 'budget_exhausted', 'skipped']),
-  startedAt: z.date().nullable(),
-  finishedAt: z.date().nullable(),
-  createdAt: z.date(),
-});
+// Why a run ended as failed. rate_limited: a provider asked for a wait over 30 seconds or kept
+// answering 429 after 3 retries. invalid_report: the report never passed its schema.
+export const RunFailureReason = z.enum(['rate_limited', 'invalid_report', 'error']);
+export type RunFailureReason = z.infer<typeof RunFailureReason>;
+
+export const AgentRun = z
+  .strictObject({
+    _id: Id,
+    userId: Id,
+    eventId: Id,
+    agent: AgentName,
+    mode: z.enum(['auto', 'deep']),
+    trigger: z.enum(['gate', 'investigate']),
+    // Decided by code policy, with the reason shown in Agent Runs.
+    gate: z.strictObject({ decision: z.enum(['run', 'skip']), reason: NonBlank }),
+    stepBudget: z.int().positive(),
+    tokenBudget: z.int().positive(),
+    steps: z.array(AgentStep),
+    tokensUsed: z.int().min(0),
+    // Computed by code; 0 on the free tiers, where any paid call is a bug.
+    costUsd: z.number().min(0),
+    status: z.enum(['queued', 'running', 'succeeded', 'failed', 'budget_exhausted', 'skipped']),
+    failureReason: RunFailureReason.nullable(),
+    startedAt: z.date().nullable(),
+    finishedAt: z.date().nullable(),
+    createdAt: z.date(),
+  })
+  .refine((run) => (run.failureReason === null) === (run.status !== 'failed'), {
+    error: 'a run names a failure reason exactly when it failed',
+    path: ['failureReason'],
+  });
 export type AgentRun = z.infer<typeof AgentRun>;
 
 export const Report = z.strictObject({
@@ -71,8 +102,18 @@ export type Report = z.infer<typeof Report>;
 export const ClaimStatus = z.enum(['unverified', 'supported', 'removed']);
 export type ClaimStatus = z.infer<typeof ClaimStatus>;
 
+// Every check has one name, used by the api, the run steps and the web (T14 adds the rest).
+export const CheckName = z.enum([
+  'quote_verbatim',
+  'numbers_match',
+  'sources_exist',
+  'premises_supported',
+  'verifier',
+]);
+export type CheckName = z.infer<typeof CheckName>;
+
 export const CheckResult = z.strictObject({
-  name: z.string().min(1),
+  name: CheckName,
   passed: z.boolean(),
   detail: z.string().nullable(),
 });

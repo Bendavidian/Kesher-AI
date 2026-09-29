@@ -1,4 +1,4 @@
-import type { AgentRun, AgentStep, Claim, Report } from '@kesher/shared';
+import type { AgentRun, AgentStep, CheckName, Claim, Report } from '@kesher/shared';
 import { formatDay } from '../view/format';
 import type { ReportSourceView, RunTokenScope, StepOutput } from '../view/types';
 import { DEMO_EVENT, DEMO_NEWS_SOURCE, DEMO_PRICE_REACTION, NVDA_10K_SOURCE_ID } from './demoEvent';
@@ -52,7 +52,8 @@ const openGap = (symbol: string) =>
   DEMO_PRICE_REACTION.rows.find((row) => row.symbol === symbol)?.moves[0] ?? 0;
 
 // The eleven steps from docs/design/agent-run.dc.html. latencyMs and startedAt are sample
-// values; tokens are sample values too, but they add up to tokensUsed.
+// values; tokens are sample values too, but they add up to tokensUsed. output stays empty here;
+// the detail panel reads DEMO_STEP_OUTPUTS until T09 shows the stored output.
 const STEPS: AgentStep[] = [
   {
     kind: 'code',
@@ -61,6 +62,8 @@ const STEPS: AgentStep[] = [
     outputSummary: GATE_REASON,
     latencyMs: 3,
     startedAt: at(0),
+    output: '',
+    outputTruncated: false,
   },
   {
     kind: 'code',
@@ -69,6 +72,8 @@ const STEPS: AgentStep[] = [
     outputSummary: 'Research agent, five read only tools, valid for 5 minutes.',
     latencyMs: 2,
     startedAt: at(5),
+    output: '',
+    outputTruncated: false,
   },
   {
     kind: 'tool',
@@ -77,6 +82,8 @@ const STEPS: AgentStep[] = [
     outputSummary: `Loaded event ${DEMO_NEWS_SOURCE.externalId} and its extraction.`,
     latencyMs: 38,
     startedAt: at(10),
+    output: '',
+    outputTruncated: false,
   },
   {
     kind: 'tool',
@@ -85,6 +92,8 @@ const STEPS: AgentStep[] = [
     outputSummary: 'One reviewed edge: TSM supplier_of NVDA.',
     latencyMs: 61,
     startedAt: at(50),
+    output: '',
+    outputTruncated: false,
   },
   {
     kind: 'tool',
@@ -93,6 +102,8 @@ const STEPS: AgentStep[] = [
     outputSummary: 'Three passages from the NVIDIA 10-K.',
     latencyMs: 410,
     startedAt: at(115),
+    output: '',
+    outputTruncated: false,
   },
   {
     kind: 'tool',
@@ -101,6 +112,8 @@ const STEPS: AgentStep[] = [
     outputSummary: 'Two related items in the recorded set.',
     latencyMs: 350,
     startedAt: at(530),
+    output: '',
+    outputTruncated: false,
   },
   {
     kind: 'tool',
@@ -109,6 +122,8 @@ const STEPS: AgentStep[] = [
     outputSummary: 'Anchored to the Apr 2 close, since the headline came after hours.',
     latencyMs: 240,
     startedAt: at(885),
+    output: '',
+    outputTruncated: false,
   },
   {
     kind: 'model',
@@ -117,6 +132,8 @@ const STEPS: AgentStep[] = [
     outputSummary: 'Five claims, all valid against the schema.',
     latencyMs: 3_900,
     startedAt: at(1_130),
+    output: '',
+    outputTruncated: false,
     ...RESEARCH_MODEL,
     tokens: { input: 2_610, output: 870, total: 3_480 },
   },
@@ -127,6 +144,8 @@ const STEPS: AgentStep[] = [
     outputSummary: "Four passed. One quote wasn't found in its source, so that claim was removed.",
     latencyMs: 11,
     startedAt: at(5_040),
+    output: '',
+    outputTruncated: false,
   },
   {
     kind: 'model',
@@ -135,6 +154,8 @@ const STEPS: AgentStep[] = [
     outputSummary: 'Separate context, read only. Four claims supported.',
     latencyMs: 2_700,
     startedAt: at(5_060),
+    output: '',
+    outputTruncated: false,
     ...VERIFIER_MODEL,
     tokens: { input: 1_450, output: 470, total: 1_920 },
   },
@@ -145,6 +166,8 @@ const STEPS: AgentStep[] = [
     outputSummary: 'Sent to your card in the feed.',
     latencyMs: 6,
     startedAt: at(7_770),
+    output: '',
+    outputTruncated: false,
   },
 ];
 
@@ -162,6 +185,7 @@ export const DEMO_RUN: AgentRun = {
   tokensUsed: STEPS.reduce((sum, step) => sum + (step.kind === 'model' ? step.tokens.total : 0), 0),
   costUsd: 0,
   status: 'succeeded',
+  failureReason: null,
   startedAt: RUN_STARTED_AT,
   finishedAt: at(7_776),
   createdAt: RUN_STARTED_AT,
@@ -212,7 +236,7 @@ const NVDA_FOUNDRY_QUOTE =
   'We utilize foundries, such as Taiwan Semiconductor Manufacturing Company Limited, or TSMC, and Samsung Electronics Co., Ltd., or Samsung, to produce our semiconductor wafers.';
 
 const claimBase = { reportId: REPORT_ID, createdAt: REPORT_AT } as const;
-const passed = (name: string) => ({ name, passed: true, detail: null });
+const passed = (name: CheckName) => ({ name, passed: true, detail: null });
 
 export const DEMO_CLAIMS: Claim[] = [
   {

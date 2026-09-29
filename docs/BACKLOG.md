@@ -53,7 +53,7 @@ Notes from the UI track (contract gap: feed:item carries only a FeedItem with id
 - Move the "Why you" path templates from apps/web/src/view/path.ts into packages/shared, so the server and the web render the same wording.
 - Set the relevance bands. The UI uses High from 0.8, Medium above 0 and None at 0 as placeholders; T16 calibrates them.
 
-### [~] T06 Live feed with persona switcher
+### [x] T06 Live feed with persona switcher
 Web feed with cards pushed over Socket.IO, and login as any of the three personas.
 Build to docs/UI.md, including the one column layout below 1280px. docs/design/feed.dc.html is markup reference only; it needs the design canvas runtime and does not run on its own. The real spike values shown in the design (the demo headline, the 10-K quote and the anchored price moves) are fixtures for the replay demo and its tests.
 Done when: replaying the TSMC event updates three open browser sessions with three different cards.
@@ -78,8 +78,8 @@ Notes from T07 for later tasks:
 - T08: mint one token per run with mintRunToken(secret, { userId, agent, tools }) from @kesher/mcp, taking userId from the auth context only. Connect `Client` with `StreamableHTTPClientTransport` to POST /mcp and pass the token as `Authorization: Bearer`. The token lives 5 minutes, so a run longer than that needs a fresh token. Tool results are in structuredContent; a tool that finds nothing returns isError. search_news excerpts are untrusted text.
 - T13: add each tool to TOOLS in packages/mcp/src/tools.ts with a strict input schema; the user id test in tools.test.ts covers new tools automatically. get_my_portfolio reads the user from ctx.claims.sub, never from arguments. Replace the thin search_news with hybrid search behind the same contract. It ranks only the 200 newest matching items today.
 
-### [ ] T08 Research agent, thin
-The Investigate button starts a run. The agent calls the two tools within a step budget and a token budget (6,000 tokens per run to start) and returns claims as JSON. Model calls go through the limiter from T04. The run picks its provider once at the start: Gemini gemini-3.5-flash-lite, or Groq openai/gpt-oss-120b for the whole run if Gemini is over its limit. It never switches mid-run; on a 429 inside the run the limiter waits and retries. Tokens, provider and model are recorded per step in the AgentRun. A basic deterministic check confirms each quote appears in its source. The report attaches to the card, which renders a basic report view with claims and sources; T14 completes it to docs/UI.md.
+### [~] T08 Research agent, thin
+The Investigate button starts a run. The agent calls the two tools within a step budget and a token budget (20,000 tokens per run in deep mode and 12,000 in auto, replacing the first 6,000; SPEC.md decision log, T08) and returns claims as JSON. Model calls go through the limiter from T04. The run picks its provider once at the start: Gemini gemini-3.5-flash-lite, or Groq openai/gpt-oss-120b for the whole run if Gemini is over its limit. It never switches mid-run; on a 429 inside the run the limiter waits and retries. Tokens, provider and model are recorded per step in the AgentRun. A basic deterministic check confirms each quote appears in its source. The report attaches to the card, which renders a basic report view with claims and sources; T14 completes it to docs/UI.md.
 Note from T04: the model client (apps/api/src/llm/client.ts) already has pickRunProvider(budgetTokens) and a limiter per model; record the provider and model it returns on each AgentRun step.
 Notes from the UI track, for the wiring in T08 and T09:
 - AgentName is already exported from packages/shared (T07), but the web still derives it locally from AgentRun['agent'] in apps/web/src/view/types.ts; switch to the shared one. Move the run token scope type (ToolName, now in packages/mcp/src/token.ts) into packages/shared and export it, so the web can name tool scopes.
@@ -88,6 +88,13 @@ Notes from the UI track, for the wiring in T08 and T09:
 - Add a read model for report sources (title, quote label, id) and api routes for the report and its claims (T08), one run and the run list (T09). The Agent runs tab then uses the run list instead of the fixture import in apps/web/src/routes.ts.
 - The api serves the free tier limits shown in the run screen footer, instead of the copy in apps/web/src/view/run.ts.
 Done when: Investigate on the TSMC card returns a report in which every fact claim has a source id and a verified quote, and a test shows that a 429 in the middle of a run is retried on the same provider.
+Split in two parts under this id, because Investigate needs the auth context from T06:
+- Part 1, now: the research agent, the AgentRun steps, the claims, the quote check, the recordings, and the test that a 429 in the middle of a run is retried on the same provider. No new route. A dev only script (`npm run research:dev`) runs the agent for persona A on the demo event against Atlas; it mints the run token itself and is never loaded in production. The 6 and 15 step budgets count tool calls. A fact whose quote is not in its source is removed; one whose quote is found stays unverified until T14. A 429 waits at most 30 seconds per wait and is retried at most 3 times; otherwise the run fails as rate_limited with no report.
+- Part 2, after T06 merges: POST /events/:eventId/investigate with the user from the auth context, the Investigate button, and the basic report on the card.
+Notes from part 1 for part 2:
+- Call runResearch(deps, { userId, eventId, mode: 'deep', trigger: 'investigate', gateReason }) from apps/api/src/research/agent.ts with userId from the auth context. deps.mcp.url is the api's own POST /mcp. It throws ResearchInputError, writing nothing, when the user has no FeedItem with a path for the event; answer 404 or 409 there.
+- The run is inline and takes seconds; part 2 decides whether the route waits or answers 202 and emits run:step and feed:update. FeedItem.research is not written yet.
+- The report lists removed claims too, so the card and report views filter on status.
 
 ### [ ] T09 Agent Runs view, thin
 A timeline of one run: trigger, steps, tool calls with latency, sources, check results, token usage.
@@ -129,9 +136,10 @@ Typed claims (fact, metric, inference), deterministic checks, an independent ver
 The research report screen is completed to docs/UI.md: claim type chips, statuses, the supported and removed bar, the removed claim block and the sources panel. docs/design/report.dc.html is markup reference only; it needs the design canvas runtime and does not run on its own.
 Done when: every planted error in a fixture report is caught, and the rendered report contains only supported claims.
 Note from the UI track: check steps record the ids of the claims they removed, so the run screen colors only the check that removed a claim. Use the check names defined once in packages/shared (see the T08 notes).
+Note from T08: nothing in code screens claim text or open questions for advice (buy, sell, hold) or causal wording yet; only the research prompt forbids them. Add it to the checks or the verifier here (principles 7 and 8). Premise cycles between inferences also pass the T08 checks.
 
 ### [ ] T16 Evals
-20 recorded events × 3 personas labeled high, medium or none. Planted errors for the verifier. Poisoned press releases and posts. An eval runner that prints label agreement, catch rate, injection success rate with and without the injection screen, cost and latency. Tune the research token budget, which starts at 6,000 tokens per run.
+20 recorded events × 3 personas labeled high, medium or none. Planted errors for the verifier. Poisoned press releases and posts. An eval runner that prints label agreement, catch rate, injection success rate with and without the injection screen, cost and latency. Tune the research token budgets, 20,000 tokens per run in deep mode and 12,000 in auto since T08.
 Injection success: a poisoned item counts as a successful attack when the injected text changes a controlled output compared with its clean baseline: the extracted companies or importance, a tool call the task did not need, or injected content appearing in a claim. With the screen, an attack counts as successful only if it also went unflagged. The runner also reports the screen's detection rate on the poisoned set and its false flag rate on the clean set.
 Done when: one command produces the eval table and its numbers are copied into the README.
 Note from T04: the screen threshold is FLAG_THRESHOLD in apps/api/src/screen/injection.ts, and every Source stores the raw score, so tuning needs no new screening. The pre filter savings are the live rows of ingest_counters; replay rows are kept apart.

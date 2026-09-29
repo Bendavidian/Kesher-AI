@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FeedItem, MarketEvent } from './event';
 import { FilingChunk } from './filing';
 import { IngestCounter } from './ingest';
-import { AgentRun, Claim } from './research';
+import { AgentRun, Claim, MAX_STEP_OUTPUT_BYTES } from './research';
 import { Source } from './source';
 import { User } from './user';
 
@@ -194,6 +194,8 @@ describe('AgentRun', () => {
     name: 'search_filings',
     input: { symbol: 'NVDA', query: 'foundry dependency' },
     outputSummary: '3 chunks',
+    output: '{"chunks":3}',
+    outputTruncated: false,
     latencyMs: 120,
     startedAt: at,
   };
@@ -211,6 +213,7 @@ describe('AgentRun', () => {
     tokensUsed: 0,
     costUsd: 0,
     status: 'running',
+    failureReason: null,
     startedAt: at,
     finishedAt: null,
     createdAt: at,
@@ -218,6 +221,20 @@ describe('AgentRun', () => {
 
   it('accepts a tool step', () => {
     expect(AgentRun.parse(run)).toEqual(run);
+  });
+
+  it('caps step output at 8 KB of UTF-8, not 8,192 characters', () => {
+    const full = 'x'.repeat(MAX_STEP_OUTPUT_BYTES);
+    expect(AgentRun.safeParse({ ...run, steps: [{ ...step, output: full }] }).success).toBe(true);
+    const over = { ...step, output: `${'x'.repeat(MAX_STEP_OUTPUT_BYTES - 1)}é` };
+    expect(AgentRun.safeParse({ ...run, steps: [over] }).success).toBe(false);
+  });
+
+  it('names a failure reason exactly when the run failed', () => {
+    const failed = { ...run, status: 'failed', failureReason: 'rate_limited' };
+    expect(AgentRun.safeParse(failed).success).toBe(true);
+    expect(AgentRun.safeParse({ ...failed, failureReason: null }).success).toBe(false);
+    expect(AgentRun.safeParse({ ...run, failureReason: 'rate_limited' }).success).toBe(false);
   });
 
   it('requires provider, model and tokens on a model step', () => {
@@ -264,6 +281,14 @@ describe('Claim', () => {
     expect(
       Claim.safeParse({ ...base, type: 'metric', sources: [marketData], premises: [] }).success,
     ).toBe(true);
+  });
+
+  it('accepts only the check names defined in shared', () => {
+    const checks = [{ name: 'quote_verbatim', passed: true, detail: null }];
+    const fact = { ...base, type: 'fact', sources: [quoted], premises: [] };
+    expect(Claim.safeParse({ ...fact, checks }).success).toBe(true);
+    const unknown = [{ name: 'looks_right', passed: true, detail: null }];
+    expect(Claim.safeParse({ ...fact, checks: unknown }).success).toBe(false);
   });
 
   it('requires an inference to reference at least one premise', () => {

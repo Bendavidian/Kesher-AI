@@ -1,0 +1,62 @@
+{
+  "externalId": "38062166",
+  "recordedAt": "2026-09-29T07:41:32.917Z",
+  "persona": "A",
+  "mode": "deep",
+  "provider": "google",
+  "model": "gemini-3.5-flash-lite",
+  "ids": {
+    "eventId": "341bfaa7-c30a-43b7-9591-458930f8fb6b",
+    "sourceIds": ["95bbf8fc-ae17-44c0-935d-6c73c640e9bf"]
+  },
+  "turns": [
+    {
+      "text": "",
+      "toolCalls": [
+        {
+          "toolCallId": "call_459526",
+          "toolName": "get_event",
+          "input": "{\"eventId\":\"341bfaa7-c30a-43b7-9591-458930f8fb6b\"}"
+        }
+      ],
+      "finishReason": "tool-calls",
+      "usage": {
+        "inputTokens": 1335,
+        "outputTokens": 48,
+        "totalTokens": 1383
+      }
+    },
+    {
+      "text": "",
+      "toolCalls": [
+        {
+          "toolCallId": "call_416612",
+          "toolName": "search_news",
+          "input": "{\"symbols\":[\"TSM\"],\"query\":\"TSMC Taiwan earthquake chip production\",\"since\":\"2024-04-03T00:00:00Z\"}"
+        }
+      ],
+      "finishReason": "tool-calls",
+      "usage": {
+        "inputTokens": 1626,
+        "outputTokens": 53,
+        "totalTokens": 1679
+      }
+    },
+    {
+      "text": "",
+      "toolCalls": [
+        {
+          "toolCallId": "call_546481",
+          "toolName": "submit_report",
+          "input": "{\"openQuestions\":[\"How long did the production suspension at TSMC last?\",\"What was the extent of the damage to TSMC facilities and equipment?\"],\"claims\":[{\"text\":\"TSMC suspended chip production after Taiwan was struck by the strongest tremor in 25 years.\",\"type\":\"fact\",\"sources\":[{\"sourceId\":\"95bbf8fc-ae17-44c0-935d-6c73c640e9bf\",\"quote\":\"TSMC Suspends Chip Production After Taiwan Rocked By Strongest Tremor In 25 Years\"}],\"key\":\"c1\",\"premises\":[]},{\"key\":\"c2\",\"premises\":[],\"type\":\"fact\",\"sources\":[{\"sourceId\":\"95bbf8fc-ae17-44c0-935d-6c73c640e9bf\",\"quote\":\"Taiwan was struck by a powerful 7.2 magnitude earthquake on Wednesday, the strongest in a quarter of a century.\"}],\"text\":\"A powerful 7.2 magnitude earthquake struck Taiwan on Wednesday.\"},{\"sources\":[],\"premises\":[\"c1\",\"c2\"],\"key\":\"c3\",\"type\":\"inference\",\"text\":\"The earthquake suspension at TSMC could potentially impact semiconductor supply chains for companies like NVIDIA.\"}]}"
+        }
+      ],
+      "finishReason": "tool-calls",
+      "usage": {
+        "inputTokens": 1972,
+        "outputTokens": 307,
+        "totalTokens": 2279
+      }
+    }
+  ]
+}
