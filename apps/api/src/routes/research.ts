@@ -5,13 +5,14 @@ import { currentUser, requireUser } from '../auth/session';
 import { feedCard } from '../feed/cards';
 import { startInvestigation, type InvestigateDeps } from '../research/investigate';
 import { reportDetail } from '../research/report';
+import { runDetail, runList } from '../research/runs';
 
-// Investigate and the research report (docs/INTERFACES.md, REST). The user comes from the
+// Investigate, the research report and the agent runs (docs/INTERFACES.md, REST). The user comes from the
 // session cookie only; no route takes a user id.
 export function researchRouter(deps: InvestigateDeps, secret: string): Router {
   const { db } = deps;
   const router = Router();
-  router.use(['/events', '/reports'], requireUser(secret));
+  router.use(['/events', '/reports', '/runs'], requireUser(secret));
 
   // Answers 202 with the card in state running; the run goes on in the background and the card
   // follows it through feed:update.
@@ -43,6 +44,25 @@ export function researchRouter(deps: InvestigateDeps, secret: string): Router {
     const detail = await reportDetail(db, currentUser(res), reportId.data);
     if (!detail) {
       res.status(404).json({ error: 'no report with that id' });
+      return;
+    }
+    res.json(detail);
+  });
+
+  router.get('/runs', async (_req, res) => {
+    res.json(await runList(db, currentUser(res)));
+  });
+
+  // A run's steps as stored: tool output is redacted, capped and may quote untrusted text.
+  router.get('/runs/:runId', async (req, res) => {
+    const runId = Id.safeParse(req.params.runId);
+    if (!runId.success) {
+      res.status(400).json({ error: 'runId must be a run id' });
+      return;
+    }
+    const detail = await runDetail(db, currentUser(res), runId.data);
+    if (!detail) {
+      res.status(404).json({ error: 'no run with that id' });
       return;
     }
     res.json(detail);

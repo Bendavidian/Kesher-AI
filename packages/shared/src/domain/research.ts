@@ -57,6 +57,20 @@ export type AgentStep = z.infer<typeof AgentStep>;
 export const AgentName = z.enum(['research', 'verifier']);
 export type AgentName = z.infer<typeof AgentName>;
 
+// The MVP tools in docs/INTERFACES.md, as a run token names them. A token may list a tool before
+// the server implements it.
+export const TOOL_NAMES = [
+  'get_my_portfolio',
+  'get_event',
+  'get_company_relationships',
+  'search_news',
+  'search_filings',
+  'get_price_reaction',
+  'get_financial_facts',
+] as const;
+export const ToolName = z.enum(TOOL_NAMES);
+export type ToolName = z.infer<typeof ToolName>;
+
 // Why a run ended as failed. rate_limited: a provider asked for a wait over 30 seconds or kept
 // answering 429 after 3 retries. invalid_report: the report never passed its schema.
 export const RunFailureReason = z.enum(['rate_limited', 'invalid_report', 'error']);

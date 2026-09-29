@@ -1,6 +1,13 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { DEMO_PASSWORD, DEMO_PERSONAS, type FeedItem, type PersonaKey } from '@kesher/shared';
+import {
+  DEMO_PASSWORD,
+  DEMO_PERSONAS,
+  type FeedItem,
+  type PersonaKey,
+  type RunEnded,
+  type RunStepPushed,
+} from '@kesher/shared';
 import type { Db } from 'mongodb';
 import { createApp } from '../app';
 import { SESSION_COOKIE } from '../auth/session';
@@ -65,6 +72,9 @@ export async function startApi(
             redact: (text: string) => text.split(TEST_MCP_SECRET).join('[REDACTED]'),
           },
           onResearch: (item: FeedItem) => realtime.publishItem(item),
+          onRunStep: (userId: string, pushed: RunStepPushed) =>
+            realtime.publishRunStep(userId, pushed),
+          onRunEnd: (userId: string, ended: RunEnded) => realtime.publishRunEnd(userId, ended),
         }
       : {}),
   });

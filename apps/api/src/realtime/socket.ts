@@ -1,5 +1,12 @@
 import type { Server as HttpServer } from 'node:http';
-import { SOCKET_EVENTS, type EventScored, type FeedCard, type FeedItem } from '@kesher/shared';
+import {
+  SOCKET_EVENTS,
+  type EventScored,
+  type FeedCard,
+  type FeedItem,
+  type RunEnded,
+  type RunStepPushed,
+} from '@kesher/shared';
 import type { Db } from 'mongodb';
 import { Server } from 'socket.io';
 import { sessionFromCookie } from '../auth/session';
@@ -11,6 +18,8 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.feedItem]: (card: FeedCard) => void;
   [SOCKET_EVENTS.feedUpdate]: (card: FeedCard) => void;
   [SOCKET_EVENTS.eventScored]: (scored: EventScored) => void;
+  [SOCKET_EVENTS.runStep]: (pushed: RunStepPushed) => void;
+  [SOCKET_EVENTS.runEnd]: (ended: RunEnded) => void;
 }
 
 // The client sends nothing: every push is decided on the server.
@@ -28,6 +37,9 @@ export interface Realtime {
   publishScored(eventId: string, scored: readonly ScoredItem[]): Promise<void>;
   // Pushes feed:update to the item's user after its research state changed.
   publishItem(item: FeedItem): Promise<void>;
+  // Pushes run:step and run:end to the run's own user only. userId is the run's stored user.
+  publishRunStep(userId: string, pushed: RunStepPushed): void;
+  publishRunEnd(userId: string, ended: RunEnded): void;
   // Disconnects every socket of a user that signed out, so none keeps receiving their cards.
   signOut(userId: string): void;
   close(): Promise<void>;
@@ -89,6 +101,12 @@ export function createRealtime(httpServer: HttpServer, { db, secret }: { db: Db;
       if (item.relevance <= 0) return;
       const card = await feedCard(db, item);
       if (card) io.to(roomOf(item.userId)).emit(SOCKET_EVENTS.feedUpdate, card);
+    },
+    publishRunStep(userId, pushed) {
+      io.to(roomOf(userId)).emit(SOCKET_EVENTS.runStep, pushed);
+    },
+    publishRunEnd(userId, ended) {
+      io.to(roomOf(userId)).emit(SOCKET_EVENTS.runEnd, ended);
     },
     signOut(userId) {
       io.in(roomOf(userId)).disconnectSockets(true);

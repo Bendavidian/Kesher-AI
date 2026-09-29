@@ -5,6 +5,10 @@ import {
   FeedCard,
   normalizeText,
   ReportDetail,
+  RunDetail,
+  RunEnded,
+  RunStepPushed,
+  RunSummary,
   SOCKET_EVENTS,
   type FeedItem,
   type PersonaKey,
@@ -31,7 +35,7 @@ const revive = (value: unknown) =>
     typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(v) ? new Date(v) : v,
   ) as unknown;
 
-describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongod', () => {
+describe('Investigate, GET /reports/:reportId and the run routes, on mongod', () => {
   let mongo: TestMongo;
   let api: TestApi;
   let eventId: string;
@@ -41,6 +45,8 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
   const cookies = {} as Record<PersonaKey, string>;
   const sockets: Socket[] = [];
   const updates = { A: [] as FeedCard[], B: [] as FeedCard[] };
+  const stepPushes = { A: [] as RunStepPushed[], B: [] as RunStepPushed[] };
+  const endPushes = { A: [] as RunEnded[], B: [] as RunEnded[] };
 
   const userId = async (key: PersonaKey) =>
     (await collection(mongo.db, 'users').findOne({
@@ -56,6 +62,10 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
     });
   const report = (cookie: string, id: string) =>
     fetch(`${api.url}/reports/${id}`, { headers: { cookie } });
+  const getRun = (cookie: string | undefined, id: string) =>
+    fetch(`${api.url}/runs/${id}`, cookie ? { headers: { cookie } } : {});
+  const listRuns = (cookie: string | undefined) =>
+    fetch(`${api.url}/runs`, cookie ? { headers: { cookie } } : {});
 
   // Waits until the user's item left running, as the background run settles it.
   const settled = async (key: PersonaKey): Promise<FeedItem> => {
@@ -140,14 +150,23 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
       socket.on(SOCKET_EVENTS.feedUpdate, (card: unknown) =>
         updates[key].push(FeedCard.parse(revive(card))),
       );
+      socket.on(SOCKET_EVENTS.runStep, (pushed: unknown) =>
+        stepPushes[key].push(RunStepPushed.parse(revive(pushed))),
+      );
+      socket.on(SOCKET_EVENTS.runEnd, (ended: unknown) =>
+        endPushes[key].push(RunEnded.parse(ended)),
+      );
       sockets.push(socket);
     }
   }, MONGO_START_TIMEOUT_MS);
 
   beforeEach(async () => {
     useModel(script());
-    updates.A.length = 0;
-    updates.B.length = 0;
+    for (const key of ['A', 'B'] as const) {
+      updates[key].length = 0;
+      stepPushes[key].length = 0;
+      endPushes[key].length = 0;
+    }
     await collection(mongo.db, 'feed_items').updateMany(
       { eventId },
       { $set: { research: { state: 'none', runId: null, reportId: null } } },
@@ -319,5 +338,112 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
     await start.done;
     expect((await itemOf('A')).research.state).toBe('done');
     expect(errors).toHaveLength(2);
+  });
+
+  it('still runs and settles when a run:step or run:end push fails', async () => {
+    const errors: unknown[] = [];
+    const start = await startInvestigation(
+      {
+        db: mongo.db,
+        models: () => research,
+        mcp: { url: `${api.url}/mcp`, secret: TEST_MCP_SECRET },
+        redact: (text) => text,
+        onStep: () => {
+          throw new Error('the socket broke');
+        },
+        onEnd: () => Promise.reject(new Error('the socket broke')),
+        logError: (error) => errors.push(error),
+      },
+      await userId('A'),
+      eventId,
+    );
+    if (start.outcome !== 'started') throw new Error('expected started');
+    await start.done;
+    const item = await itemOf('A');
+    expect(item.research.state).toBe('done');
+    const run = AgentRun.parse(
+      await collection(mongo.db, 'agent_runs').findOne({ _id: item.research.runId! }),
+    );
+    expect(run.status).toBe('succeeded');
+    expect(errors).toHaveLength(run.steps.length + 1);
+  });
+
+  it('answers 401 without a session and 400 for an id that is not a run id', async () => {
+    expect((await listRuns(undefined)).status).toBe(401);
+    expect((await getRun(undefined, '00000000-0000-4000-8000-000000000000')).status).toBe(401);
+    expect((await getRun(cookies.A, 'tsmc')).status).toBe(400);
+  });
+
+  it('returns the run with every stored step, its output, report, claims and limits', async () => {
+    await investigate(cookies.A);
+    const { research } = await settled('A');
+    const response = await getRun(cookies.A, research.runId!);
+    expect(response.status).toBe(200);
+    const detail = RunDetail.parse(revive(await response.json()));
+
+    const stored = AgentRun.parse(
+      await collection(mongo.db, 'agent_runs').findOne({ _id: research.runId! }),
+    );
+    expect(detail.run.steps.map((s) => [s.kind, s.name])).toEqual(
+      stored.steps.map((s) => [s.kind, s.name]),
+    );
+    const getEvent = detail.run.steps.find((s) => s.kind === 'tool' && s.name === 'get_event');
+    expect(getEvent?.output).toContain(eventId);
+    expect(detail.run.steps.some((s) => s.name === 'Run token issued')).toBe(true);
+    expect(detail.reportId).toBe(research.reportId);
+    expect(detail.claims.map((c) => c.status).sort()).toEqual(['removed', 'unverified']);
+    expect(detail.eventSymbol).toBe('TSM');
+    expect(detail.limits).toEqual([
+      {
+        provider: 'google',
+        model: MODELS.research.model,
+        tokensPerMinute: 250_000,
+        requestsPerDay: 500,
+      },
+    ]);
+  });
+
+  it('shows a run only to its own user, and lists only their runs, newest first', async () => {
+    await investigate(cookies.A);
+    const first = (await settled('A')).research.runId!;
+    useModel([new Error('the provider broke')]);
+    await investigate(cookies.A);
+    const second = (await settled('A')).research.runId!;
+
+    expect((await getRun(cookies.B, first)).status).toBe(404);
+    expect((await getRun(cookies.A, '00000000-0000-4000-8000-000000000000')).status).toBe(404);
+
+    const rows = ((await (await listRuns(cookies.A)).json()) as unknown[]).map((row) =>
+      RunSummary.parse(revive(row)),
+    );
+    expect(rows.slice(0, 2).map((row) => [row._id, row.status])).toEqual([
+      [second, 'failed'],
+      [first, 'succeeded'],
+    ]);
+    expect(rows.every((row) => row.eventSymbol === 'TSM')).toBe(true);
+    const own = await collection(mongo.db, 'agent_runs')
+      .find({ userId: await userId('A') })
+      .toArray();
+    expect(new Set(rows.map((row) => row._id))).toEqual(new Set(own.map((run) => run._id)));
+
+    const bRows = (await (await listRuns(cookies.B)).json()) as { _id: string }[];
+    expect(bRows.map((row) => row._id)).not.toContain(first);
+    expect(bRows.map((row) => row._id)).not.toContain(second);
+  });
+
+  it('pushes each stored step and the end to the run user, never to another user', async () => {
+    await investigate(cookies.A);
+    const { research } = await settled('A');
+    const runId = research.runId!;
+    const stored = AgentRun.parse(await collection(mongo.db, 'agent_runs').findOne({ _id: runId }));
+
+    await expect.poll(() => endPushes.A).toEqual([{ runId, status: 'succeeded' }]);
+    const pushed = stepPushes.A.filter((p) => p.runId === runId);
+    expect(pushed.map((p) => p.index)).toEqual(stored.steps.map((_, index) => index));
+    expect(pushed.map((p) => p.step)).toEqual(stored.steps);
+
+    // B is signed in with a socket open the whole time and hears nothing of A's run.
+    expect(stepPushes.B).toEqual([]);
+    expect(endPushes.B).toEqual([]);
   });
 });

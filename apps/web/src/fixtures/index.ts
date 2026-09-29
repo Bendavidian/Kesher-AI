@@ -9,14 +9,7 @@ import {
   FILINGS,
   RELATIONSHIPS,
 } from './demoEvent';
-import {
-  DEMO_CLAIMS,
-  DEMO_REPORT,
-  DEMO_REPORT_SOURCES,
-  DEMO_RUN,
-  DEMO_STEP_OUTPUTS,
-  DEMO_TOKEN_SCOPE,
-} from './research';
+import { DEMO_CLAIMS, DEMO_REPORT, DEMO_REPORT_SOURCES, DEMO_RUN } from './research';
 
 export { PERSONAS, PUBLIC_USERS } from './personas';
 import { DEMO_CARDS } from './cards';
@@ -54,14 +47,4 @@ export const DEMO_REPORT_DETAIL: ReportDetail = {
   sources: DEMO_REPORT_SOURCES,
   run: DEMO_RUN,
   card: DEMO_CARDS.A[0]!,
-};
-
-// The demo research report and its agent run; the run screen reads them until T09.
-export const DEMO_RESEARCH = {
-  runs: [DEMO_RUN],
-  reports: [DEMO_REPORT],
-  claims: DEMO_CLAIMS,
-  sources: DEMO_REPORT_SOURCES,
-  stepOutputs: { [DEMO_RUN._id]: DEMO_STEP_OUTPUTS },
-  tokenScopes: { [DEMO_RUN._id]: DEMO_TOKEN_SCOPE },
 };

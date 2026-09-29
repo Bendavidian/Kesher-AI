@@ -1,4 +1,16 @@
-import type { AgentRun, AgentStep, Claim, LlmProvider } from '@kesher/shared';
+import {
+  AgentName,
+  ToolName,
+  type AgentRun,
+  type AgentStep,
+  type FreeTierLimit,
+  type LlmProvider,
+  type RunFailureReason,
+  type RunStepPushed,
+  type RunSummary,
+} from '@kesher/shared';
+import { formatEtShort } from './format';
+import type { RunTokenScope } from './types';
 
 // The Agent runs screen (docs/UI.md, Agent run screen). Every label here is a template over
 // the stored run; nothing is written by a model.
@@ -7,11 +19,83 @@ import type { AgentRun, AgentStep, Claim, LlmProvider } from '@kesher/shared';
 // removed a claim.
 export type StepTone = 'code' | 'tool' | 'model' | 'removed';
 
-// AgentStep does not say which claims a check removed, so any check step in a run whose report
-// lost a claim is red. T14 can link checks to claims once there is more than one check step.
-export function stepTone(step: AgentStep, removedClaims: number): StepTone {
-  if (step.kind === 'check') return removedClaims > 0 ? 'removed' : 'code';
+// A step's output as JSON, or undefined when it is empty, cut by the 8 KB cap or not JSON.
+function parsedOutput(step: AgentStep): unknown {
+  if (step.output === '' || step.outputTruncated) return undefined;
+  try {
+    return JSON.parse(step.output) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+// The claims a check step removed, from its stored output (docs/INTERFACES.md, Agent runs).
+export function removedClaimIds(step: AgentStep): string[] {
+  if (step.kind !== 'check') return [];
+  const output = parsedOutput(step);
+  const ids =
+    output !== null && typeof output === 'object' && 'removedClaimIds' in output
+      ? output.removedClaimIds
+      : undefined;
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
+}
+
+// A check is red when it removed a claim; otherwise it is code.
+export function stepTone(step: AgentStep): StepTone {
+  if (step.kind === 'check') return removedClaimIds(step).length > 0 ? 'removed' : 'code';
   return step.kind;
+}
+
+// How the detail panel shows a step's output. Output is untrusted text that may quote a news
+// excerpt: it is only ever rendered as text, never as markup.
+export type OutputView =
+  | { format: 'json'; value: unknown; note: string | null }
+  | { format: 'text'; text: string; note: string | null }
+  | { format: 'none' };
+
+export function outputView(step: AgentStep): OutputView {
+  if (step.output === '') return { format: 'none' };
+  const note = step.outputTruncated ? 'capped at 8 KB' : null;
+  const value = parsedOutput(step);
+  return value === undefined
+    ? { format: 'text', text: step.output, note }
+    : { format: 'json', value, note };
+}
+
+// The run token scope, read from the run's own Run token issued step: what was really minted.
+export function tokenScope(run: AgentRun): RunTokenScope | null {
+  const step = run.steps.find((s) => s.kind === 'code' && s.name === 'Run token issued');
+  if (!step) return null;
+  const { agent, tools, ttlSeconds } = step.input;
+  const parsedAgent = AgentName.safeParse(agent);
+  const parsedTools = Array.isArray(tools) ? tools.map((tool) => ToolName.safeParse(tool)) : [];
+  if (
+    !parsedAgent.success ||
+    parsedTools.length === 0 ||
+    !parsedTools.every((tool) => tool.success) ||
+    typeof ttlSeconds !== 'number' ||
+    ttlSeconds <= 0
+  ) {
+    return null;
+  }
+  return {
+    agent: parsedAgent.data,
+    tools: parsedTools.flatMap((tool) => (tool.success ? [tool.data] : [])),
+    ttlMinutes: ttlSeconds / 60,
+  };
+}
+
+// Adds a pushed step to the run it belongs to. A step already held is ignored; a step past the
+// next one means a push was missed, and the caller reads the run again.
+export function withPushedStep(run: AgentRun, pushed: RunStepPushed): AgentRun | 'gap' {
+  if (pushed.index < run.steps.length) return run;
+  if (pushed.index > run.steps.length) return 'gap';
+  const { step } = pushed;
+  return {
+    ...run,
+    steps: [...run.steps, step],
+    tokensUsed: run.tokensUsed + (step.kind === 'model' ? step.tokens.total : 0),
+  };
 }
 
 export const TONE_LABEL: Record<StepTone, string> = {
@@ -38,20 +122,23 @@ export const PROVIDER_LABEL: Record<LlmProvider, string> = {
   groq: 'Groq',
 };
 
-// The free tier limits from docs/SPIKE.md, Console numbers, for the models a run can use.
-// apps/api/src/llm/limits.ts holds the same numbers; T09 can serve them from the api.
-const FREE_TIER: Record<string, { tpm: number; rpd: number }> = {
-  'google:gemini-3.5-flash-lite': { tpm: 250_000, rpd: 500 },
-  'groq:openai/gpt-oss-120b': { tpm: 8_000, rpd: 1_000 },
-};
-
-const STATUS: Record<AgentRun['status'], { label: string; tone: 'up' | 'down' | 'neutral' }> = {
+export const RUN_STATUS: Record<
+  AgentRun['status'],
+  { label: string; tone: 'up' | 'down' | 'neutral' }
+> = {
   queued: { label: 'Queued', tone: 'neutral' },
   running: { label: 'Running', tone: 'neutral' },
   succeeded: { label: 'Completed', tone: 'up' },
   failed: { label: 'Failed', tone: 'down' },
   budget_exhausted: { label: 'Budget spent', tone: 'neutral' },
   skipped: { label: 'Skipped', tone: 'neutral' },
+};
+
+// Why a failed run stopped, from AgentRun.failureReason.
+const FAILURE_LABEL: Record<RunFailureReason, string> = {
+  rate_limited: 'The provider kept asking to wait, so the run ended without a report.',
+  invalid_report: 'The report failed its schema twice, so the run ended without one.',
+  error: 'An error ended the run without a report.',
 };
 
 export const MODE_LABEL: Record<AgentRun['mode'], string> = {
@@ -69,7 +156,7 @@ export interface StepView {
 
 export interface RunView {
   mode: string;
-  status: (typeof STATUS)[AgentRun['status']];
+  status: (typeof RUN_STATUS)[AgentRun['status']];
   summary: string;
   toolCalls: string;
   tokens: string;
@@ -94,17 +181,23 @@ function summary(run: AgentRun, eventName: string): string {
       : `Started by the research gate on the ${eventName} event.`;
   if (!run.startedAt || !run.finishedAt) return started;
   const took = formatDuration(run.finishedAt.getTime() - run.startedAt.getTime());
-  return `${started} Finished in ${took}.`;
+  const ended = run.failureReason
+    ? `Stopped after ${took}. ${FAILURE_LABEL[run.failureReason]}`
+    : `Finished in ${took}.`;
+  return `${started} ${ended}`;
 }
 
-export function buildRunView(run: AgentRun, claims: Claim[], eventName: string): RunView {
-  const removed = claims.filter((claim) => claim.status === 'removed').length;
+// limits are the free tier limits the api serves for the models the run used.
+export function buildRunView(
+  run: AgentRun,
+  eventName: string,
+  limits: readonly FreeTierLimit[],
+): RunView {
   const modelSteps = run.steps.flatMap((step) => (step.kind === 'model' ? [step] : []));
-  const models = new Map(modelSteps.map((step) => [`${step.provider}:${step.model}`, step]));
 
   return {
     mode: MODE_LABEL[run.mode],
-    status: STATUS[run.status],
+    status: RUN_STATUS[run.status],
     summary: summary(run, eventName),
     toolCalls: toolCallsLabel(run),
     tokens: `${formatTokens(run.tokensUsed)} of ${formatTokens(run.tokenBudget)}`,
@@ -114,26 +207,38 @@ export function buildRunView(run: AgentRun, claims: Claim[], eventName: string):
     steps: run.steps.map((step, index) => ({
       step,
       number: index + 1,
-      tone: stepTone(step, removed),
+      tone: stepTone(step),
       duration: formatDuration(step.latencyMs),
       tokens: step.kind === 'model' ? `${formatTokens(step.tokens.total)} tok` : null,
     })),
-    limits: [...models].flatMap(([key, { provider }]) => {
-      const limit = FREE_TIER[key];
-      if (!limit) return [];
-      const tpm = limit.tpm.toLocaleString('en-US');
-      const rpd = limit.rpd.toLocaleString('en-US');
-      return [
-        `${PROVIDER_LABEL[provider]} free tier: ${tpm} tokens per minute, ${rpd} requests per day`,
-      ];
+    limits: limits.map((limit) => {
+      const tpm = limit.tokensPerMinute.toLocaleString('en-US');
+      const rpd = limit.requestsPerDay.toLocaleString('en-US');
+      return `${PROVIDER_LABEL[limit.provider]} free tier: ${tpm} tokens per minute, ${rpd} requests per day`;
     }),
     budget: `Token budget per run: ${run.tokenBudget.toLocaleString('en-US')}`,
   };
 }
 
 // The 1-based step the removed claim link opens: the first check that removed a claim.
-export function removingCheckStep(run: AgentRun, claims: Claim[]): number | null {
-  const removed = claims.filter((claim) => claim.status === 'removed').length;
-  const index = run.steps.findIndex((step) => stepTone(step, removed) === 'removed');
+export function removingCheckStep(run: AgentRun): number | null {
+  const index = run.steps.findIndex((step) => stepTone(step) === 'removed');
   return index === -1 ? null : index + 1;
+}
+
+// One row of the Recent runs selector.
+export interface RunOption {
+  id: string;
+  time: string;
+  label: string;
+  status: (typeof RUN_STATUS)[AgentRun['status']];
+}
+
+export function runOption(summary: RunSummary, eventName: string): RunOption {
+  return {
+    id: summary._id,
+    time: formatEtShort(summary.createdAt),
+    label: `${eventName}, ${MODE_LABEL[summary.mode].toLowerCase()}`,
+    status: RUN_STATUS[summary.status],
+  };
 }
