@@ -23,7 +23,9 @@
     "research:dev": "npm run research:dev -w @kesher/api --",
     "graph:candidates": "npm run graph:candidates -w @kesher/api --",
     "graph:review": "npm run graph:review -w @kesher/api --",
-    "graph:apply": "npm run graph:apply -w @kesher/api --"
+    "graph:apply": "npm run graph:apply -w @kesher/api --",
+    "graph:chunks": "npm run graph:chunks -w @kesher/api --",
+    "graph:search": "npm run graph:search -w @kesher/api --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
