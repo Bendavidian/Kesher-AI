@@ -1,4 +1,4 @@
-import type { StepTone } from '../view/run';
+import type { RunOption, StepTone } from '../view/run';
 
 // Tailwind classes per timeline color (docs/UI.md, Agent run screen).
 export const TONE_CLASS: Record<
@@ -37,4 +37,11 @@ export const TONE_CLASS: Record<
     chip: 'bg-down-tint text-down',
     accent: 'text-down',
   },
+};
+
+// Run status chips: completed green, failed red, anything else gray (docs/UI.md).
+export const STATUS_CHIP: Record<RunOption['status']['tone'], string> = {
+  up: 'bg-up-tint text-up',
+  down: 'bg-down-tint text-down',
+  neutral: 'bg-border text-text-2',
 };

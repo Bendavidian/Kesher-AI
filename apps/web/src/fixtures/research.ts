@@ -1,6 +1,16 @@
-import type { AgentRun, AgentStep, CheckName, Claim, Report } from '@kesher/shared';
+import type {
+  AgentRun,
+  AgentStep,
+  CheckName,
+  Claim,
+  FreeTierLimit,
+  Report,
+  RunDetail,
+  RunSummary,
+  ToolName,
+} from '@kesher/shared';
 import { formatDay } from '../view/format';
-import type { ReportSourceView, RunTokenScope, StepOutput } from '../view/types';
+import type { ReportSourceView } from '../view/types';
 import { DEMO_EVENT, DEMO_NEWS_SOURCE, DEMO_PRICE_REACTION, NVDA_10K_SOURCE_ID } from './demoEvent';
 import { PERSONAS } from './personas';
 
@@ -27,20 +37,14 @@ const CLAIM_ID = {
 const RUN_STARTED_AT = new Date('2026-09-28T12:00:05.000Z');
 const at = (offsetMs: number) => new Date(RUN_STARTED_AT.getTime() + offsetMs);
 
-const TOOLS = [
+// The run token scope, as the Run token issued step records it.
+export const DEMO_TOOLS: ToolName[] = [
   'get_event',
   'get_company_relationships',
   'search_news',
   'search_filings',
   'get_price_reaction',
 ];
-
-export const DEMO_TOKEN_SCOPE: RunTokenScope = {
-  agent: 'research',
-  tools: TOOLS,
-  writes: [],
-  ttlMinutes: 5,
-};
 
 const RESEARCH_MODEL = { provider: 'google', model: 'gemini-3.5-flash-lite' } as const;
 const VERIFIER_MODEL = { provider: 'groq', model: 'openai/gpt-oss-120b' } as const;
@@ -51,9 +55,12 @@ const GATE_REASON =
 const openGap = (symbol: string) =>
   DEMO_PRICE_REACTION.rows.find((row) => row.symbol === symbol)?.moves[0] ?? 0;
 
+// A step's output as the api stores it: JSON text. An empty output stands for a step that
+// returned nothing.
+const json = (value: unknown) => JSON.stringify(value);
+
 // The eleven steps from docs/design/agent-run.dc.html. latencyMs and startedAt are sample
-// values; tokens are sample values too, but they add up to tokensUsed. output stays empty here;
-// the detail panel reads DEMO_STEP_OUTPUTS until T09 shows the stored output.
+// values; tokens are sample values too, but they add up to tokensUsed.
 const STEPS: AgentStep[] = [
   {
     kind: 'code',
@@ -62,17 +69,17 @@ const STEPS: AgentStep[] = [
     outputSummary: GATE_REASON,
     latencyMs: 3,
     startedAt: at(0),
-    output: '',
+    output: json({ decision: 'run', reason: GATE_REASON }),
     outputTruncated: false,
   },
   {
     kind: 'code',
     name: 'Run token issued',
-    input: { agent: DEMO_TOKEN_SCOPE.agent, tools: TOOLS, ttlMinutes: DEMO_TOKEN_SCOPE.ttlMinutes },
+    input: { agent: 'research', tools: DEMO_TOOLS, ttlSeconds: 300 },
     outputSummary: 'Research agent, five read only tools, valid for 5 minutes.',
     latencyMs: 2,
     startedAt: at(5),
-    output: '',
+    output: json({ issuedAt: at(5).toISOString(), expiresAt: at(300_005).toISOString() }),
     outputTruncated: false,
   },
   {
@@ -82,7 +89,11 @@ const STEPS: AgentStep[] = [
     outputSummary: `Loaded event ${DEMO_NEWS_SOURCE.externalId} and its extraction.`,
     latencyMs: 38,
     startedAt: at(10),
-    output: '',
+    output: json({
+      eventId: DEMO_EVENT._id,
+      extraction: { companies: [{ symbol: 'TSM', impact: 'negative' }], importance: 4 },
+      sourceIds: DEMO_EVENT.sourceIds,
+    }),
     outputTruncated: false,
   },
   {
@@ -92,7 +103,10 @@ const STEPS: AgentStep[] = [
     outputSummary: 'One reviewed edge: TSM supplier_of NVDA.',
     latencyMs: 61,
     startedAt: at(50),
-    output: '',
+    output: json({
+      count: 1,
+      edges: [{ from: 'TSM', to: 'NVDA', type: 'supplier_of', reviewed: true }],
+    }),
     outputTruncated: false,
   },
   {
@@ -102,7 +116,14 @@ const STEPS: AgentStep[] = [
     outputSummary: 'Three passages from the NVIDIA 10-K.',
     latencyMs: 410,
     startedAt: at(115),
-    output: '',
+    output: json({
+      count: 3,
+      chunks: [
+        { id: 'fc_nvda_10k_item1_014', section: 'Item 1. Business' },
+        { id: 'fc_nvda_10k_item1a_031', section: 'Item 1A. Risk Factors' },
+        { id: 'fc_nvda_10k_item1a_032', section: 'Item 1A. Risk Factors' },
+      ],
+    }),
     outputTruncated: false,
   },
   {
@@ -122,7 +143,11 @@ const STEPS: AgentStep[] = [
     outputSummary: 'Anchored to the Apr 2 close, since the headline came after hours.',
     latencyMs: 240,
     startedAt: at(885),
-    output: '',
+    output: json({
+      anchor: { kind: 'previous_close', tradingDay: '2024-04-03' },
+      openGap: { NVDA: openGap('NVDA'), SMH: openGap('SMH'), SPY: openGap('SPY') },
+      delayed: true,
+    }),
     outputTruncated: false,
   },
   {
@@ -144,7 +169,10 @@ const STEPS: AgentStep[] = [
     outputSummary: "Four passed. One quote wasn't found in its source, so that claim was removed.",
     latencyMs: 11,
     startedAt: at(5_040),
-    output: '',
+    output: json({
+      removedClaimIds: [CLAIM_ID.removed],
+      failures: [{ claimId: CLAIM_ID.removed, check: 'quote_verbatim' }],
+    }),
     outputTruncated: false,
   },
   {
@@ -154,7 +182,7 @@ const STEPS: AgentStep[] = [
     outputSummary: 'Separate context, read only. Four claims supported.',
     latencyMs: 2_700,
     startedAt: at(5_060),
-    output: '',
+    output: json({ supported: 4, unsupported: 0 }),
     outputTruncated: false,
     ...VERIFIER_MODEL,
     tokens: { input: 1_450, output: 470, total: 1_920 },
@@ -175,7 +203,7 @@ export const DEMO_RUN: AgentRun = {
   _id: RUN_ID,
   userId: persona._id,
   eventId: DEMO_EVENT._id,
-  agent: DEMO_TOKEN_SCOPE.agent,
+  agent: 'research',
   mode: 'deep',
   trigger: 'investigate',
   gate: { decision: 'run', reason: GATE_REASON },
@@ -189,44 +217,6 @@ export const DEMO_RUN: AgentRun = {
   startedAt: RUN_STARTED_AT,
   finishedAt: at(7_776),
   createdAt: RUN_STARTED_AT,
-};
-
-// Full outputs by step index, for the detail panel. Steps without one show their summary.
-export const DEMO_STEP_OUTPUTS: Partial<Record<number, StepOutput>> = {
-  0: { value: { decision: 'run', reason: GATE_REASON }, note: null },
-  2: {
-    value: {
-      eventId: DEMO_EVENT._id,
-      extraction: { companies: [{ symbol: 'TSM', impact: 'negative' }], importance: 4 },
-      sourceIds: DEMO_EVENT.sourceIds,
-    },
-    note: null,
-  },
-  3: {
-    value: { count: 1, edges: [{ from: 'TSM', to: 'NVDA', type: 'supplier_of', reviewed: true }] },
-    note: 'reviewed edges only',
-  },
-  4: {
-    value: {
-      count: 3,
-      chunks: [
-        { id: 'fc_nvda_10k_item1_014', section: 'Item 1. Business' },
-        { id: 'fc_nvda_10k_item1a_031', section: 'Item 1A. Risk Factors' },
-        { id: 'fc_nvda_10k_item1a_032', section: 'Item 1A. Risk Factors' },
-      ],
-    },
-    note: 'capped at 3 chunks',
-  },
-  6: {
-    value: {
-      anchor: { kind: 'previous_close', tradingDay: '2024-04-03' },
-      openGap: { NVDA: openGap('NVDA'), SMH: openGap('SMH'), SPY: openGap('SPY') },
-      delayed: true,
-    },
-    note: null,
-  },
-  8: { value: { passed: 4, removed: 1, failedCheck: 'quote_verbatim' }, note: null },
-  9: { value: { supported: 4, unsupported: 0 }, note: null },
 };
 
 const REPORT_AT = at(7_770);
@@ -353,3 +343,72 @@ export const DEMO_REPORT_SOURCES: ReportSourceView[] = [
     ref: 'Delayed 15 minutes',
   },
 ];
+
+// The free tier limits the api serves for the two models of the demo run (docs/SPIKE.md).
+export const DEMO_LIMITS: FreeTierLimit[] = [
+  {
+    provider: 'google',
+    model: 'gemini-3.5-flash-lite',
+    tokensPerMinute: 250_000,
+    requestsPerDay: 500,
+  },
+  { provider: 'groq', model: 'openai/gpt-oss-120b', tokensPerMinute: 8_000, requestsPerDay: 1_000 },
+];
+
+// The demo run as GET /runs/:runId answers it for persona A.
+export const DEMO_RUN_DETAIL: RunDetail = {
+  run: DEMO_RUN,
+  reportId: REPORT_ID,
+  claims: DEMO_CLAIMS,
+  eventSymbol: 'TSM',
+  limits: DEMO_LIMITS,
+};
+
+// A second run on the same event that a 429 ended, for the Recent runs selector. Sample values.
+const FAILED_STARTED_AT = new Date('2026-09-28T12:20:00.000Z');
+export const DEMO_FAILED_RUN: AgentRun = {
+  ...DEMO_RUN,
+  _id: '7e1a2b3c-4d5e-4f60-8a71-b2c3d4e5f603',
+  steps: [
+    ...STEPS.slice(0, 3),
+    {
+      kind: 'code',
+      name: 'Rate limit wait',
+      input: { provider: 'google', model: 'gemini-3.5-flash-lite', attempt: 4 },
+      outputSummary: '429 from google asked for a wait over 30 seconds; the run stops.',
+      output: json({ waitMs: 45_000 }),
+      outputTruncated: false,
+      latencyMs: 0,
+      startedAt: FAILED_STARTED_AT,
+    },
+  ],
+  tokensUsed: 0,
+  status: 'failed',
+  failureReason: 'rate_limited',
+  startedAt: FAILED_STARTED_AT,
+  finishedAt: FAILED_STARTED_AT,
+  createdAt: FAILED_STARTED_AT,
+};
+
+export const DEMO_FAILED_RUN_DETAIL: RunDetail = {
+  run: DEMO_FAILED_RUN,
+  reportId: null,
+  claims: [],
+  eventSymbol: 'TSM',
+  limits: [],
+};
+
+const summaryOf = (run: AgentRun): RunSummary => ({
+  _id: run._id,
+  eventId: run.eventId,
+  eventSymbol: 'TSM',
+  agent: run.agent,
+  mode: run.mode,
+  trigger: run.trigger,
+  status: run.status,
+  tokensUsed: run.tokensUsed,
+  createdAt: run.createdAt,
+});
+
+// GET /runs for persona A, newest first.
+export const DEMO_RUN_SUMMARIES: RunSummary[] = [summaryOf(DEMO_FAILED_RUN), summaryOf(DEMO_RUN)];

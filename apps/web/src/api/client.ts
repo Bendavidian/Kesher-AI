@@ -8,8 +8,18 @@ import {
   type PersonaKey,
   type PublicUser,
   type ReportDetail,
+  type RunDetail,
+  type RunSummary,
 } from '@kesher/shared';
-import { decodeExplain, decodeFeed, decodeFeedCard, decodeReport, decodeUser } from './decode';
+import {
+  decodeExplain,
+  decodeFeed,
+  decodeFeedCard,
+  decodeReport,
+  decodeRun,
+  decodeRuns,
+  decodeUser,
+} from './decode';
 
 // The api as the feed screen uses it (docs/INTERFACES.md). The dev server proxies /api to it, so
 // the session cookie stays first party. No call names a user: the cookie is the identity.
@@ -24,6 +34,10 @@ export interface KesherApi {
   investigate(eventId: string): Promise<FeedCard>;
   // One report of the signed in user, with its claims, sources, run and card.
   report(reportId: string): Promise<ReportDetail>;
+  // One agent run of the signed in user, with its steps as stored.
+  run(runId: string): Promise<RunDetail>;
+  // The signed in user's agent runs, newest first.
+  runs(): Promise<RunSummary[]>;
   // Development only: reset, then replay the demo item, so every open session sees it arrive.
   replayDemo(): Promise<ReplayResponse>;
 }
@@ -76,6 +90,12 @@ export const httpApi: KesherApi = {
   },
   async report(reportId) {
     return decodeReport(await request(`/reports/${encodeURIComponent(reportId)}`));
+  },
+  async run(runId) {
+    return decodeRun(await request(`/runs/${encodeURIComponent(runId)}`));
+  },
+  async runs() {
+    return decodeRuns(await request('/runs'));
   },
   async replayDemo() {
     // A reset before the first replay has nothing to reset; the replay then processes it.

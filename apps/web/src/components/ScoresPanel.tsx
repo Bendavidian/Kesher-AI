@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import { reportPath } from '../routes';
+import { reportPath, runPath } from '../routes';
 import { formatScore, joinList } from '../view/format';
 import { CONFIDENCE_LABEL, CONFIDENCE_NOTE, IMPORTANCE_LABEL, type EventView } from '../view/feed';
 import { EvidenceCard } from './EvidenceCard';
@@ -77,6 +77,8 @@ function ResearchActions({
   const research = view.research;
   const running = request.busy || research?.state === 'running' || research?.state === 'queued';
   const reportId = research?.state === 'done' ? research.reportId : null;
+  // Set from the start of a run, so its steps can be watched while it goes.
+  const runId = research?.runId ?? null;
 
   let status: string | null = null;
   if (running) status = 'Researching this event. The card updates when the report is ready.';
@@ -113,10 +115,15 @@ function ResearchActions({
       ) : (
         investigate('Investigate this event', PRIMARY)
       )}
-      {/* The agent run view is wired in T09. */}
-      <button type="button" disabled className={`${SECONDARY} disabled:opacity-60`}>
-        View agent run
-      </button>
+      {runId ? (
+        <Link to={runPath(runId)} className={`${SECONDARY} hover:bg-raised`}>
+          View agent run
+        </Link>
+      ) : (
+        <button type="button" disabled className={`${SECONDARY} disabled:opacity-60`}>
+          View agent run
+        </button>
+      )}
     </div>
   );
 }

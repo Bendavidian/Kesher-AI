@@ -36,6 +36,8 @@ function fakeLive({ feeds = DEMO_CARDS }: { feeds?: Record<PersonaKey, FeedCard[
       Promise.resolve(researched({ state: 'running', runId: RUN_ID, reportId: null })),
     ),
     report: vi.fn(() => Promise.reject(new Error('no report in this test'))),
+    run: vi.fn(() => Promise.reject(new Error('no run in this test'))),
+    runs: vi.fn(() => Promise.resolve([])),
     replayDemo: vi.fn(() =>
       Promise.resolve({
         outcome: 'processed' as const,
@@ -51,7 +53,7 @@ function fakeLive({ feeds = DEMO_CARDS }: { feeds?: Record<PersonaKey, FeedCard[
     connectFeed: (handlers) => {
       const socket = { handlers, closed: false };
       sockets.push(socket);
-      handlers.onConnection(true);
+      handlers.onConnection?.(true);
       return { close: () => (socket.closed = true) };
     },
   };
@@ -171,7 +173,7 @@ describe('feed screen, signed in through the persona switcher', () => {
     expect(within(regions().feed).queryByText('Hidden for you')).toBeNull();
     expect(api.explain).not.toHaveBeenCalled();
 
-    act(() => socket().onScored(DEMO_EVENT._id));
+    act(() => socket().onScored!(DEMO_EVENT._id));
     await screen.findByText('Hidden for you');
     const { feed, event, scores } = regions();
 
@@ -193,7 +195,7 @@ describe('feed screen, signed in through the persona switcher', () => {
     const { api, deps, socket } = fakeLive();
     render(<App deps={deps} />);
     await ready();
-    act(() => socket().onScored(DEMO_EVENT._id));
+    act(() => socket().onScored!(DEMO_EVENT._id));
 
     pickPersona('Unrelated');
     await screen.findByText('Hidden for you');
@@ -206,8 +208,8 @@ describe('feed screen, signed in through the persona switcher', () => {
     await ready('Nothing connects to NVDA, MSFT and AMZN');
 
     act(() => {
-      socket().onCard(DEMO_CARDS.A[0]!);
-      socket().onScored(DEMO_EVENT._id);
+      socket().onCard!(DEMO_CARDS.A[0]!);
+      socket().onScored!(DEMO_EVENT._id);
     });
     const feed = regions().feed;
     expect(within(row(feed)).getByText('High 0.80')).toBeTruthy();
@@ -223,7 +225,7 @@ describe('feed screen, signed in through the persona switcher', () => {
     const { deps, socket } = fakeLive();
     render(<App deps={deps} />);
     await ready();
-    act(() => socket().onScored(DEMO_EVENT._id));
+    act(() => socket().onScored!(DEMO_EVENT._id));
     for (const label of ['AI investor', 'Semiconductors', 'Unrelated']) {
       pickPersona(label);
       await screen.findByTestId('relevance-value');
@@ -265,12 +267,25 @@ describe('feed screen, signed in through the persona switcher', () => {
     const running = await within(scores).findByRole('button', { name: 'Investigating…' });
     expect(running.hasAttribute('disabled')).toBe(true);
     expect(within(scores).getByText(/Researching this event/)).toBeTruthy();
+    // The run can be watched while it goes: the card names it from the start.
+    expect(within(scores).getByRole('link', { name: 'View agent run' }).getAttribute('href')).toBe(
+      `/runs/${RUN_ID}`,
+    );
 
-    act(() => socket().onCard(researched({ state: 'done', runId: RUN_ID, reportId: REPORT_ID })));
+    act(() => socket().onCard!(researched({ state: 'done', runId: RUN_ID, reportId: REPORT_ID })));
     const link = await within(scores).findByRole('link', { name: 'Open research report' });
     expect(link.getAttribute('href')).toBe(`/reports/${REPORT_ID}`);
     const again = within(scores).getByRole('button', { name: 'Investigate again' });
     expect(again.hasAttribute('disabled')).toBe(false);
+    expect(within(scores).getByRole('link', { name: 'View agent run' }).getAttribute('href')).toBe(
+      `/runs/${RUN_ID}`,
+    );
+  });
+
+  it('keeps View agent run disabled until the card names a run', async () => {
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    const { scores } = regions();
     expect(
       within(scores).getByRole('button', { name: 'View agent run' }).hasAttribute('disabled'),
     ).toBe(true);
@@ -280,7 +295,7 @@ describe('feed screen, signed in through the persona switcher', () => {
     const { deps, socket } = fakeLive();
     render(<App deps={deps} />);
     await ready();
-    act(() => socket().onCard(researched({ state: 'failed', runId: RUN_ID, reportId: null })));
+    act(() => socket().onCard!(researched({ state: 'failed', runId: RUN_ID, reportId: null })));
     const { scores } = regions();
     expect(await within(scores).findByText(/ended without a report/)).toBeTruthy();
     const button = within(scores).getByRole('button', { name: 'Investigate this event' });

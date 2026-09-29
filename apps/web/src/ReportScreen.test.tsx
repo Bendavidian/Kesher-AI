@@ -5,7 +5,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from './api/client';
 import { AppRoutes } from './App';
 import { DEMO_REPORT_DETAIL, PUBLIC_USERS } from './fixtures';
-import { DEMO_CLAIMS, DEMO_REPORT, DEMO_REPORT_SOURCES, DEMO_RUN } from './fixtures/research';
+import {
+  DEMO_CLAIMS,
+  DEMO_REPORT,
+  DEMO_REPORT_SOURCES,
+  DEMO_RUN,
+  DEMO_RUN_DETAIL,
+  DEMO_RUN_SUMMARIES,
+} from './fixtures/research';
 import { LiveDepsContext, type LiveDeps } from './live/deps';
 import { reportPath } from './routes';
 import { buildReportView } from './view/report';
@@ -21,6 +28,8 @@ function fakeDeps(report = () => Promise.resolve(DEMO_REPORT_DETAIL)) {
     explain: vi.fn(() => Promise.reject(new Error('not used'))),
     investigate: vi.fn(() => Promise.reject(new Error('not used'))),
     report: vi.fn(report),
+    run: vi.fn(() => Promise.resolve(DEMO_RUN_DETAIL)),
+    runs: vi.fn(() => Promise.resolve(DEMO_RUN_SUMMARIES)),
     replayDemo: vi.fn(() => Promise.reject(new Error('not used'))),
   };
   const deps: LiveDeps = { api, connectFeed: () => ({ close: () => undefined }) };
@@ -126,7 +135,7 @@ describe('Research report screen', () => {
     await renderReport();
     const block = screen.getByRole('region', { name: '1 claim removed by verification' });
     fireEvent.click(within(block).getByRole('link', { name: 'See the check in the agent run' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Research run' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Research run' })).toBeTruthy();
     const current = within(screen.getByRole('list', { name: 'Run steps' }))
       .getAllByRole('listitem')
       .findIndex((item) => item.getAttribute('aria-current') === 'step');
@@ -164,10 +173,10 @@ describe('Research report screen', () => {
 
   it('opens from the run breadcrumb and links back to the run', async () => {
     renderAt(`/runs/${DEMO_RUN._id}`);
-    fireEvent.click(screen.getByRole('link', { name: 'Research report' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Research report' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Research report' })).toBeTruthy();
     fireEvent.click(screen.getByRole('link', { name: 'View agent run' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Research run' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Research run' })).toBeTruthy();
   });
 
   it('reads the report from the api by its id', async () => {
