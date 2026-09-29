@@ -59,6 +59,7 @@ export function mcpRouter(
       users: collection(db, 'users'),
       events: collection(db, 'market_events'),
       sources: collection(db, 'sources'),
+      relationships: collection(db, 'relationships'),
       // A provider failure is logged here and rethrown on purpose: the tool turns it into
       // "Market data is unavailable", so the agent never sees the provider's message.
       priceReaction: (subjects, headline) =>

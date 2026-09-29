@@ -7,6 +7,7 @@ import {
   PriceReactionError,
   type MarketEvent,
   type PriceSymbol,
+  type Relationship,
   type Source,
   type User,
 } from '@kesher/shared';
@@ -93,6 +94,42 @@ const event: MarketEvent = {
   createdAt: new Date('2024-04-03T04:00:00Z'),
 };
 
+const nvidia10k = source({
+  title: 'NVIDIA 10-K for the fiscal year ended 2026-01-25',
+  kind: 'filing',
+  provider: 'sec_edgar',
+  tier: 1,
+  publisher: null,
+  publishedAt: new Date('2026-02-25T00:00:00Z'),
+  symbols: ['NVDA'],
+});
+const TSMC_QUOTE =
+  'We utilize foundries, such as Taiwan Semiconductor Manufacturing Company Limited, or TSMC, and Samsung Electronics Co., Ltd., or Samsung, to produce our semiconductor wafers.';
+
+function edge(
+  from: Relationship['from'],
+  to: Relationship['to'],
+  type: Relationship['type'],
+  quote: string,
+  reviewed = true,
+): Relationship {
+  return {
+    _id: randomUUID(),
+    from,
+    to,
+    type,
+    weight: 0.8,
+    evidence: {
+      sourceId: nvidia10k._id,
+      quote,
+      filingDate: '2026-02-25',
+      url: 'https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm',
+      reviewed,
+    },
+    createdAt: new Date('2026-09-29T00:00:00Z'),
+  };
+}
+
 function user(_id: string, holdings: User['holdings']): User {
   return {
     _id,
@@ -123,7 +160,25 @@ describe('POST /mcp', () => {
     mongo = await startTestMongo('kesher_mcp_test');
     await ensureCollections(mongo.db);
     await ensureIndexes(mongo.db);
-    await collection(mongo.db, 'sources').insertMany([demo, later, older, filing, ...filler]);
+    await collection(mongo.db, 'sources').insertMany([
+      demo,
+      later,
+      older,
+      filing,
+      nvidia10k,
+      ...filler,
+    ]);
+    await collection(mongo.db, 'relationships').insertMany([
+      edge('NVDA', 'TSM', 'customer_of', TSMC_QUOTE),
+      edge('TSM', 'NVDA', 'supplier_of', TSMC_QUOTE),
+      edge('NVDA', 'AMD', 'competitor_of', 'AMD competes with us in GPUs.'),
+      // Not reviewed: never returned.
+      edge('NVDA', 'INTC', 'competitor_of', 'Intel is an unreviewed candidate.', false),
+      // Many long quotes for AVGO, to overflow 8 KB.
+      ...(['AMD', 'ASML', 'INTC', 'LRCX', 'MSFT', 'NVDA', 'TSM', 'AMZN'] as const).map((to) =>
+        edge('AVGO', to, 'competitor_of', `${to} ${'is a long quoted sentence. '.repeat(40)}`),
+      ),
+    ]);
     await collection(mongo.db, 'market_events').insertOne(event);
     await collection(mongo.db, 'users').insertMany([
       user(personaA, [
@@ -276,6 +331,66 @@ describe('POST /mcp', () => {
       });
       expect(result.isError).toBe(true);
       expect(JSON.stringify(result.content)).not.toContain('KO');
+    });
+  });
+
+  describe('get_company_relationships', () => {
+    it('returns reviewed edges only, with their evidence and filing title', async () => {
+      const client = await connect(['get_company_relationships']);
+      const result = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'NVDA' },
+      });
+      expect(result.isError).toBeFalsy();
+      const { edges, omitted } = result.structuredContent as {
+        edges: { to: string; type: string; evidence: { quote: string; sourceId: string } }[];
+        omitted: number;
+      };
+      expect(omitted).toBe(0);
+      expect(edges.map((e) => [e.type, e.to])).toEqual([
+        ['competitor_of', 'AMD'],
+        ['customer_of', 'TSM'],
+      ]);
+      expect(edges[1]).toEqual({
+        from: 'NVDA',
+        to: 'TSM',
+        type: 'customer_of',
+        evidence: {
+          sourceId: nvidia10k._id,
+          quote: TSMC_QUOTE,
+          filingDate: '2026-02-25',
+          url: expect.stringContaining('sec.gov') as string,
+        },
+        sourceTitle: nvidia10k.title,
+      });
+      expect(JSON.stringify(result.structuredContent)).not.toContain('unreviewed');
+    });
+
+    it('filters by type and answers a tool error when nothing is reviewed', async () => {
+      const client = await connect(['get_company_relationships']);
+      const typed = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'NVDA', types: ['customer_of'] },
+      });
+      expect((typed.structuredContent as { edges: unknown[] }).edges).toHaveLength(1);
+      const none = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'KO' },
+      });
+      expect(none.isError).toBe(true);
+      expect(JSON.stringify(none.content)).toContain('No reviewed relationships for KO');
+    });
+
+    it('keeps its output within 8 KB and says how many edges it left out', async () => {
+      const client = await connect(['get_company_relationships']);
+      const result = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'AVGO' },
+      });
+      const output = result.structuredContent as { edges: unknown[]; omitted: number };
+      expect(Buffer.byteLength(JSON.stringify(output))).toBeLessThanOrEqual(8_192);
+      expect(output.omitted).toBeGreaterThan(0);
+      expect(output.edges.length + output.omitted).toBe(8);
     });
   });
 

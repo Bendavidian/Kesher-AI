@@ -73,6 +73,34 @@ describe('createKesherServer', () => {
     expect(result.structuredContent).toEqual(priceReactionJson(REACTION));
   });
 
+  it('answers a tool error instead of an output over 8 KB', async () => {
+    const eventId = randomUUID();
+    const huge = {
+      _id: eventId,
+      headline: 'x'.repeat(9_000),
+      publishedAt: new Date('2024-04-03T03:57:09Z'),
+      status: 'confirmed',
+      extraction: null,
+      sourceIds: [randomUUID()],
+    };
+    const token = await mintRunToken(SECRET, {
+      userId: randomUUID(),
+      agent: 'research',
+      tools: ['get_event'],
+    });
+    const server = createKesherServer(
+      { ...deps, events: { findOne: () => Promise.resolve(huge) } } as unknown as ToolDeps,
+      await verifyRunToken(SECRET, token),
+    );
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverSide);
+    client = new Client({ name: 'test', version: '0.0.0' });
+    await client.connect(clientSide);
+    const result = await client.callTool({ name: 'get_event', arguments: { eventId } });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain('The get_event output is over 8 KB');
+  });
+
   it('marks every tool read only', async () => {
     const both = await connect(['get_event', 'search_news']);
     for (const tool of (await both.listTools()).tools) {

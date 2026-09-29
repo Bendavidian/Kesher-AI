@@ -12,11 +12,13 @@ import {
   UniverseSymbol,
   type MarketEvent,
   type PriceReaction,
+  type Relationship,
   type Source,
   type User,
 } from '@kesher/shared';
 import type { Collection, Filter } from 'mongodb';
 import { z } from 'zod';
+import { fitItems } from './fit';
 import type { RunTokenClaims, ToolName } from './token';
 
 // Read only access; the api passes its collections and its market data in.
@@ -24,6 +26,7 @@ export interface ToolDeps {
   users: Collection<User>;
   events: Collection<MarketEvent>;
   sources: Collection<Source>;
+  relationships: Collection<Relationship>;
   // priceReactionFor in packages/shared over the api's market data: the subjects, then SMH and SPY.
   priceReaction: (subjects: readonly PriceSymbol[], headline: Date) => Promise<PriceReaction>;
 }
@@ -122,7 +125,11 @@ const NewsHit = z.strictObject({
   matchedTerms: z.int().min(1),
 });
 
-const SearchNewsOutput = z.strictObject({ items: z.array(NewsHit).max(MAX_NEWS_RESULTS) });
+const SearchNewsOutput = z.strictObject({
+  items: z.array(NewsHit).max(MAX_NEWS_RESULTS),
+  // Ranked items left out to keep the output within 8 KB.
+  omitted: z.int().min(0),
+});
 type SearchNewsOutput = z.output<typeof SearchNewsOutput>;
 
 export function queryTerms(query: string): string[] {
@@ -193,20 +200,19 @@ export const searchNews: ToolDefinition<typeof SearchNewsInput, typeof SearchNew
       clusters.flatMap((event) => event.sourceIds.map((id) => [id, event._id])),
     );
 
-    const output: SearchNewsOutput = {
-      items: ranked.map(({ doc, matchedTerms }) => ({
-        sourceId: doc._id,
-        eventId: eventOf.get(doc._id) ?? null,
-        title: doc.title,
-        url: doc.url,
-        publishedAt: doc.publishedAt.toISOString(),
-        symbols: doc.symbols,
-        tier: doc.tier,
-        excerpt: doc.text === null ? null : doc.text.slice(0, EXCERPT_CHARS),
-        injectionFlagged: doc.injectionScreen?.flagged ?? null,
-        matchedTerms,
-      })),
-    };
+    const hits = ranked.map(({ doc, matchedTerms }) => ({
+      sourceId: doc._id,
+      eventId: eventOf.get(doc._id) ?? null,
+      title: doc.title,
+      url: doc.url,
+      publishedAt: doc.publishedAt.toISOString(),
+      symbols: doc.symbols,
+      tier: doc.tier,
+      excerpt: doc.text === null ? null : doc.text.slice(0, EXCERPT_CHARS),
+      injectionFlagged: doc.injectionScreen?.flagged ?? null,
+      matchedTerms,
+    }));
+    const output: SearchNewsOutput = fitItems(hits, (items, omitted) => ({ items, omitted }));
     return { ok: true, output };
   },
 };
