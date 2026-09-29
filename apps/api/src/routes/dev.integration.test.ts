@@ -181,7 +181,7 @@ describe('POST /dev/replay/:sourceId', () => {
         path: null,
         confidence: 'low' as const,
         status: 'unconfirmed' as const,
-        research: { state: 'none' as const, runId: null },
+        research: { state: 'none' as const, runId: null, reportId: null },
         createdAt: new Date(),
         updatedAt: new Date(),
       };

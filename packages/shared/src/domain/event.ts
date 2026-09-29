@@ -93,6 +93,23 @@ export type FeedPath = z.infer<typeof FeedPath>;
 export const ResearchState = z.enum(['none', 'queued', 'running', 'done', 'failed']);
 export type ResearchState = z.infer<typeof ResearchState>;
 
+// The research attached to a card, written by code only (apps/api/src/research/investigate.ts).
+// Investigate names the run from the start; a failure before the run was stored names none. A
+// done run always has its report.
+export const FeedResearch = z
+  .strictObject({ state: ResearchState, runId: Id.nullable(), reportId: Id.nullable() })
+  .refine((research) => (research.reportId !== null) === (research.state === 'done'), {
+    error: 'research has a report exactly when it is done',
+    path: ['reportId'],
+  })
+  .refine((research) => research.state !== 'done' || research.runId !== null, {
+    error: 'done research names its run',
+    path: ['runId'],
+  });
+export type FeedResearch = z.infer<typeof FeedResearch>;
+
+export const NO_RESEARCH: FeedResearch = { state: 'none', runId: null, reportId: null };
+
 // One per user and event.
 export const FeedItem = z
   .strictObject({
@@ -103,7 +120,7 @@ export const FeedItem = z
     path: FeedPath.nullable(),
     confidence: Confidence,
     status: EventStatus,
-    research: z.strictObject({ state: ResearchState, runId: Id.nullable() }),
+    research: FeedResearch,
     createdAt: z.date(),
     updatedAt: z.date(),
   })
