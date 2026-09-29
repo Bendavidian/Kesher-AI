@@ -10,6 +10,7 @@
     "record": "tsx src/ingest/record.ts",
     "record:models": "tsx src/extract/record.ts",
     "record:bars": "tsx src/market/record.ts",
+    "recording:export": "tsx src/ingest/export.ts",
     "research:dev": "tsx src/research/dev.ts"
   },
   "dependencies": {

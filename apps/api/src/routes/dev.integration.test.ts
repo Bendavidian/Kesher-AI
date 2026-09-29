@@ -5,8 +5,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import { collection } from '../db/collections';
 import { ensureCollections, ensureIndexes } from '../db/indexes';
+import { loadRecording, recordLive } from '../ingest/recordings';
 import { createModelClient, MODELS } from '../llm/client';
 import { loadModelRecording, type ModelRecording } from '../llm/recordings';
+import { buildCompanies } from '../seed/build';
 import { DEMO_SOURCE_ID } from '../seed/config';
 import { mockModel, rateLimitError, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
@@ -68,6 +70,7 @@ describe('POST /dev/replay/:sourceId', () => {
     await ensureCollections(mongo.db);
     await ensureIndexes(mongo.db);
     recorded = (await loadModelRecording(DEMO_SOURCE_ID))!;
+    await collection(mongo.db, 'companies').insertMany(buildCompanies(new Date()));
     const quiet = () => undefined;
     server = createApp({ db: mongo.db, devRoutes: true, models: recordedModels }).listen(0);
     baseUrl = await listen(server);
@@ -86,7 +89,7 @@ describe('POST /dev/replay/:sourceId', () => {
   }, MONGO_START_TIMEOUT_MS);
 
   beforeEach(async () => {
-    for (const name of ['sources', 'market_events', 'ingest_counters'] as const) {
+    for (const name of ['sources', 'market_events', 'ingest_counters', 'recordings'] as const) {
       await collection(mongo.db, name).deleteMany({});
     }
   });
@@ -149,8 +152,57 @@ describe('POST /dev/replay/:sourceId', () => {
     });
   });
 
-  it('answers 400 for an id that is not an Alpaca news id', async () => {
-    for (const id of ['abc', '38062166.json', '%2E%2E%2Fx']) {
+  it('replays a live item that only the recordings collection holds', async () => {
+    const demo = (await loadRecording(DEMO_SOURCE_ID))!;
+    await recordLive(mongo.db, { provider: 'alpaca', item: { ...demo.item, id: 99000001 } });
+
+    const response = await replay('99000001');
+
+    expect(response.status).toBe(200);
+    const body = ReplayResponse.parse(await response.json());
+    expect(body).toMatchObject({ outcome: 'processed', sourceCreated: true });
+    const source = await collection(mongo.db, 'sources').findOne({ externalId: '99000001' });
+    expect(source?.symbols).toEqual(['TSM']);
+  });
+
+  it('replays a recorded EDGAR filing by accession number, with the filer symbol from its CIK', async () => {
+    const accession = '0001045810-26-000080';
+    await recordLive(mongo.db, {
+      provider: 'sec_edgar',
+      item: {
+        cik: '0001045810',
+        accessionNumber: accession,
+        form: '8-K',
+        filingDate: '2026-09-29',
+        acceptanceDateTime: '2026-09-29T12:03:56.000Z',
+        primaryDocument: 'nvda-8k.htm',
+        items: '2.02',
+      },
+    });
+
+    const response = await replay(accession);
+
+    expect(response.status).toBe(200);
+    expect(ReplayResponse.parse(await response.json())).toMatchObject({ outcome: 'processed' });
+    const source = await collection(mongo.db, 'sources').findOne({ externalId: accession });
+    expect(source).toMatchObject({
+      provider: 'sec_edgar',
+      kind: 'filing',
+      tier: 1,
+      symbols: ['NVDA'],
+      title: 'NVIDIA Corp 8-K: Results of Operations and Financial Condition',
+    });
+    expect((await replay('0001045810-26-000099')).status).toBe(404);
+  });
+
+  it('answers 400 for an id that is neither an Alpaca id nor an accession number', async () => {
+    for (const id of [
+      'abc',
+      '38062166.json',
+      '%2E%2E%2Fx',
+      '0001045810-26-00008',
+      '1045810-26-000080',
+    ]) {
       expect((await replay(id)).status, id).toBe(400);
     }
   });
