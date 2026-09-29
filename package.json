@@ -22,7 +22,8 @@
     "record:models": "npm run record:models -w @kesher/api --",
     "research:dev": "npm run research:dev -w @kesher/api --",
     "graph:candidates": "npm run graph:candidates -w @kesher/api --",
-    "graph:review": "npm run graph:review -w @kesher/api --"
+    "graph:review": "npm run graph:review -w @kesher/api --",
+    "graph:apply": "npm run graph:apply -w @kesher/api --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
