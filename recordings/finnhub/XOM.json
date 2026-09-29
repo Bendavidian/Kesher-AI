@@ -1,0 +1,12 @@
+{
+  "symbol": "XOM",
+  "recordedAt": "2026-09-29T10:22:58.886Z",
+  "peers": ["XOM", "XOM", "CVX", "OXY", "UNTC"],
+  "profile": {
+    "name": "Exxonmobil Holdings Corp",
+    "ticker": "XOM",
+    "exchange": "NEW YORK STOCK EXCHANGE, INC.",
+    "country": "US",
+    "finnhubIndustry": "Energy"
+  }
+}

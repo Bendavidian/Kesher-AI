@@ -1,0 +1,13 @@
+{
+  "accession": "0000707549-26-000037",
+  "recordedAt": "2026-09-29T10:27:03.092Z",
+  "batches": [
+    {
+      "inputHash": "55dc56bfca0759e9fd7d77a9ea29d04f768508f62d9bcdb929a3050b9857ee9f",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "text": "{\n  \"answers\": [\n    {\n      \"sentence\": 1,\n      \"company\": \"MU\",\n      \"role\": \"buys_from_filer\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 1,\n      \"company\": \"TSM\",\n      \"role\": \"buys_from_filer\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 2,\n      \"company\": \"AMAT\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 3,\n      \"company\": \"AMAT\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": true\n    },\n    {\n      \"sentence\": 4,\n      \"company\": \"AVGO\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 5,\n      \"company\": \"AMD\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 6,\n      \"company\": \"INTC\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    }\n  ]\n}",
+      "usage": { "inputTokens": 1133, "outputTokens": 505, "totalTokens": 1638 }
+    }
+  ]
+}

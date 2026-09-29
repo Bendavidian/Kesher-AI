@@ -1,0 +1,25 @@
+{
+  "symbol": "LRCX",
+  "recordedAt": "2026-09-29T10:22:52.275Z",
+  "peers": [
+    "LRCX",
+    "AMAT",
+    "KLAC",
+    "TER",
+    "Q",
+    "ENTG",
+    "MKSI",
+    "ONTO",
+    "AMKR",
+    "FORM",
+    "ACMR",
+    "AXTI"
+  ],
+  "profile": {
+    "name": "Lam Research Corp",
+    "ticker": "LRCX",
+    "exchange": "NASDAQ NMS - GLOBAL MARKET",
+    "country": "US",
+    "finnhubIndustry": "Semiconductors"
+  }
+}

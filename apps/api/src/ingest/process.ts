@@ -24,6 +24,19 @@ export interface ProcessDeps {
 
 export type ProcessResult = ReplayResponse;
 
+// Processed means extracted and scored. Such an item is never extracted again; one stored
+// without either resumes when it comes again. null when the item is not processed.
+export async function findProcessed(
+  db: Db,
+  { provider, externalId }: Pick<IncomingItem, 'provider' | 'externalId'>,
+): Promise<{ source: Source; eventId: string } | null> {
+  const stored = await collection(db, 'sources').findOne({ provider, externalId });
+  if (!stored) return null;
+  const event = await collection(db, 'market_events').findOne({ sourceIds: stored._id });
+  if (!event?.extraction || !(await isScored(db, event._id))) return null;
+  return { source: stored, eventId: event._id };
+}
+
 // The single entry for every item, replayed or live, in the SPEC.md order: pre filter, then the
 // injection screen, then extraction, then propagation and relevance. Every decision and write here
 // is deterministic code; the models only label and extract. A step that already ran is skipped, so
@@ -41,19 +54,16 @@ export async function processItem(
   const sources = collection(db, 'sources');
   const events = collection(db, 'market_events');
 
-  // Processed means extracted and scored. Such an item is never extracted again.
-  const stored = await sources.findOne({ provider: item.provider, externalId: item.externalId });
-  if (stored) {
-    const event = await events.findOne({ sourceIds: stored._id });
-    if (event?.extraction && (await isScored(db, event._id))) {
-      const reason = repeatReason(stored, item);
-      if (reason === 'update') {
-        const fields = changedFields(stored, item).join(', ');
-        log(`update to ${item.provider} ${item.externalId} not processed again (${fields})`);
-      }
-      await countDrop(db, reason, mode, now());
-      return { outcome: 'dropped', reason, sourceId: stored._id, eventId: event._id };
+  const processed = await findProcessed(db, item);
+  if (processed) {
+    const { source: stored, eventId } = processed;
+    const reason = repeatReason(stored, item);
+    if (reason === 'update') {
+      const fields = changedFields(stored, item).join(', ');
+      log(`update to ${item.provider} ${item.externalId} not processed again (${fields})`);
     }
+    await countDrop(db, reason, mode, now());
+    return { outcome: 'dropped', reason, sourceId: stored._id, eventId };
   }
 
   const ingested = await ingestItem(db, item, now());

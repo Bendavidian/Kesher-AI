@@ -45,14 +45,22 @@ export type AuthEnv = z.infer<typeof AuthEnv>;
 // Loads the root .env at runtime when it exists and validates what the caller needs. Nothing
 // runs at import, so tests and CI never need a .env. Values are never printed; errors name keys
 // only.
-function load<T>(schema: z.ZodType<T>): T {
+function readEnv(): NodeJS.ProcessEnv {
   if (existsSync(ROOT_ENV_FILE)) process.loadEnvFile(ROOT_ENV_FILE);
-  const parsed = schema.safeParse(process.env);
+  return process.env;
+}
+
+function parse<T>(schema: z.ZodType<T>, source: NodeJS.ProcessEnv): T {
+  const parsed = schema.safeParse(source);
   if (!parsed.success) {
     const keys = [...new Set(parsed.error.issues.map((issue) => issue.path.join('.')))];
     throw new Error(`Missing or invalid environment variables: ${keys.join(', ')}`);
   }
   return parsed.data;
+}
+
+function load<T>(schema: z.ZodType<T>): T {
+  return parse(schema, readEnv());
 }
 
 export function loadEnv(): Env {
@@ -61,6 +69,26 @@ export function loadEnv(): Env {
 
 export function loadAlpacaEnv(): AlpacaEnv {
   return load(AlpacaEnv);
+}
+
+// Only the graph build job reads SEC EDGAR, which requires a User-Agent with a contact.
+const SecEnv = z.object({
+  SEC_USER_AGENT: z.string().trim().min(1),
+});
+export type SecEnv = z.infer<typeof SecEnv>;
+
+export function loadSecEnv(): SecEnv {
+  return load(SecEnv);
+}
+
+// Only the graph build job reads Finnhub (peers and profiles).
+const FinnhubEnv = z.object({
+  FINNHUB_API_KEY: z.string().min(1),
+});
+export type FinnhubEnv = z.infer<typeof FinnhubEnv>;
+
+export function loadFinnhubEnv(): FinnhubEnv {
+  return load(FinnhubEnv);
 }
 
 // Optional for the api: market data not in the local cache fails naming the keys when they are
@@ -94,4 +122,32 @@ export function loadMcpEnv(): McpEnv {
 
 export function loadAuthEnv(): AuthEnv {
   return load(AuthEnv);
+}
+
+// Live ingestion (T10) runs only where LIVE_INGEST is true, on one machine: the free Alpaca plan
+// allows one live WebSocket (SPEC.md Replay and recording). With it on, the api does not start
+// without the Alpaca keys and the SEC User-Agent, so a live machine never runs half configured.
+const LiveSwitch = z.object({ LIVE_INGEST: z.stringbool().default(false) });
+const LiveEnv = z.object({
+  ALPACA_API_KEY_ID: z.string().min(1),
+  ALPACA_API_SECRET_KEY: z.string().min(1),
+  // EDGAR fair access: a name and a contact. Not a secret, but never printed.
+  SEC_USER_AGENT: z.string().trim().min(1),
+});
+
+export type LiveConfig =
+  { enabled: false } | { enabled: true; alpaca: AlpacaKeys; secUserAgent: string };
+
+export function parseLiveEnv(source: NodeJS.ProcessEnv): LiveConfig {
+  if (!parse(LiveSwitch, source).LIVE_INGEST) return { enabled: false };
+  const env = parse(LiveEnv, source);
+  return {
+    enabled: true,
+    alpaca: { keyId: env.ALPACA_API_KEY_ID, secretKey: env.ALPACA_API_SECRET_KEY },
+    secUserAgent: env.SEC_USER_AGENT,
+  };
+}
+
+export function loadLiveEnv(): LiveConfig {
+  return parseLiveEnv(readEnv());
 }

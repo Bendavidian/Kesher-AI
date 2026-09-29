@@ -21,8 +21,14 @@
     "record": "npm run record -w @kesher/api --",
     "record:models": "npm run record:models -w @kesher/api --",
     "record:bars": "npm run record:bars -w @kesher/api --",
+    "recording:export": "npm run recording:export -w @kesher/api --",
     "verify:dev": "npm run verify:dev -w @kesher/api --",
-    "research:dev": "npm run research:dev -w @kesher/api --"
+    "research:dev": "npm run research:dev -w @kesher/api --",
+    "graph:candidates": "npm run graph:candidates -w @kesher/api --",
+    "graph:review": "npm run graph:review -w @kesher/api --",
+    "graph:apply": "npm run graph:apply -w @kesher/api --",
+    "graph:chunks": "npm run graph:chunks -w @kesher/api --",
+    "graph:search": "npm run graph:search -w @kesher/api --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -1,0 +1,25 @@
+{
+  "symbol": "TSM",
+  "recordedAt": "2026-09-29T10:22:45.680Z",
+  "peers": [
+    "2330.TW",
+    "2454.TW",
+    "3711.TW",
+    "2303.TW",
+    "2408.TW",
+    "3443.TW",
+    "3653.TW",
+    "5274.TWO",
+    "2344.TW",
+    "8299.TWO",
+    "2449.TW",
+    "2379.TW"
+  ],
+  "profile": {
+    "name": "Taiwan Semiconductor Manufacturing Co Ltd",
+    "ticker": "2330.TW",
+    "exchange": "TAIWAN STOCK EXCHANGE",
+    "country": "TW",
+    "finnhubIndustry": "Semiconductors"
+  }
+}

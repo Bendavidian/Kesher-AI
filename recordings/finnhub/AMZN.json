@@ -1,0 +1,12 @@
+{
+  "symbol": "AMZN",
+  "recordedAt": "2026-09-29T10:22:28.058Z",
+  "peers": ["AMZN", "EBAY", "CPNG", "DDS", "ETSY", "M", "OLLI", "PTRN", "KSS", "SVV", "GRPN"],
+  "profile": {
+    "name": "Amazon.com Inc",
+    "ticker": "AMZN",
+    "exchange": "NASDAQ NMS - GLOBAL MARKET",
+    "country": "US",
+    "finnhubIndustry": "Retail"
+  }
+}

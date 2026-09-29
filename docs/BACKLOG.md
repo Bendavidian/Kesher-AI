@@ -112,7 +112,7 @@ Notes for later tasks:
 
 ## Phase 2: deepen
 
-### [ ] T10 Live ingestion and recording
+### [x] T10 Live ingestion and recording
 Alpaca news WebSocket and an EDGAR poller for the universe. Every live item is recorded for replay. The free Alpaca plan allows one live WebSocket, so live ingestion runs only where LIVE_INGEST is on, which is one machine only.
 Done when: a live news item reaches the feed without manual action and can be replayed later.
 Notes from T04:
@@ -120,25 +120,33 @@ Notes from T04:
 - EDGAR items must carry the filer's universe symbol, mapped from the CIK, in symbols before processItem, or the pre filter drops them.
 - The job queue should serialize work per source id. processItem skips steps that already ran and its writes are conditional, so concurrent calls for one item stay correct, but each can spend a model call before the loser's write is discarded.
 - Note from T05: graph start nodes are the extracted companies that the event's sources tagged, taken as the union over the cluster (eventCompanies, apps/api/src/relevance/score.ts). Once clustering puts several items in one event, an untrusted later item can widen that set; decide then whether to intersect per source.
+Notes from T10 for later tasks:
+- T11: a live filing's Source has text null and a code written title (company, form, 8-K item labels), so extraction reads only that title. Once filing chunks exist, decide whether live filings get their text screened and extracted.
+- T16: live rows of ingest_counters now fill up where LIVE_INGEST is on; items that fail the Source schema are logged, not counted.
+- T18: the deployed instance needs LIVE_INGEST=true with the Alpaca keys and SEC_USER_AGENT, and both development machines false. Recordings go to the database there, so nothing on its disk needs to last.
 
-### [ ] T11 Graph build job
+### [x] T11 Graph build job
 Finnhub peers and profiles. LLM extraction of supplier and customer edges from 10-K sections with verbatim quotes. A review CLI to accept or reject edges. The same sections chunked and embedded into FilingChunk.
 Peers are kept only inside the demo universe. Every edge is written in both directions with its inverse type. primaryListing comes from the Finnhub profile (check ASML as well as TSM). Chunks of at most 256 tokens, embedded with local Xenova/all-MiniLM-L6-v2 (384 dimensions).
-Done when: at least 40 reviewed edges with evidence exist, and filing search returns the NVIDIA foundry passage for "foundry dependency".
-Open decisions and notes from T02:
-- Evidence for Finnhub peers: CLAUDE.md requires a verbatim quote on every edge, but peers have none. Since T02 the Relationship schema requires filing evidence on every edge. Decide how competitor_of from peers fits before writing any.
-- in_sector and has_theme: T02 stores sector and themes as Company fields, not edges, because they carry no filing evidence and SPEC.md names no inverse types for them. Decide whether they become edges, and note that "same sector 0.4" as a node path is two hops.
-- Field ownership: the T02 seed overwrites primaryListing, sector, name and themes with $set. Decide whether the seed or this job owns them once profiles are fetched.
-- XOM now maps to CIK 0002115436 (ExxonMobil Holdings Corp). Keep the SEC value; when fetching XOM filings, fall back to the old CIK 0000034088 if the new one has no 10-K yet.
-- Finnhub sectors put AMZN in retail and GOOGL and META in media. Keep them as data, but do not score relevance on sector without checking this; themes from our taxonomy are likely the better signal.
+Done when: every candidate with a verbatim quote from the 10-K and 20-F filings has been reviewed, the final count of distinct reviewed relationships is reported, and filing search limited to NVDA returns NVIDIA foundry passages in its top 3 for "foundry dependency" and the TSMC foundry passage first for "TSMC foundry dependency". The bare query came from the five document spike; in the full 10-K, NVIDIA's own foundry risk passages are correct answers for it (SPEC.md decision log, T11). There is no minimum count: a fixed target pushes toward weak evidence, which "no evidence, no edge" prevents (SPEC.md decision log, T11). The earlier target of 40 reviewed edges is dropped.
+Scope decided on 29 Sep 2026: candidates start from docs/research/edge-candidates.md and add evidence from the TSM and ASML 20-F filings (edge evidence only, no FilingChunks). Filing chunks cover Item 1 and Item 1A of the 15 10-K filers. Nothing is written with reviewed: true before the user approves it in the review CLI.
+Decisions from T02, resolved on 29 Sep 2026 (SPEC.md decision log, T11): Finnhub peers are candidates only and every competitor_of edge has a filing quote; in_sector and has_theme stay Company attributes (Finnhub sectors put AMZN in retail and GOOGL and META in media, so T16 decides whether theme overlap adds relevance); the seed owns the Company reference fields and the six demo edges, T11 owns every other relationship and the filing chunks. XOM falls back to CIK 0000034088, which still holds its latest 10-K.
+Done on 29 Sep 2026: 28 proposed relationships reviewed by the user (22 accepted, 6 rejected), so Atlas holds 28 distinct reviewed relationships (6 seeded, 22 from T11) in 56 edge documents, and 2,010 filing chunks. Limited to NVDA, "foundry dependency" returns NVIDIA's foundry risk passages in the top 3 and "TSMC foundry dependency" the TSMC passage first. The demo still scores A 0.8 through TSMC supplies NVIDIA, B 1 and C 0.
+Notes from T11 for later tasks:
+- T13 part 2: search_filings reads filing_chunks with a $vectorSearch on filing_chunks_vector, filtered by symbol, at most 3 chunks (apps/api/src/graph/search-cli.ts shows the query). Embed the query with localEmbedder (apps/api/src/graph/embed.ts), without a heading prefix. The api process then loads the model, about 90 MB, from .cache/models (T18 checks the host's memory). get_company_relationships reads reviewed relationships with their evidence.
+- T13 part 2: chunk text is the filing's own text with its heading lines; the vector was computed from "heading. text". The TSM and ASML 20-Fs have no chunks (foreign issuer RAG stays V2).
+- T14: filing Sources keep text null, so a quote check for a claim citing a filing must search the FilingChunk texts of that Source. A quote that spans two chunks would fail; decide whether to also check the joined text of neighbouring chunks.
+- T16: data/graph/candidates.json holds the model's role next to the research decision for 110 (sentence, company) rows, and data/graph/reviews.json the user's decisions; together they measure the edge extractor. The model proposed an edge on 18 rows the research rejected.
+- Existing FeedItems are not scored again when the graph grows; only new events and replays after a dev reset use the new edges.
 
 ### [x] T12 Gate policy and automatic research
 The gate from SPEC.md: relevance threshold, importance of at least 4, dedupe per event cluster, daily budget. Cards appear immediately and research attaches asynchronously.
 Done when: tests cover every gate condition, and a card is visible before its research completes.
 Notes from T12 for later tasks:
 - Web, after T09 (new item): the run list and GET /runs now hold skipped runs (trigger gate, status skipped, startedAt null, one Gate check step with the condition and reason). The run summary in apps/web/src/view/run.ts says "Started by the research gate" for every gate run, a skipped one too; show "Skipped by the research gate" with AgentRun.gate.reason instead. The Agent runs tab opens the newest run, which after a Replay is often a skip; consider opening the newest run that was not skipped. A queued card has research.runId before its AgentRun exists, for longer than before, since the queue runs one run at a time; the run screen already loads on the first run:step.
-- T10: live items must go through the same after scoring hook as replay: createApp in apps/api/src/app.ts composes onScored with autoResearch (afterScoring). Expose it to the live ingester rather than passing server.ts's onScored alone, or live cards get no automatic research.
+- T10: live items must go through the same after scoring hook as replay: createApp in apps/api/src/app.ts composes onScored with autoResearch (afterScoring). Expose it to the live ingester rather than passing server.ts's onScored alone, or live cards get no automatic research. Done in T10: createApi returns afterScoring and server.ts hands it to startLiveIngest.
 - T16: a failed run counts as recent, so the gate does not retry it for 24 hours; only Investigate does. Decide whether failed runs should leave the recent check. A queue that keeps a job waiting past 15 minutes lets the next Investigate take the card over, and the waiting job's reserved run stays counted.
+- Possible flake, found in T10: auto.integration.test.ts, "with AUTO_RESEARCH off, records auto_research_off for every card and calls no model", failed once under full suite load on macOS after merging main with T11, then passed alone and in a second full run. The failure output was not kept; if it recurs, capture it and look for a wait that depends on timing (settled, the replay's gate writes).
 - T16: tune GATE_MIN_RELEVANCE, GATE_MIN_IMPORTANCE and RECENT_RUN_MS (apps/api/src/research/gate.ts) and DAILY_RUN_LIMIT and AUTO_RUN_LIMIT (dailyBudget.ts). The research_budget collection shows the runs reserved per day.
 
 ### [~] T13 Full MCP tool set
@@ -146,7 +154,7 @@ Every tool in INTERFACES.md, a tool set per agent, and get_price_reaction with b
 Done when: each agent's token lists only its own tools, and get_price_reaction returns stock and benchmark moves for the TSMC window anchored to the previous close, and a test covers a weekend, a holiday and an early close headline.
 Split in two parts under this id, because search_filings and the hybrid search need the filing chunks and the embedder from T11:
 - Part 1, now: the price reaction. get_price_reaction as an MCP tool, and FeedCard.priceReaction filled by the same code: SIP bars from Alpaca, windows anchored as decided in T00 finding A, the Alpaca market calendar for weekends, holidays and early closes, the anchor stated in the output, SMH and SPY in the same windows, always labeled as delayed 15 minutes and never stated as a cause. The web market table and open gap bars show the values instead of the empty state. Raw SIP bars stay out of git (Alpaca's data terms; the repo becomes public): recordings/alpaca-bars/ is a gitignored local cache that `npm run record:bars` fills. The market calendar recordings and the computed PriceReaction of the demo event are committed. CI tests use synthetic bars and that fixture; the test that reproduces SPIKE.md from real bars runs locally and skips when the cache is missing.
-- Part 2, after T11: get_my_portfolio, get_company_relationships, search_filings, get_financial_facts, the hybrid search_news behind the same contract (event embeddings, the Atlas text index), and a tool set per agent.
+- Part 2, now that T11 is done: get_my_portfolio, get_company_relationships, search_filings, get_financial_facts, the hybrid search_news behind the same contract (event embeddings, the Atlas text index), and a tool set per agent.
 Done when for part 1: get_price_reaction returns stock and benchmark moves for the TSMC window anchored to the previous close, equal to docs/SPIKE.md check 3, a test covers a weekend, a holiday and an early close headline, and the demo card shows the moves next to the benchmarks.
 Part 1 is done (29 Sep 2026). Notes for part 2 and later tasks:
 - Tool sets per agent: decide whether the research agent gets get_price_reaction (RESEARCH_TOOLS in apps/api/src/research/mcp.ts). research:dev passes no priceReactions to createApp, so there the tool answers "market data is not configured".
@@ -174,11 +182,18 @@ Injection success: a poisoned item counts as a successful attack when the inject
 Done when: one command produces the eval table and its numbers are copied into the README.
 Note from T04: the screen threshold is FLAG_THRESHOLD in apps/api/src/screen/injection.ts, and every Source stores the raw score, so tuning needs no new screening. The pre filter savings are the live rows of ingest_counters; replay rows are kept apart.
 Note from T05: add an injection case for the graph start nodes. An article tagged only KO whose text names NVDA must not reach NVDA holders: persona A stays at relevance 0, even when the extraction names NVDA. Code already enforces this (eventCompanies in apps/api/src/relevance/score.ts); the eval proves it end to end on a poisoned item.
+Note from T11: add a small retrieval eval, about 10 queries with their expected filing chunks, measured as recall at 3. Run it on the local MiniLM chunks now and on the hybrid search after T13. The T11 check, "foundry dependency" limited to NVDA, returns NVIDIA's foundry risk passages in the top 3 and the TSMC passage at rank 5; "TSMC foundry dependency" returns the TSMC passage first.
 Note from T04: count unscreened items separately. A screen that did not finish (prompt guard error, 429, an answer that is not a probability, or a later chunk failing after clean ones) leaves injectionScreen null, never flagged: false, so the runner reports flagged, clean and unscreened as three groups and never counts null as clean.
 
 ### [ ] T18 Deploy, README, demo
 Deployed web and api, a README with an architecture diagram and the eval numbers, and a rehearsed five minute demo from a recorded event. The deployed instance becomes the single live ingester (LIVE_INGEST on there, off on both development machines). Check that the local embedding model fits the host's memory. Decide the api production runtime: since T01 the api runs from TypeScript source through tsx and @kesher/shared exports its source, so deploy either keeps tsx or bundles the api.
+During the rehearsal, observe a live Benzinga item reaching the feed in US market hours (T10 proved the live path on Atlas with an EDGAR 8-K, and the Alpaca stream only with fake WebSocket tests).
 Done when: the demo runs end to end on the deployed app.
+
+### [ ] T19 Live ingestion hardening
+Found in T10. Items published while the Alpaca stream was down are lost: after a reconnect, fetch the gap from the REST news endpoint by time and pass it through the same path (the pre filter and the duplicate check keep it idempotent). Groq allows 200,000 tokens a day, about 220 extractions at roughly 900 tokens each; past that, extraction falls back to Gemini, which research also uses. Add a daily cap or priority for live extraction, counted like the other drops, before LIVE_INGEST runs all day. The first start on an empty database also hands over the last 24 hours of universe filings at once.
+From the T10 review: a half open socket never closes, so the stream can go silent without reconnecting (add an idle check that tolerates quiet nights, or ping); the live queue has no length cap (cap it and count what is shed); the EDGAR poller logs a 429 or 403 per company every 5 minutes with no backoff.
+Done when: a test drops the stream, delivers items only through the REST gap, and each is processed once; and a test shows the cap stops live extraction without touching replay or Investigate.
 
 ## V2 (not in MVP)
 Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).
