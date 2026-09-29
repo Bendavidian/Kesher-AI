@@ -24,6 +24,7 @@ import { DEMO_SOURCE_ID } from '../seed/config';
 import { oneHot } from '../test/embedder';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import { memorySearch } from '../test/search';
+import { createCompanyConcepts, recordedConcepts } from '../sec/xbrl';
 
 const SECRET = 'integration-secret-that-is-long-enough';
 const personaA = randomUUID();
@@ -115,6 +116,7 @@ const event: MarketEvent = {
 };
 
 const nvidia10k = source({
+  externalId: '0001045810-26-000021',
   title: 'NVIDIA 10-K for the fiscal year ended 2026-01-25',
   kind: 'filing',
   provider: 'sec_edgar',
@@ -283,6 +285,12 @@ describe('POST /mcp', () => {
             ? Promise.reject(new Error('filing_chunks_vector is not READY'))
             : search.filingPassages(symbol, vector, limit),
       },
+      // The committed NVDA recordings; MSFT stands for SEC being down.
+      companyConcept: createCompanyConcepts((symbol, concept) =>
+        symbol === 'MSFT'
+          ? Promise.reject(new Error('HTTP 503 from data.sec.gov'))
+          : recordedConcepts()(symbol, concept),
+      ),
       logError: (error) => logged.push(error),
     }).listen(0);
     baseUrl = await listen(server);
@@ -529,6 +537,81 @@ describe('POST /mcp', () => {
       expect(JSON.stringify(result.content)).toContain('Filing search is unavailable');
       expect(JSON.stringify(result.content)).not.toContain('READY');
       expect(String(logged[0])).toContain('filing_chunks_vector is not READY');
+    });
+  });
+
+  describe('get_financial_facts', () => {
+    interface Facts {
+      metrics: {
+        metric: string;
+        concept: string | null;
+        unit: string | null;
+        annual: { end: string; accn: string; sourceId: string; form: string }[];
+        quarterly: { end: string; accn: string; sourceId: string; form: string }[];
+      }[];
+      filings: { sourceId: string; accn: string; url: string; title: string }[];
+      omitted: number;
+    }
+    const call = async (args: Record<string, unknown>) => {
+      const client = await connect(['get_financial_facts']);
+      return client.callTool({ name: 'get_financial_facts', arguments: args });
+    };
+
+    it('returns the newest annual and quarterly values as filed, each citing its filing', async () => {
+      const result = await call({ symbol: 'NVDA', metrics: ['revenue', 'eps_diluted'] });
+      expect(result.isError).toBeFalsy();
+      const facts = result.structuredContent as Facts;
+      const [revenue, eps] = facts.metrics;
+      expect(revenue).toMatchObject({ metric: 'revenue', concept: 'Revenues', unit: 'USD' });
+      expect(revenue?.annual).toHaveLength(3);
+      expect(revenue?.annual[0]).toMatchObject({
+        end: '2026-01-25',
+        value: 215938000000,
+        form: '10-K',
+        accn: '0001045810-26-000021',
+        // The 10-K is stored already, so the value cites that Source.
+        sourceId: nvidia10k._id,
+      });
+      expect(revenue?.quarterly.length).toBeGreaterThan(0);
+      expect(eps).toMatchObject({ metric: 'eps_diluted', unit: 'USD/shares' });
+      const cited = new Set(
+        facts.metrics.flatMap((m) => [...m.annual, ...m.quarterly]).map((v) => v.accn),
+      );
+      expect(new Set(facts.filings.map((f) => f.accn))).toEqual(cited);
+      expect(facts.filings.every((f) => f.url.startsWith('https://www.sec.gov/Archives/'))).toBe(
+        true,
+      );
+    });
+
+    it('fits four metrics within 8 KB', async () => {
+      const result = await call({
+        symbol: 'NVDA',
+        metrics: ['revenue', 'net_income', 'gross_profit', 'rnd_expense'],
+      });
+      expect(Buffer.byteLength(JSON.stringify(result.structuredContent))).toBeLessThanOrEqual(
+        8_192,
+      );
+      expect((result.structuredContent as Facts).omitted).toBe(0);
+    });
+
+    it('answers a tool error for a 20-F filer, and hides an SEC failure but logs it', async () => {
+      const foreign = await call({ symbol: 'TSM', metrics: ['revenue'] });
+      expect(foreign.isError).toBe(true);
+      expect(JSON.stringify(foreign.content)).toContain('TSM files a 20-F');
+
+      logged.length = 0;
+      const down = await call({ symbol: 'MSFT', metrics: ['revenue'] });
+      expect(down.isError).toBe(true);
+      expect(JSON.stringify(down.content)).toContain('SEC data is unavailable');
+      expect(JSON.stringify(down.content)).not.toContain('503');
+      expect(String(logged[0])).toContain('HTTP 503');
+    });
+
+    it('rejects a metric outside the list and a repeated one', async () => {
+      for (const metrics of [['ebitda'], ['revenue', 'revenue'], []]) {
+        const result = await call({ symbol: 'NVDA', metrics });
+        expect(result.isError, JSON.stringify(metrics)).toBe(true);
+      }
     });
   });
 

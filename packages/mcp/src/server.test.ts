@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createKesherServer } from './server';
-import { mintRunToken, verifyRunToken, type ToolName } from './token';
+import { AGENT_TOOLS, mintRunToken, verifyRunToken, type ToolName } from './token';
 import { priceReactionJson, type ToolDeps } from './tools';
 import { REACTION } from './testing';
 
@@ -56,9 +56,11 @@ describe('createKesherServer', () => {
     expect(JSON.stringify(result.content)).toContain(`No event with id ${eventId}`);
   });
 
-  it('serves no tool that the server has not implemented', async () => {
-    const future = await connect(['get_financial_facts']);
-    expect((await future.listTools()).tools).toEqual([]);
+  it("serves every tool of the research agent's set", async () => {
+    const all = await connect([...AGENT_TOOLS.research]);
+    expect((await all.listTools()).tools.map((tool) => tool.name).sort()).toEqual(
+      [...AGENT_TOOLS.research].sort(),
+    );
   });
 
   it('serves get_price_reaction to a token that lists it, as structured content', async () => {

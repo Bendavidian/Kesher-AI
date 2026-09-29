@@ -17,7 +17,7 @@ Every tool output stays within 8 KB of JSON in UTF-8 (MAX_TOOL_OUTPUT_BYTES, the
 | search_news | query, symbols?, since? | ranked news items with source ids | hybrid search: words and meaning; see below |
 | search_filings | symbol, query | filing passages with source ids | RAG over FilingChunk; at most 3 per call; see below |
 | get_price_reaction | symbol, eventTime | anchor, then stock, SMH and SPY moves per window, delayed flag | see below |
-| get_financial_facts | symbol, metrics | XBRL values with period and source | us-gaap filers only in the MVP |
+| get_financial_facts | symbol, metrics | XBRL values with period and source | us-gaap filers only in the MVP; see below |
 | search_x_posts | query, since? | posts as Tier 3 signals with links | V2, not in the MVP (X level 1) |
 
 ### get_my_portfolio
@@ -71,6 +71,14 @@ Temporal association only, never a cause. The same code (priceReactionFor in pac
   - delayed: always true; the data is SIP delayed 15 minutes.
   - complete: true once the bar of every window could have closed at least 15 minutes ago. An incomplete result is never cached.
 - A symbol outside the universe fails validation; a future eventTime, or one with no calendar sessions around it, is a tool error.
+
+### get_financial_facts
+- Input: `{ symbol, metrics }`. symbol is a demo universe company; metrics is 1 to 4 distinct names from revenue, gross_profit, operating_income, net_income, eps_diluted, rnd_expense, cash and inventory. Each maps to us-gaap concepts in order (revenue: Revenues, RevenueFromContractWithCustomerExcludingAssessedTax, SalesRevenueNet); of those the filer reports, the one with the newest period is used, and on a tie the earlier in that order.
+- Reads SEC's companyconcept API (SEC_USER_AGENT, 150 ms between requests), cached in process for 12 hours; XOM falls back to its old CIK. Values are as filed: only the ones SEC assigns to a calendar period (a frame), so each period appears once, in its last filed version. The tool computes nothing from them.
+- Output: `{ symbol, metrics, filings, omitted }`.
+  - metrics: `{ metric, concept, unit, annual, quarterly }`, with concept and unit null when the filer reports none of the concepts. annual holds the 3 newest fiscal years and quarterly the 4 newest quarters (or quarter end balances for cash and inventory), newest first. A fourth quarter is rarely filed as a three month value, so quarterly often skips it, and balances have no annual values; each `{ start, end, value, fy, fp, form, filed, accn, sourceId }`; start is null for a balance on a date.
+  - filings: one `{ sourceId, accn, form, filed, url, title }` per filing the values come from. sourceId is the stored filing Source with that accession number, or the id one will be stored under (a version 5 UUID of `sec_edgar:<accn>`); after the call the research agent's code stores the missing ones (upsertFilingSource, apps/api/src/sources/filings.ts), with text null.
+- Tool errors: a 20-F filer "files a 20-F; XBRL facts cover us-gaap filers only"; "No XBRL facts for <symbol> on these metrics"; and "SEC data is unavailable", with the cause logged by the api.
 
 ## Run token
 Minted by the api for each agent run (mintRunToken in packages/mcp): a JWT signed with HS256 and MCP_TOKEN_SECRET, which must be at least 32 characters.

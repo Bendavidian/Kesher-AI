@@ -479,7 +479,7 @@ describe('runResearch', () => {
   it('counts a report turn that calls another tool as a failed attempt, and runs nothing', async () => {
     // The skipped report turn is charged its estimate and output cap; a second report still fits.
     const { run } = setup([getEvent, searchNews, searchNews, searchNews, report], {
-      usage: { input: 4_000, output: 300 },
+      usage: { input: 3_000, output: 300 },
     });
 
     const outcome = await run();

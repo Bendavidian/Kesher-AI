@@ -1,5 +1,10 @@
-import { GetPriceReactionOutput, priceReactionFromJson } from '@kesher/mcp';
+import {
+  GetFinancialFactsOutput,
+  GetPriceReactionOutput,
+  priceReactionFromJson,
+} from '@kesher/mcp';
 import type { Db } from 'mongodb';
+import { upsertFilingSource } from '../sources/filings';
 import { upsertPriceReactionSource } from '../sources/marketData';
 
 // After a successful tool call, code stores the Sources its output names that may not be stored
@@ -17,6 +22,15 @@ export async function storeToolSources(
     const parsed = GetPriceReactionOutput.safeParse(output);
     if (!parsed.success) return [];
     return [await upsertPriceReactionSource(db, priceReactionFromJson(parsed.data), now)];
+  }
+  if (toolName === 'get_financial_facts') {
+    const parsed = GetFinancialFactsOutput.safeParse(output);
+    if (!parsed.success) return [];
+    const stored: string[] = [];
+    for (const filing of parsed.data.filings) {
+      stored.push(await upsertFilingSource(db, parsed.data.symbol, filing, now));
+    }
+    return stored;
   }
   return [];
 }

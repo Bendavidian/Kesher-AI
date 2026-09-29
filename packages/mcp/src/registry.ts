@@ -1,3 +1,4 @@
+import { getFinancialFacts } from './facts';
 import { searchFilings } from './filings';
 import { searchNews } from './news';
 import { getMyPortfolio } from './portfolio';
@@ -12,4 +13,5 @@ export const TOOLS = [
   searchFilings,
   getCompanyRelationships,
   getPriceReaction,
+  getFinancialFacts,
 ] as const;

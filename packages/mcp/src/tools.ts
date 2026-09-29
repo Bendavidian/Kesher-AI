@@ -18,6 +18,7 @@ import {
 } from '@kesher/shared';
 import type { Collection } from 'mongodb';
 import { z } from 'zod';
+import type { CompanyConceptSource } from './facts';
 import type { SearchBackend } from './search';
 import { sourceIdFor } from './sourceIds';
 import type { RunTokenClaims, ToolName } from './token';
@@ -30,6 +31,8 @@ export interface ToolDeps {
   relationships: Collection<Relationship>;
   companies: Collection<Company>;
   search: SearchBackend;
+  // SEC XBRL values by concept (get_financial_facts).
+  companyConcept: CompanyConceptSource;
   // priceReactionFor in packages/shared over the api's market data: the subjects, then SMH and SPY.
   priceReaction: (subjects: readonly PriceSymbol[], headline: Date) => Promise<PriceReaction>;
 }

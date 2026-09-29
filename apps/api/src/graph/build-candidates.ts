@@ -30,7 +30,8 @@ import {
   proposedKeys,
   type FilingEntry,
 } from './rows';
-import { filingHtml, findAnnual, secFetcher } from './sec';
+import { secFetcher } from '../sec/fetch';
+import { filingHtml, findAnnual } from './sec';
 import { flatText } from './sections';
 
 // npm run graph:candidates

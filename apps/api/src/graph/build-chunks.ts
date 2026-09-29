@@ -7,7 +7,8 @@ import { filingSource } from './apply';
 import { chunkSections, writeChunks } from './chunks';
 import { FILERS } from './filers';
 import { loadCandidates } from './review';
-import { filingHtml, secFetcher, type Fetcher } from './sec';
+import { secFetcher, type Fetcher } from '../sec/fetch';
+import { filingHtml } from './sec';
 import { blocks, sections } from './sections';
 
 // npm run graph:chunks

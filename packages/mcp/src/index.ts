@@ -16,6 +16,14 @@ export {
   type MintInput,
 } from './token';
 export { TOOLS } from './registry';
+export {
+  FINANCIAL_CONCEPTS,
+  FINANCIAL_METRICS,
+  GetFinancialFactsOutput,
+  type CompanyConceptSource,
+  type ConceptFacts,
+  type XbrlFact,
+} from './facts';
 export { matchedTerms, queryTerms } from './news';
 export type { FilingPassage, NewsFilter, SearchBackend } from './search';
 export { nameUuid, sourceIdFor, sourceIdName } from './sourceIds';

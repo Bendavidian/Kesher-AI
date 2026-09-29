@@ -1,4 +1,4 @@
-import type { SearchBackend } from '@kesher/mcp';
+import type { CompanyConceptSource, SearchBackend } from '@kesher/mcp';
 import { HealthResponse } from '@kesher/shared';
 import express, { type ErrorRequestHandler, type Express } from 'express';
 import type { Db } from 'mongodb';
@@ -52,6 +52,9 @@ export interface AppDeps {
   // The searches behind search_filings and search_news. Atlas over db and the embedder when
   // unset; tests pass an in memory backend, since plain mongod has no search stages.
   search?: SearchBackend;
+  // SEC XBRL values for get_financial_facts (sec/xbrl.ts). Without it the tool answers that SEC
+  // data is unavailable.
+  companyConcept?: CompanyConceptSource;
 }
 
 const logMessage = (error: unknown) =>
@@ -75,6 +78,7 @@ export function createApp({
   onRunEnd,
   priceReactions,
   search,
+  companyConcept,
 }: AppDeps): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -93,6 +97,7 @@ export function createApp({
         onError: logError,
         search: search ?? atlasSearch(db, embedder),
         ...(priceReactions ? { priceReaction: priceReactions } : {}),
+        ...(companyConcept ? { companyConcept } : {}),
       }),
     );
   }

@@ -6,7 +6,7 @@ import { parseArgs } from 'node:util';
 import { AgentRun, Claim, Report } from '@kesher/shared';
 import { z } from 'zod';
 import { createApp } from '../app';
-import { loadAlpacaKeys, loadEnv, loadMcpEnv, loadModelKeys } from '../config/env';
+import { loadAlpacaKeys, loadEnv, loadMcpEnv, loadModelKeys, loadSecEnv } from '../config/env';
 import { describeError, redactor } from '../config/redact';
 import { collection } from '../db/collections';
 import { DB_NAME, connect } from '../db/client';
@@ -14,6 +14,8 @@ import { lazyLocalEmbedder } from '../embed/local';
 import { createModelClient, resolveFromKeys } from '../llm/client';
 import { createMarketData } from '../market/data';
 import { createPriceReactions } from '../market/reactions';
+import { secFetcher, type Fetcher } from '../sec/fetch';
+import { createCompanyConcepts, secConcepts } from '../sec/xbrl';
 import { DEMO_SOURCE_ID, DEMO_SOURCE_PROVIDER, PERSONAS } from '../seed/config';
 import { runResearch } from './agent';
 import { ResearchRecording, researchRecordingPath, type RecordedTurn } from './recordings';
@@ -75,6 +77,8 @@ const client = await connect(env.MONGODB_URI).catch((error: unknown) => {
   process.exit(1);
 });
 const db = client.db(DB_NAME);
+// One fetcher, so requests stay 150 ms apart.
+let sec: Fetcher | undefined;
 const server = createApp({
   db,
   devRoutes: false,
@@ -83,6 +87,9 @@ const server = createApp({
   // The same market data and local embedding model as the api, so every tool works here.
   priceReactions: createPriceReactions(createMarketData({ keys: () => alpacaKeys })),
   embedder: lazyLocalEmbedder(),
+  companyConcept: createCompanyConcepts(
+    secConcepts(() => (sec ??= secFetcher(loadSecEnv().SEC_USER_AGENT))),
+  ),
 }).listen(0, '127.0.0.1');
 
 try {
