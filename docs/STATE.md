@@ -1,9 +1,27 @@
 # State
 
-Updated: 28 Sep 2026, T05 done
+Updated: 29 Sep 2026, T08 part 1 done
 
 ## Where we are
-T00 to T05 and T07 are done. T06 is next. The UI track part 2 (PR 6) added the web report and agent run screens on fixtures; their wiring notes are under T08, T09 and T14 in BACKLOG.md.
+T00 to T07 are done. T08 part 1 is done and T08 stays [~] until part 2. T08 was split under one id because Investigate needs the auth context from T06 (BACKLOG.md T08, SPEC.md decision log T08). The UI track part 2 (PR 6) added the web report and agent run screens on fixtures; their wiring notes are under T08, T09 and T14 in BACKLOG.md.
+
+T08 part 1 added the research agent in apps/api/src/research, with no route yet:
+- runResearch (agent.ts) loads the user's FeedItem path and holdings, picks one provider for the run (pickRunProvider), and mints a run token through openToolbox (mcp.ts) with get_event and search_news only. It connects as a real MCP client to POST /mcp and replaces the token before a call once it is 4 minutes old; every issue and refresh is a code step with the same scope. The user id goes into the token only, never into a prompt or a tool argument. The brief holds only code written text (the "Why you" line from whyYou, held symbols, the budget); the untrusted headline arrives through get_event.
+- The loop is code: one model call per turn through runStep in the model client, with the MCP tools plus a local submit_report tool whose input is the claim draft (draft.ts, zod). The model executes nothing; code runs each tool call, and tool output returns inside <tool_output> tags. A tool name the token does not list never reaches MCP.
+- Budgets (budget.ts): tool calls 6 in auto and 15 in deep; tokens 12,000 in auto and 20,000 in deep, replacing 6,000 (SPEC.md decision log). planTurn starts a tool turn only when a worst case report can still follow it, keeping 1,500 tokens for the report; otherwise code forces submit_report, and with no room for even a minimal report the run ends budget_exhausted. A report failing its schema, or a report turn without one, gets one more try, then failed invalid_report.
+- 429 inside a run: runStep waits on the same provider, honoring retry-after or Gemini's retryDelay up to 30 seconds per wait, at most 3 retries; otherwise the run ends failed with failureReason rate_limited, recorded as a step, and no report. Single calls keep the T04 behavior (retry-after header only).
+- Every step is written to the AgentRun as it happens (`$push`), its output redacted and then capped at 8 KB of UTF-8 (output.ts). packages/shared gained AgentStep output and outputTruncated, AgentRun.failureReason (set exactly when failed), CheckName and utf8Length.
+- Claim checks (checks.ts), code only: sources_exist (a source a tool returned in this run) and quote_verbatim (at least 20 characters, found after normalizeText in the source's title or text). A failing claim is removed, a passing one stays unverified until T14; an inference whose premise was removed is removed. Check steps list removedClaimIds. Claims are written, then one Report with a single "Claims" section; a failed report insert removes its claims.
+- `npm run research:dev -- [--mode deep|auto] [--record] [--force]` runs persona A on the demo event against Atlas through an in process MCP server on 127.0.0.1 and prints the run. It refuses production and nothing imports it.
+- On Atlas, deep mode: get_event, then search_news (1 item), then the model submitted on its own. Turns 1,383, 1,679 and 2,279 tokens, 5,341 of 20,000; two facts and an inference, none removed. Recorded to recordings/research/38062166.json and replayed in replay.integration.test.ts with no provider call. Auto mode at 8,000 made one tool call before code forced the report (3,157 tokens); at 12,000 it made two and submitted on its own at 5,317, with a third call allowed by the plan. Atlas holds only one news item, so search has little to find.
+- 463 tests are green after rebasing on T06.
+
+T06, merged in PR 8 (summary from the PR; its session left STATE and the BACKLOG mark to this wrap):
+- Sign in: POST /auth/login, POST /auth/logout and GET /me. The session is an HS256 JWT in the httpOnly SameSite=Lax cookie kesher_session, signed with JWT_SECRET, which is separate from the run token secret. Every route and the socket handshake take the user from the cookie only (currentUser in apps/api/src/auth/session.ts).
+- GET /feed returns FeedCards with relevance above 0. GET /events/:eventId/explain computes the user's relevance and path on request and writes nothing; persona C's None comes from it.
+- Socket.IO pushes feed:item and feed:update to the user's room, only above relevance 0, and event:scored to every signed in socket. processItem has an onScored hook.
+- POST /dev/reset/:sourceId (development only) deletes the event's FeedItems, so the web's Replay control can replay the demo again with no model call.
+- Proof: three socket sessions in a test, and three browser sessions against Atlas: A High 0.80, B High 1.00, C None 0.00.
 
 T05 added propagation and relevance after extraction. processItem now runs pre filter, injection screen, extraction, then scoreEvent (apps/api/src/relevance):
 - loadEdges: one $graphLookup per event from the start companies, maxDepth 1 (2 hops), reviewed edges only.
@@ -69,19 +87,19 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. T06, live feed with persona switcher. Read the T05 notes under T06 in BACKLOG.md:
-   - mount GET /feed with feedCardsFor, the user from the auth context only, and filter out relevance 0;
-   - emit feed:item and feed:update with feedCard for each FeedItem scoreEvent writes, never for relevance 0;
-   - decode ISO dates before FeedCard.parse on the web, and replace the web fixtures with FeedCards;
-   - decide how persona C sees "none" (DoD point 8, the Hidden for you list) once relevance 0 never reaches the feed.
-2. On the Windows laptop:
+1. Check that CI passes on Ubuntu and Windows for the PR "T08 part 1: research agent", then merge it.
+2. T08 part 2, now that T06 is merged. Read the notes from part 1 and from T06 under T08 in BACKLOG.md:
+   - POST /events/:eventId/investigate calls runResearch with the user from currentUser (the session cookie) and mode deep; ResearchInputError means nothing was written (answer 404 or 409);
+   - decide whether the route waits for the run or answers 202 and pushes run:step and feed:update; set FeedItem.research;
+   - wire the Investigate button in ScoresPanel.tsx and render the basic report on the card, filtering claims by status;
+   - the remaining UI track notes under T08 (shared AgentName and ToolName on the web, report source read model and routes, served free tier limits).
+3. T09 then reads the stored runs: GET /runs/:runId and the run list, and the run screen shows AgentStep.output instead of DEMO_STEP_OUTPUTS.
+4. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
    - The first npm run test downloads mongod 8.0.32, about 100 MB.
-   - Replay needs GROQ_API_KEY, and the api needs MCP_TOKEN_SECRET of at least 32 characters, in that machine's .env.
+   - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay and research:dev, MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start.
    - Run `npm run seed` once if that machine uses its own database, so older Sources get publisher.
-3. Check that CI passes on Ubuntu and Windows for the T05 PR.
-4. T08 builds on T07 and T05: mint a run token per run with mintRunToken, connect the SDK client to POST /mcp, and follow the UI track notes under T08.
 
 Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now.
 
@@ -90,10 +108,12 @@ For T11, listed under T11 in BACKLOG.md:
 - evidence for Finnhub peer edges, which have no quote;
 - whether in_sector and has_theme become edges;
 - whether the seed or T11 owns the company fields.
+For T08 part 2: whether POST /events/:eventId/investigate waits for the run (seconds) or answers 202 and pushes progress over Socket.IO.
 The UI language is settled by docs/UI.md: English interface, with Hebrew summaries as a later option.
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 29 Sep 2026, macOS (Mac mini), T08 part 1: T08 split in two under one id; research agent over MCP with scoped run tokens and refresh, code planned turns and budgets (12,000 auto, 20,000 deep), the in-run 429 policy, steps written as they happen with 8 KB redacted output, quote checks that remove or keep claims unverified, research:dev; one real Gemini run on Atlas recorded and replayed; reviewer found no blockers; rebased on T06, 463 tests green; T06 marked done from PR 8; T08 stays [~].
 - 28 Sep 2026, macOS (Mac mini), T05: $graphLookup propagation, relevance, confidence and one FeedItem per user after extraction; start nodes limited to provider tagged companies; FeedCard read model and assembler; Source.publisher with a seed backfill; Why you templates and bands in shared; rebased on T07 and the UI track part 2; on Atlas the demo event scored A 0.8, B 1, C 0 and a second replay was a duplicate; 347 tests green; T05 done.
 - 28 Sep 2026, macOS (Mac mini), T07: packages/mcp on MCP SDK v2 with get_event and a thin search_news, HS256 run tokens with user and tool scopes, POST /mcp in the api; a token without search_news is rejected and no tool accepts a user id, proven in memory and over HTTP; checked against Atlas; rebased on T04; 262 tests green; T07 done.
 - 28 Sep 2026, macOS (Mac mini), T04: pre filter with ingest_counters, injection screen that fails open to null, extraction on Groq with a per call Gemini fallback and a limiter, processItem behind replay; on Atlas the demo item extracted TSM, importance 4, and a second replay counted a duplicate; 205 tests green; T04 done.
