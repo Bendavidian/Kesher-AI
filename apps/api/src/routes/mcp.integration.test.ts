@@ -462,6 +462,14 @@ describe('POST /mcp', () => {
         arguments: { symbol: 'NVDA', types: ['customer_of'] },
       });
       expect((typed.structuredContent as { edges: unknown[] }).edges).toHaveLength(1);
+      const direction = await client.callTool({
+        name: 'get_company_relationships',
+        arguments: { symbol: 'NVDA', types: ['supplier_of'] },
+      });
+      expect(direction.isError).toBe(true);
+      expect(JSON.stringify(direction.content)).toContain(
+        'No reviewed supplier_of relationships from NVDA; it has competitor_of, customer_of',
+      );
       const none = await client.callTool({
         name: 'get_company_relationships',
         arguments: { symbol: 'KO' },

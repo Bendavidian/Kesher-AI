@@ -15,7 +15,7 @@ const GetCompanyRelationshipsInput = z.strictObject({
     .max(3)
     .optional()
     .describe(
-      'Only these edge types. "A supplier_of B" means A supplies B; customer_of is the inverse.',
+      'Only these edge types, read from the symbol\'s side: "A supplier_of B" means A supplies B, and customer_of is the inverse. To find who supplies NVDA, ask NVDA for customer_of.',
     ),
 });
 
@@ -60,7 +60,18 @@ export const getCompanyRelationships: ToolDefinition<
       .sort({ type: 1, to: 1, _id: 1 })
       .toArray();
     if (found.length === 0) {
-      return { ok: false, error: `No reviewed relationships for ${symbol}` };
+      if (!types) return { ok: false, error: `No reviewed relationships for ${symbol}` };
+      // Name the types the company has, so a wrong direction can be asked again.
+      const has = (await relationships.distinct('type', {
+        from: symbol,
+        'evidence.reviewed': true,
+      })) as string[];
+      return {
+        ok: false,
+        error: `No reviewed ${types.join(' or ')} relationships from ${symbol}${
+          has.length > 0 ? `; it has ${[...has].sort().join(', ')}` : ''
+        }`,
+      };
     }
 
     const titles = new Map(
