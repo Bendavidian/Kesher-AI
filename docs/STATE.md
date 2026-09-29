@@ -1,9 +1,36 @@
 # State
 
-Updated: 29 Sep 2026, T08 part 1 done
+Updated: 29 Sep 2026, T08 done (part 2)
 
 ## Where we are
-T00 to T07 are done. T08 part 1 is done and T08 stays [~] until part 2. T08 was split under one id because Investigate needs the auth context from T06 (BACKLOG.md T08, SPEC.md decision log T08). The UI track part 2 (PR 6) added the web report and agent run screens on fixtures; their wiring notes are under T08, T09 and T14 in BACKLOG.md.
+T00 to T08 are done. T08 part 2 wired Investigate to the research agent from part 1, now that T06 gives every route a signed in user:
+- POST /events/:eventId/investigate (apps/api/src/routes/research.ts, apps/api/src/research/investigate.ts):
+  - The user comes from the session cookie only.
+  - One conditional write moves the user's FeedItem to research running, with a new run id, and the route answers 202 with that card. Two requests never start two runs: the second gets 409.
+  - 404 when the user has no FeedItem with a path for the event (relevance 0 or unknown); 400 for a bad id; 401 without a session.
+  - runResearch (deep, trigger investigate) runs in the background as a promise in the api process. It now takes an optional runId, so the card names its run from the start.
+  - When the run ends, the item becomes done with its reportId, or failed. Each change is pushed as feed:update by realtime.publishItem. A failed push is logged and never stops the run; the final write is retried once and only replaces this run's state, so a dev reset or a newer run is left alone.
+  - Investigate again is allowed after done or failed. A run left running for 15 minutes (STALE_RESEARCH_MS), for example after an api restart, is taken over by the next Investigate. There is no startup recovery, because two machines may share one database; the lost AgentRun stays in status running.
+- GET /reports/:reportId returns ReportDetail `{ report, claims, sources, run, card }` for the report's own user and 404 for anyone else.
+  - sources are ReportSource labels built by code (Benzinga via Alpaca, Benzinga headline, id 38062166), without the body text.
+  - run keeps its steps, as the run screen shows them.
+- packages/shared:
+  - FeedItem.research is `{ state, runId, reportId }`, with reportId present exactly when done, and NO_RESEARCH.
+  - New ReportSource and ReportDetail.
+  - `npm run seed` backfills research.reportId null on older FeedItems (backfillResearchReports); it set 3 on Atlas. Any other database needs `npm run seed` once, or GET /feed fails on the strict schema.
+- server.ts passes the api's own http://127.0.0.1:<port>/mcp as the research MCP URL, and redact now masks the model keys too.
+- Web:
+  - ScoresPanel shows Investigate, then "Investigating…" with a status line. Once done it offers "Open research report" (link to /reports/:reportId) and "Investigate again"; a failed run gets a failure line. POST errors show under the button.
+  - View agent run stays disabled until T09.
+  - FeedScreen applies the 202 card through useLiveFeed's upsert, which drops a card from a persona the user switched away from.
+  - ReportScreen reads api.report and api.me (new) instead of fixtures. decodeReport keeps AgentStep.input as sent, because reviveDates had turned ISO strings in step inputs into Dates. ReportSourceView is now the shared ReportSource.
+- The report screen counts as removed only claims with status removed. An inference whose premises are not supported yet stays hidden with a neutral line ("1 inference waits for verification"), and so does a claim whose source cannot be listed. Until T14, every inference waits.
+- On Atlas, persona A, Investigate on the TSMC card:
+  - The run was get_event, then search_news, then a report: 1,383, 1,679 and 2,289 tokens, 5,351 of 20,000, on gemini-3.5-flash-lite.
+  - Two facts, each citing the Benzinga source with sources_exist and quote_verbatim passed, and one inference waiting for verification.
+  - The card went from running to done, and the report screen rendered from the api at 1440px and 1279px.
+- The reviewer found no blockers; its points on push failures, the settle retry and stale comments were fixed.
+- 496 tests are green.
 
 T08 part 1 added the research agent in apps/api/src/research, with no route yet:
 - runResearch (agent.ts) loads the user's FeedItem path and holdings, picks one provider for the run (pickRunProvider), and mints a run token through openToolbox (mcp.ts) with get_event and search_news only. It connects as a real MCP client to POST /mcp and replaces the token before a call once it is 4 minutes old; every issue and refresh is a code step with the same scope. The user id goes into the token only, never into a prompt or a tool argument. The brief holds only code written text (the "Why you" line from whyYou, held symbols, the budget); the untrusted headline arrives through get_event.
@@ -87,19 +114,18 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. Check that CI passes on Ubuntu and Windows for the PR "T08 part 1: research agent", then merge it.
-2. T08 part 2, now that T06 is merged. Read the notes from part 1 and from T06 under T08 in BACKLOG.md:
-   - POST /events/:eventId/investigate calls runResearch with the user from currentUser (the session cookie) and mode deep; ResearchInputError means nothing was written (answer 404 or 409);
-   - decide whether the route waits for the run or answers 202 and pushes run:step and feed:update; set FeedItem.research;
-   - wire the Investigate button in ScoresPanel.tsx and render the basic report on the card, filtering claims by status;
-   - the remaining UI track notes under T08 (shared AgentName and ToolName on the web, report source read model and routes, served free tier limits).
-3. T09 then reads the stored runs: GET /runs/:runId and the run list, and the run screen shows AgentStep.output instead of DEMO_STEP_OUTPUTS.
-4. On the Windows laptop:
+1. Check that CI passes on Ubuntu and Windows for the PR "T08: Investigate route, button and report", then merge it.
+2. T09 Agent Runs view. Read the notes from T08 part 2 under T08 in BACKLOG.md:
+   - GET /runs/:runId and the run list for the signed in user; decode steps as decodeReport does, keeping AgentStep.input as sent;
+   - the run screen shows AgentStep.output instead of DEMO_STEP_OUTPUTS, and the Agent runs tab uses the run list;
+   - enable View agent run on the card (research.runId is set from the start; the AgentRun appears a moment later) and point the report screen's run links at real runs;
+   - run:step for the run being viewed; the UI track notes under T08 (shared AgentName and ToolName on the web, served free tier limits).
+3. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
    - The first npm run test downloads mongod 8.0.32, about 100 MB.
-   - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay and research:dev, MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start.
-   - Run `npm run seed` once if that machine uses its own database, so older Sources get publisher.
+   - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay, Investigate and research:dev, MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start.
+   - Run `npm run seed` once if that machine uses its own database, so older Sources get publisher and older FeedItems get research.reportId.
 
 Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. Add LIVE_INGEST (see .env.example) on each machine; false on both for now.
 
@@ -108,11 +134,11 @@ For T11, listed under T11 in BACKLOG.md:
 - evidence for Finnhub peer edges, which have no quote;
 - whether in_sector and has_theme become edges;
 - whether the seed or T11 owns the company fields.
-For T08 part 2: whether POST /events/:eventId/investigate waits for the run (seconds) or answers 202 and pushes progress over Socket.IO.
 The UI language is settled by docs/UI.md: English interface, with Hebrew summaries as a later option.
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 29 Sep 2026, macOS (Mac mini), T08 part 2: POST /events/:eventId/investigate answers 202 and runs deep research in the background with the user from the session, one run per item (409), stale takeover after 15 minutes; GET /reports/:reportId with ReportSource labels; FeedItem.research.reportId with a seed backfill; Investigate button states and the report screen on the api; only removed claims count as removed, waiting inferences get a neutral line; one real run on Atlas gave two facts with verified quotes; reviewer found no blockers; 496 tests green; T08 done.
 - 29 Sep 2026, macOS (Mac mini), T08 part 1: T08 split in two under one id; research agent over MCP with scoped run tokens and refresh, code planned turns and budgets (12,000 auto, 20,000 deep), the in-run 429 policy, steps written as they happen with 8 KB redacted output, quote checks that remove or keep claims unverified, research:dev; one real Gemini run on Atlas recorded and replayed; reviewer found no blockers; rebased on T06, 463 tests green; T06 marked done from PR 8; T08 stays [~].
 - 29 Sep 2026, macOS (Mac mini), T06: cookie sign in with the persona switcher, GET /feed above 0, explain on request for None, Socket.IO pushes with event:scored, dev reset plus replay; one Replay updated three browser sessions to A 0.80, B 1.00, C None on Atlas; reviewer found no blockers and the socket closes on logout and expiry; 405 tests green, CI green on PR 8; STATE and the BACKLOG mark came with the T08 part 1 wrap.
 - 28 Sep 2026, macOS (Mac mini), T05: $graphLookup propagation, relevance, confidence and one FeedItem per user after extraction; start nodes limited to provider tagged companies; FeedCard read model and assembler; Source.publisher with a seed backfill; Why you templates and bands in shared; rebased on T07 and the UI track part 2; on Atlas the demo event scored A 0.8, B 1, C 0 and a second replay was a duplicate; 347 tests green; T05 done.
