@@ -25,16 +25,21 @@ describe('buildReportView', () => {
       openGap._id,
     ]);
     expect(result.removedReasons).toEqual(["Its quote wasn't found in the cited source"]);
+    expect(result.hiddenNotes).toEqual([]);
     expect(JSON.stringify(result)).not.toContain(removed.text);
   });
 
-  it('drops a supported claim whose cited source cannot be shown: no evidence, no claim', () => {
+  it('hides a claim whose cited source cannot be shown, without calling it removed', () => {
     const noFiling = DEMO_REPORT_SOURCES.filter(
       (source) => source._id !== foundry.sources[0]?.sourceId,
     );
     const result = view(DEMO_CLAIMS, noFiling);
     expect(result.rows.map((row) => row.claim._id)).not.toContain(foundry._id);
-    expect(result.removedReasons).toContain('It cited a source that does not exist');
+    expect(result.removedReasons).toEqual(["Its quote wasn't found in the cited source"]);
+    expect(result.hiddenNotes).toEqual([
+      '1 inference is hidden because a claim it builds on is not shown',
+      "1 claim is hidden because its source can't be listed",
+    ]);
     expect(result.bar.filter((status) => status === 'removed')).toHaveLength(
       result.removedReasons.length,
     );
@@ -46,9 +51,24 @@ describe('buildReportView', () => {
     );
     const result = view(premiseRemoved);
     expect(result.rows.map((row) => row.claim._id)).not.toContain(supply._id);
-    expect(result.removedReasons).toContain('A claim it builds on was not supported');
+    expect(result.removedReasons).toHaveLength(2);
+    expect(result.hiddenNotes).toEqual([
+      '1 inference is hidden because a claim it builds on is not shown',
+    ]);
     expect(result.rows.every((row) => !row.evidence.text.includes('Built on claims .'))).toBe(true);
-    expect(result.counts).toEqual({ supported: 2, unverified: 0, removed: 3 });
+    expect(result.counts).toEqual({ supported: 2, unverified: 1, removed: 2 });
+  });
+
+  it('keeps an inference on unverified premises hidden as waiting, never as removed', () => {
+    const unverified = DEMO_CLAIMS.filter((claim) => claim.status !== 'removed').map((claim) =>
+      claim.type === 'inference' ? claim : { ...claim, status: 'unverified' as const },
+    );
+    const result = view(unverified);
+    expect(result.rows.map((row) => row.claim._id)).not.toContain(supply._id);
+    expect(result.removedReasons).toEqual([]);
+    expect(result.hiddenNotes).toEqual(['1 inference waits for verification']);
+    expect(result.counts).toEqual({ supported: 0, unverified: 4, removed: 0 });
+    expect(result.bar).not.toContain('removed');
   });
 
   it('keeps the bar in step with the claims it shows', () => {

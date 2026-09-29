@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
-import { backfillPublishers } from './backfill';
+import { backfillPublishers, backfillResearchReports } from './backfill';
 
 const at = new Date('2026-09-28T12:00:00Z');
 
@@ -56,5 +56,38 @@ describe('backfillPublishers on mongod', () => {
 
   it('changes nothing on a second run', async () => {
     expect(await backfillPublishers(mongo.db)).toBe(0);
+  });
+});
+
+describe('backfillResearchReports on mongod', () => {
+  let mongo: TestMongo;
+
+  beforeAll(async () => {
+    mongo = await startTestMongo('kesher_backfill_research_test');
+    await mongo.db.collection<{ _id: string; research: object }>('feed_items').insertMany([
+      // As T05 stored it, before reportId existed.
+      { _id: 'a', research: { state: 'none', runId: null } },
+      { _id: 'b', research: { state: 'done', runId: 'r', reportId: 'p' } },
+    ]);
+  }, MONGO_START_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await mongo?.stop();
+  });
+
+  it('sets a missing reportId to null and keeps a stored one', async () => {
+    expect(await backfillResearchReports(mongo.db)).toBe(1);
+    const items = await mongo.db
+      .collection<{ _id: string; research: object }>('feed_items')
+      .find({}, { sort: { _id: 1 } })
+      .toArray();
+    expect(items).toEqual([
+      { _id: 'a', research: { state: 'none', runId: null, reportId: null } },
+      { _id: 'b', research: { state: 'done', runId: 'r', reportId: 'p' } },
+    ]);
+  });
+
+  it('changes nothing on a second run', async () => {
+    expect(await backfillResearchReports(mongo.db)).toBe(0);
   });
 });

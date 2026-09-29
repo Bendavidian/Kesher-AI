@@ -78,7 +78,7 @@ Notes from T07 for later tasks:
 - T08: mint one token per run with mintRunToken(secret, { userId, agent, tools }) from @kesher/mcp, taking userId from the auth context only. Connect `Client` with `StreamableHTTPClientTransport` to POST /mcp and pass the token as `Authorization: Bearer`. The token lives 5 minutes, so a run longer than that needs a fresh token. Tool results are in structuredContent; a tool that finds nothing returns isError. search_news excerpts are untrusted text.
 - T13: add each tool to TOOLS in packages/mcp/src/tools.ts with a strict input schema; the user id test in tools.test.ts covers new tools automatically. get_my_portfolio reads the user from ctx.claims.sub, never from arguments. Replace the thin search_news with hybrid search behind the same contract. It ranks only the 200 newest matching items today.
 
-### [~] T08 Research agent, thin
+### [x] T08 Research agent, thin
 The Investigate button starts a run. The agent calls the two tools within a step budget and a token budget (20,000 tokens per run in deep mode and 12,000 in auto, replacing the first 6,000; SPEC.md decision log, T08) and returns claims as JSON. Model calls go through the limiter from T04. The run picks its provider once at the start: Gemini gemini-3.5-flash-lite, or Groq openai/gpt-oss-120b for the whole run if Gemini is over its limit. It never switches mid-run; on a 429 inside the run the limiter waits and retries. Tokens, provider and model are recorded per step in the AgentRun. A basic deterministic check confirms each quote appears in its source. The report attaches to the card, which renders a basic report view with claims and sources; T14 completes it to docs/UI.md.
 Note from T04: the model client (apps/api/src/llm/client.ts) already has pickRunProvider(budgetTokens) and a limiter per model; record the provider and model it returns on each AgentRun step.
 Notes from the UI track, for the wiring in T08 and T09:
@@ -95,6 +95,11 @@ Notes from part 1 for part 2:
 - Call runResearch(deps, { userId, eventId, mode: 'deep', trigger: 'investigate', gateReason }) from apps/api/src/research/agent.ts with userId from the auth context. deps.mcp.url is the api's own POST /mcp. It throws ResearchInputError, writing nothing, when the user has no FeedItem with a path for the event; answer 404 or 409 there.
 - The run is inline and takes seconds; part 2 decides whether the route waits or answers 202 and emits run:step and feed:update. FeedItem.research is not written yet.
 - The report lists removed claims too, so the card and report views filter on status.
+Notes from part 2 for later tasks:
+- T09: the card carries research.runId from the start of a run, but the AgentRun document appears only once runResearch inserts it, a moment later; GET /runs/:runId may answer 404 in that window. View agent run stays disabled on the card, and the report screen's run links still open the fixture run screen. run:step is not sent yet.
+- T09: the web revives ISO strings to dates everywhere except step inputs (decodeReport keeps AgentStep.input as sent); decode GET /runs/:runId the same way.
+- T12: the daily budget check belongs in startInvestigation (apps/api/src/research/investigate.ts), which Investigate must not skip. The run is a fire and forget promise in the api process; the job queue replaces it. A run lost to a restart leaves its AgentRun in status running; only its FeedItem is taken over after 15 minutes (STALE_RESEARCH_MS).
+- T14: until the verifier supports facts, every inference stays hidden on the report screen with a neutral line ("1 inference waits for verification", buildReportView in apps/web/src/view/report.ts). The removed block and the red segments count only claims with status removed.
 
 ### [ ] T09 Agent Runs view, thin
 A timeline of one run: trigger, steps, tool calls with latency, sources, check results, token usage.

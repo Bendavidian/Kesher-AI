@@ -1,14 +1,24 @@
-import { SHORT_NAME, type Claim, type ClaimStatus, type UniverseSymbol } from '@kesher/shared';
+import {
+  SHORT_NAME,
+  type Claim,
+  type ClaimStatus,
+  type PublicUser,
+  type ReportDetail,
+  type UniverseSymbol,
+} from '@kesher/shared';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
+import { ApiError } from '../api/client';
 import { RingPath } from '../components/ConnectionPath';
 import { CheckIcon } from '../components/EvidenceCard';
 import { RelevancePill } from '../components/FeedList';
 import { TIER_CHIP } from '../components/tierChip';
 import { TopBar, ViewingAs } from '../components/TopBar';
-import { DEMO_RESEARCH, DEMO_STORE, PERSONAS } from '../fixtures';
+import { useLiveDeps } from '../live/deps';
 import { FEED_PATH, runPath } from '../routes';
 import { TIER_LABEL } from '../view/feed';
 import { buildPathView } from '../view/path';
+import { personaFrom } from '../view/personas';
 import {
   buildReportView,
   CLAIM_TYPE_LABEL,
@@ -114,20 +124,69 @@ function RemovedIcon() {
   );
 }
 
-export function ReportScreen() {
-  const { reportId } = useParams();
-  const report = DEMO_RESEARCH.reports.find((r) => r._id === reportId);
-  const run = report && DEMO_RESEARCH.runs.find((r) => r._id === report.runId);
-  if (!report || !run) return <NotFoundScreen what="report" />;
+type Load =
+  | { status: 'loading' }
+  | { status: 'missing' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; detail: ReportDetail; user: PublicUser | null };
 
-  // Fixtures only until T08 reads the report, its claims and sources from the api.
-  const claims = DEMO_RESEARCH.claims.filter((claim) => claim.reportId === report._id);
-  const view = buildReportView(report, claims, run, DEMO_RESEARCH.sources);
-  const event = DEMO_STORE.events.find((e) => e._id === run.eventId);
-  const persona = PERSONAS.find((p) => p._id === run.userId);
-  const item = DEMO_STORE.feedItems.find(
-    (i) => i.userId === run.userId && i.eventId === run.eventId,
-  );
+// GET /reports/:reportId for the signed in user, and GET /me for whose connection it shows.
+export function ReportScreen() {
+  const { reportId = '' } = useParams();
+  const { api } = useLiveDeps();
+  const [load, setLoad] = useState<{ reportId: string } & Load>({ reportId, status: 'loading' });
+
+  useEffect(() => {
+    let active = true;
+    const settle = (next: Load) => {
+      if (active) setLoad({ reportId, ...next });
+    };
+    Promise.all([api.report(reportId), api.me().catch(() => null)]).then(
+      ([detail, user]) => settle({ status: 'ready', detail, user }),
+      (error: unknown) => {
+        if (error instanceof ApiError && (error.status === 404 || error.status === 400)) {
+          settle({ status: 'missing' });
+        } else if (error instanceof ApiError && error.status === 401) {
+          settle({ status: 'error', message: 'Sign in from the feed to see your reports.' });
+        } else {
+          settle({
+            status: 'error',
+            message: 'Could not load the report. Check that the api is running.',
+          });
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [api, reportId]);
+
+  const current: Load = load.reportId === reportId ? load : { status: 'loading' };
+  if (current.status === 'missing') return <NotFoundScreen what="report" />;
+  if (current.status !== 'ready') {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <TopBar current="feed">{null}</TopBar>
+        <main className="flex flex-1 p-3">
+          <p
+            role={current.status === 'error' ? 'alert' : 'status'}
+            className="h-fit rounded-panel border border-border bg-panel px-[22px] py-4 text-sm text-text-2"
+          >
+            {current.status === 'error' ? current.message : 'Loading the report.'}
+          </p>
+        </main>
+      </div>
+    );
+  }
+  return <ReportBody detail={current.detail} user={current.user} />;
+}
+
+function ReportBody({ detail, user }: { detail: ReportDetail; user: PublicUser | null }) {
+  const { report, claims, run, sources, card } = detail;
+  const view = buildReportView(report, claims, run, sources);
+  const event = card?.event;
+  const item = card?.item;
+  const persona = user && personaFrom(user);
   const symbol = item?.path?.eventCompany ?? event?.extraction?.companies[0]?.symbol;
   const company = symbol && symbol in SHORT_NAME ? (symbol as UniverseSymbol) : null;
   const path = item && persona && company ? buildPathView(item.path, company, persona) : null;
@@ -219,6 +278,18 @@ export function ReportScreen() {
                 <ClaimItem key={row.claim._id} row={row} />
               ))}
             </ol>
+
+            {view.hiddenNotes.length > 0 && (
+              // Neutral: these claims were not removed, they are only not shown yet.
+              <ul
+                aria-label="Claims not shown yet"
+                className="flex flex-col gap-1 border-b border-divider px-[22px] py-3 text-xs text-text-3"
+              >
+                {view.hiddenNotes.map((note) => (
+                  <li key={note}>{note}.</li>
+                ))}
+              </ul>
+            )}
 
             {view.openQuestions.length > 0 && (
               <section

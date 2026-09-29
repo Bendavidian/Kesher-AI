@@ -137,7 +137,7 @@ describe('relevance on the seeded graph, on mongod', () => {
           eventId,
           confidence: 'medium',
           status: 'confirmed',
-          research: { state: 'none', runId: null },
+          research: { state: 'none', runId: null, reportId: null },
         });
       }
     });

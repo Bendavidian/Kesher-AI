@@ -103,7 +103,7 @@ const itemBase = {
   // One Tier 2 wire source: medium, per the SPEC.md confidence rule.
   confidence: 'medium',
   status: 'unconfirmed',
-  research: { state: 'none', runId: null },
+  research: { state: 'none', runId: null, reportId: null },
   createdAt: REPLAYED_AT,
   updatedAt: REPLAYED_AT,
 } as const;

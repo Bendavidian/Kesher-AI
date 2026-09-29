@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   FeedItem,
   MarketEvent,
+  NO_RESEARCH,
   type Confidence,
   type Holding,
   type Relationship,
@@ -98,7 +99,7 @@ export async function scoreEvent(db: Db, eventId: string, now = new Date()): Pro
       path,
       confidence,
       status: event.status,
-      research: { state: 'none', runId: null },
+      research: { ...NO_RESEARCH },
       createdAt: now,
       updatedAt: now,
     });

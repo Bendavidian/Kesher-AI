@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEMO_CARDS, DEMO_EXPLAINS } from '../fixtures';
-import { decodeExplain, decodeFeed, decodeFeedCard, reviveDates } from './decode';
+import { DEMO_CARDS, DEMO_EXPLAINS, DEMO_REPORT_DETAIL } from '../fixtures';
+import { decodeExplain, decodeFeed, decodeFeedCard, decodeReport, reviveDates } from './decode';
 
 // What JSON.stringify makes of a card on the wire: every Date becomes an ISO string.
 const overTheWire = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
@@ -10,6 +10,10 @@ describe('decoding api responses', () => {
     const card = DEMO_CARDS.A[0]!;
     expect(decodeFeedCard(overTheWire(card))).toEqual(card);
     expect(decodeFeed(overTheWire(DEMO_CARDS.A))).toEqual(DEMO_CARDS.A);
+  });
+
+  it('decodes a report with its claims, sources, run and card', () => {
+    expect(decodeReport(overTheWire(DEMO_REPORT_DETAIL))).toEqual(DEMO_REPORT_DETAIL);
   });
 
   it('decodes an explanation', () => {

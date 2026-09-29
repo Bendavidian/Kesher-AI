@@ -151,7 +151,7 @@ describe('FeedItem', () => {
     path: { eventCompany: 'TSM', holding: 'NVDA', hops: [hop('TSM', 'NVDA', 'supplier_of', 10)] },
     confidence: 'medium',
     status: 'confirmed',
-    research: { state: 'none', runId: null },
+    research: { state: 'none', runId: null, reportId: null },
     createdAt: at,
     updatedAt: at,
   };
@@ -185,6 +185,23 @@ describe('FeedItem', () => {
     expect(FeedItem.safeParse({ ...item, relevance: 0, path: null }).success).toBe(true);
     expect(FeedItem.safeParse({ ...item, path: null }).success).toBe(false);
     expect(FeedItem.safeParse({ ...item, relevance: 0 }).success).toBe(false);
+  });
+
+  it('has a report exactly when research is done, and done names its run', () => {
+    const research = (state: string, runId: string | null, reportId: string | null) =>
+      FeedItem.safeParse({ ...item, research: { state, runId, reportId } }).success;
+    expect(research('running', null, null)).toBe(true);
+    expect(research('done', id(5), id(6))).toBe(true);
+    expect(research('failed', id(5), null)).toBe(true);
+    expect(research('failed', null, null)).toBe(true);
+    expect(research('done', id(5), null)).toBe(false);
+    expect(research('done', null, id(6))).toBe(false);
+    expect(research('failed', id(5), id(6))).toBe(false);
+  });
+
+  it('rejects research without reportId, as older documents stored it', () => {
+    const research = { state: 'none', runId: null };
+    expect(FeedItem.safeParse({ ...item, research }).success).toBe(false);
   });
 });
 

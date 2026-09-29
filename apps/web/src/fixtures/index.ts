@@ -1,4 +1,4 @@
-import type { Company, FeedItem, MarketEvent, Relationship } from '@kesher/shared';
+import type { Company, FeedItem, MarketEvent, Relationship, ReportDetail } from '@kesher/shared';
 import type { FilingView, NewsSourceView, PriceReaction } from '../view/types';
 import {
   COMPANIES,
@@ -19,6 +19,8 @@ import {
 } from './research';
 
 export { PERSONAS, PUBLIC_USERS } from './personas';
+import { DEMO_CARDS } from './cards';
+
 export { DEMO_CARDS, DEMO_EXPLAINS } from './cards';
 
 // The demo event's documents, for the report and agent run screens until T08 and T09 read them
@@ -45,7 +47,16 @@ export const DEMO_STORE: FixtureStore = {
   replayedEventId: DEMO_EVENT._id,
 };
 
-// The demo research report and its agent run, until T08 and T09 read them from the api.
+// The demo report as GET /reports/:reportId answers it for persona A, for the report screen tests.
+export const DEMO_REPORT_DETAIL: ReportDetail = {
+  report: DEMO_REPORT,
+  claims: DEMO_CLAIMS,
+  sources: DEMO_REPORT_SOURCES,
+  run: DEMO_RUN,
+  card: DEMO_CARDS.A[0]!,
+};
+
+// The demo research report and its agent run; the run screen reads them until T09.
 export const DEMO_RESEARCH = {
   runs: [DEMO_RUN],
   reports: [DEMO_REPORT],

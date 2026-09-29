@@ -26,3 +26,15 @@ export async function backfillPublishers(db: Db, dir = RECORDINGS_DIR): Promise<
   }
   return updated;
 }
+
+// Schema migration for T08 part 2, which added FeedItem.research.reportId. Items stored before it
+// lack the field and fail the strict schema. They were never researched, so null is right. Only a
+// missing field is written, so a rerun changes nothing.
+export async function backfillResearchReports(db: Db): Promise<number> {
+  const items = db.collection<{ _id: string }>('feed_items');
+  const result = await items.updateMany(
+    { 'research.reportId': { $exists: false } },
+    { $set: { 'research.reportId': null } },
+  );
+  return result.modifiedCount;
+}
