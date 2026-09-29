@@ -17,6 +17,7 @@ import {
   runOption,
   TONE_LABEL,
   tokenScope,
+  runToOpen,
   withPushedStep,
   type StepTone,
 } from '../view/run';
@@ -68,7 +69,8 @@ const loadError = (error: unknown, what: string) =>
     ? 'Sign in from the feed to see your agent runs.'
     : `Could not load ${what}. Check that the api is running.`;
 
-// The Agent runs tab: opens the signed in user's newest run, or says there is none yet.
+// The Agent runs tab: opens the signed in user's newest run that was not skipped, or says there
+// is none yet.
 export function RunsIndexScreen() {
   const { api } = useLiveDeps();
   const [load, setLoad] = useState<
@@ -92,7 +94,7 @@ export function RunsIndexScreen() {
   if (load.status === 'loading')
     return <StatusScreen message="Loading your agent runs." error={false} />;
   if (load.status === 'error') return <StatusScreen message={load.message} error />;
-  const newest = load.runs[0];
+  const newest = runToOpen(load.runs);
   if (newest) return <Navigate to={runPath(newest._id)} replace />;
   return (
     <div className="flex min-h-screen flex-col">
@@ -273,7 +275,16 @@ function RunBody({
               />
               <Tile
                 label="Tokens"
-                value={view.tokens}
+                value={
+                  <>
+                    {view.tokens}
+                    {view.verifierTokens && (
+                      <span className="block text-[11px] font-bold text-model/80">
+                        Verifier {view.verifierTokens}
+                      </span>
+                    )}
+                  </>
+                }
                 className="border-model/25 bg-model-tint"
                 labelClass="text-model/80"
                 valueClass="text-[17px] text-model"

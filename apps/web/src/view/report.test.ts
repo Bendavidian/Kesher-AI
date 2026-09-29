@@ -59,16 +59,77 @@ describe('buildReportView', () => {
     expect(result.counts).toEqual({ supported: 2, unverified: 1, removed: 2 });
   });
 
-  it('keeps an inference on unverified premises hidden as waiting, never as removed', () => {
-    const unverified = DEMO_CLAIMS.filter((claim) => claim.status !== 'removed').map((claim) =>
-      claim.type === 'inference' ? claim : { ...claim, status: 'unverified' as const },
-    );
+  it('shows only supported claims, and hides unverified ones as not verified, never as removed', () => {
+    // As when the verifier call failed: the checks kept every claim, the verifier judged none.
+    const unverified = DEMO_CLAIMS.filter((claim) => claim.status !== 'removed').map((claim) => ({
+      ...claim,
+      status: 'unverified' as const,
+    }));
     const result = view(unverified);
-    expect(result.rows.map((row) => row.claim._id)).not.toContain(supply._id);
+    expect(result.rows).toEqual([]);
     expect(result.removedReasons).toEqual([]);
-    expect(result.hiddenNotes).toEqual(['1 inference waits for verification']);
+    expect(result.hiddenNotes).toEqual(['4 claims were not verified, so they are not shown']);
     expect(result.counts).toEqual({ supported: 0, unverified: 4, removed: 0 });
     expect(result.bar).not.toContain('removed');
+    expect(result.barLabel).toBe('0 claims supported, 4 not verified, 0 removed');
+  });
+
+  it('never shows an unverified inference, even on supported premises', () => {
+    const claims = DEMO_CLAIMS.map((claim) =>
+      claim._id === supply._id ? { ...claim, status: 'unverified' as const } : claim,
+    );
+    const result = view(claims);
+    expect(result.rows.map((row) => row.claim._id)).not.toContain(supply._id);
+    expect(result.hiddenNotes).toEqual(['1 claim was not verified, so it is not shown']);
+  });
+
+  it('marks every row supported, by type', () => {
+    expect(view(DEMO_CLAIMS).rows.map((row) => row.status)).toEqual([
+      'Supported',
+      'Supported',
+      'Premises supported',
+      'Matches data',
+    ]);
+  });
+
+  it('names the check behind each removal, advice and the verifier included', () => {
+    const removedBy = (name: Claim['checks'][number]['name']): Claim => ({
+      ...paused,
+      _id: `${paused._id.slice(0, -1)}${name.length % 10}`,
+      status: 'removed',
+      checks: [{ name, passed: false, detail: 'failed' }],
+    });
+    const claims = [removedBy('no_advice'), removedBy('verifier')];
+    const result = buildReportView(
+      { ...DEMO_REPORT, sections: [{ title: 'Claims', claimIds: claims.map((c) => c._id) }] },
+      claims,
+      DEMO_RUN,
+      DEMO_REPORT_SOURCES,
+    );
+    expect(result.removedReasons).toEqual([
+      'It read as buy, sell or hold advice, which Kesher never gives',
+      "The verifier found that its sources don't support it",
+    ]);
+    expect(result.removedClaimIds).toEqual(claims.map((c) => c._id));
+  });
+
+  it('anchors the market data of a metric as the design words it', () => {
+    const result = buildReportView(
+      DEMO_REPORT,
+      DEMO_CLAIMS,
+      DEMO_RUN,
+      DEMO_REPORT_SOURCES,
+      // The api's anchor for the demo headline (docs/SPIKE.md check 3).
+      {
+        kind: 'previous_close',
+        baseTime: new Date('2024-04-02T20:00:00Z'),
+        tradingDay: '2024-04-03',
+      },
+    );
+    const metric = result.rows.find((row) => row.claim._id === openGap._id);
+    expect(metric?.evidence.text).toBe(
+      "SIP bars, anchored to the regular close on Apr 2 because the headline came outside the regular session. Timing only, the report doesn't claim a cause.",
+    );
   });
 
   it('keeps the bar in step with the claims it shows', () => {

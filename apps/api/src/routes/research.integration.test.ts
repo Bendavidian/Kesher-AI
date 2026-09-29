@@ -93,6 +93,7 @@ describe('Investigate, GET /reports/:reportId and the run routes, on mongod', ()
                 text: 'TSMC paused some production after the earthquake.',
                 sources: [{ sourceId: demo._id, quote: demo.text!.slice(0, 80) }],
                 premises: [],
+                figures: [],
               },
               {
                 key: 'c2',
@@ -100,6 +101,7 @@ describe('Investigate, GET /reports/:reportId and the run routes, on mongod', ()
                 text: 'Every TSMC fab was destroyed.',
                 sources: [{ sourceId: demo._id, quote: 'every single fab was destroyed' }],
                 premises: [],
+                figures: [],
               },
             ],
             openQuestions: ['How long will the pause last?'],
@@ -110,7 +112,12 @@ describe('Investigate, GET /reports/:reportId and the run routes, on mongod', ()
   ];
   const useModel = (replies: ModelReply[], onCall?: (call: number) => Promise<void> | void) => {
     const gemini = mockModel(MODELS.research.model, replies, undefined, onCall);
-    const groq = mockModel(MODELS.researchFallback.model, [new Error('Groq is not used')]);
+    // Groq answers only the verifier, which supports the one claim the checks kept.
+    const groq = mockModel(MODELS.extraction.model, [
+      JSON.stringify({
+        verdicts: [{ claim: 'k1', verdict: 'supported', priceCause: false, reason: 'stated' }],
+      }),
+    ]);
     research = createModelClient({
       resolve: resolveMocks({ [gemini.modelId]: gemini, [groq.modelId]: groq }),
     });
@@ -432,14 +439,21 @@ describe('Investigate, GET /reports/:reportId and the run routes, on mongod', ()
     expect(getEvent?.output).toContain(eventId);
     expect(detail.run.steps.some((s) => s.name === 'Run token issued')).toBe(true);
     expect(detail.reportId).toBe(research.reportId);
-    expect(detail.claims.map((c) => c.status).sort()).toEqual(['removed', 'unverified']);
+    expect(detail.claims.map((c) => c.status).sort()).toEqual(['removed', 'supported']);
     expect(detail.eventSymbol).toBe('TSM');
+    // The verifier's model steps bring their own limits.
     expect(detail.limits).toEqual([
       {
         provider: 'google',
         model: MODELS.research.model,
         tokensPerMinute: 250_000,
         requestsPerDay: 500,
+      },
+      {
+        provider: 'groq',
+        model: MODELS.extraction.model,
+        tokensPerMinute: 8_000,
+        requestsPerDay: 1_000,
       },
     ]);
   });

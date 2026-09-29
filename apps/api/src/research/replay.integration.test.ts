@@ -7,6 +7,7 @@ import {
   Report,
   type FeedItem,
   type MarketEvent,
+  type PriceReaction,
   type Source,
   type User,
 } from '@kesher/shared';
@@ -19,11 +20,14 @@ import { toIncomingItem } from '../ingest/alpaca';
 import { loadRecording } from '../ingest/recordings';
 import { createModelClient, MODELS } from '../llm/client';
 import { loadModelRecording } from '../llm/recordings';
+import { reviveReaction } from '../market/fixture';
+import type { PriceReactions } from '../market/reactions';
 import { DEMO_SOURCE_ID, PERSONAS } from '../seed/config';
 import { mockModel, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import { runResearch } from './agent';
 import { loadResearchRecording, type ResearchRecording } from './recordings';
+import { PRICE_CAUSE_REASON } from './verifier';
 
 const SECRET = 'replay-secret-that-is-long-enough!!';
 
@@ -37,6 +41,9 @@ describe('research replay of the demo item', () => {
   let recording: ResearchRecording;
   let user: User;
   let source: Source;
+  // The price reaction the recorded run read, for get_price_reaction and numbers_match alike.
+  let reaction: PriceReaction;
+  const priceReactions: PriceReactions = () => Promise.resolve(reaction);
 
   beforeAll(async () => {
     const recorded = await loadResearchRecording(DEMO_SOURCE_ID);
@@ -44,6 +51,7 @@ describe('research replay of the demo item', () => {
     const models = await loadModelRecording(DEMO_SOURCE_ID);
     if (!recorded || !alpaca || !models) throw new Error('the demo recordings are missing');
     recording = recorded;
+    reaction = reviveReaction(recording.reaction);
 
     const persona = PERSONAS[0];
     if (!persona) throw new Error('no persona A');
@@ -104,7 +112,12 @@ describe('research replay of the demo item', () => {
     await collection(mongo.db, 'sources').insertOne(source);
     await collection(mongo.db, 'market_events').insertOne(event);
     await collection(mongo.db, 'feed_items').insertOne(item);
-    server = createApp({ db: mongo.db, devRoutes: false, mcp: { secret: SECRET } }).listen(0);
+    server = createApp({
+      db: mongo.db,
+      devRoutes: false,
+      mcp: { secret: SECRET },
+      priceReactions,
+    }).listen(0);
     await new Promise<void>((resolve) => server.once('listening', resolve));
     mcpUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/mcp`;
   }, MONGO_START_TIMEOUT_MS);
@@ -114,7 +127,7 @@ describe('research replay of the demo item', () => {
     await mongo?.stop();
   });
 
-  it('returns a report in which every fact has a source id and a verified quote', async () => {
+  it('returns a verified report: facts quoted, metrics matching the market, a causal inference removed', async () => {
     const gemini = mockModel(
       recording.model,
       recording.turns.map((turn) => ({
@@ -123,13 +136,24 @@ describe('research replay of the demo item', () => {
         usage: { input: turn.usage.inputTokens ?? 0, output: turn.usage.outputTokens ?? 0 },
       })),
     );
-    const groq = mockModel(MODELS.researchFallback.model, [new Error('Groq is not used')]);
+    // Groq answers only the verifier, with its recorded answers.
+    const verifier = recording.verifier ?? [];
+    const groq = mockModel(
+      MODELS.extraction.model,
+      verifier.map((call) => ('error' in call ? new Error(call.error) : call.text)),
+    );
     const models = createModelClient({
       resolve: resolveMocks({ [gemini.modelId]: gemini, [groq.modelId]: groq }),
     });
 
     const outcome = await runResearch(
-      { db: mongo.db, models, mcp: { url: mcpUrl, secret: SECRET }, redact: (text) => text },
+      {
+        db: mongo.db,
+        models,
+        mcp: { url: mcpUrl, secret: SECRET },
+        redact: (text) => text,
+        priceReactions,
+      },
       {
         userId: user._id,
         eventId: recording.ids.eventId,
@@ -143,29 +167,60 @@ describe('research replay of the demo item', () => {
     const run = AgentRun.parse(
       await collection(mongo.db, 'agent_runs').findOne({ _id: outcome.runId }),
     );
-    const modelSteps = run.steps.filter((s) => s.kind === 'model');
+    const modelSteps = run.steps.flatMap((s) =>
+      s.kind === 'model' && s.name !== 'Verifier' ? [s] : [],
+    );
     expect(modelSteps.map((s) => s.tokens.total)).toEqual(
       recording.turns.map((t) => t.usage.totalTokens),
     );
     expect(modelSteps.every((s) => s.provider === recording.provider)).toBe(true);
-    expect(run.steps.filter((s) => s.kind === 'tool').map((s) => s.name)).toEqual([
-      'get_event',
-      'search_news',
-    ]);
-    expect(groq.doGenerateCalls).toHaveLength(0);
+    // Every recorded tool call ran through MCP, the price reaction included.
+    expect(run.steps.filter((s) => s.kind === 'tool').map((s) => s.name)).toEqual(
+      recording.turns.flatMap((t) =>
+        t.toolCalls.map((c) => c.toolName).filter((name) => name !== 'submit_report'),
+      ),
+    );
+    expect(run.steps.map((s) => s.name)).toContain('get_price_reaction');
+    // One verifier call, on its own cap, never on the research budget.
+    expect(verifier).toHaveLength(1);
+    expect(groq.doGenerateCalls).toHaveLength(1);
+    expect(run.tokensUsed).toBe(
+      recording.turns.reduce((sum, t) => sum + (t.usage.totalTokens ?? 0), 0),
+    );
+    expect(run.verification?.tokensUsed).toBeGreaterThan(0);
 
     const report = Report.parse(await collection(mongo.db, 'reports').findOne({ runId: run._id }));
     const claims = (
       await collection(mongo.db, 'claims').find({ reportId: report._id }).toArray()
     ).map((c) => Claim.parse(c));
-    const facts = claims.filter((c) => c.type === 'fact');
-    expect(facts.length).toBeGreaterThan(0);
-    for (const fact of facts) {
-      expect(fact.status).toBe('unverified');
+    const types = new Set(claims.map((c) => c.type));
+    expect(types).toEqual(new Set(['fact', 'metric', 'inference']));
+    // The facts and metrics pass every check, the verifier included.
+    for (const claim of claims.filter((c) => c.type !== 'inference')) {
+      expect(claim.status).toBe('supported');
+      expect(claim.checks.every((c) => c.passed)).toBe(true);
+      expect(claim.checks.map((c) => c.name)).toContain('verifier');
+    }
+    // The inference ties the event to the price moves as a cause, hedged; no source states that
+    // cause, so the verifier removed it (principle 7). Nothing else failed on it.
+    const [inference] = claims.filter((c) => c.type === 'inference');
+    expect(inference?.text).toMatch(/contributed to/);
+    expect(inference?.status).toBe('removed');
+    expect(inference?.checks.filter((c) => !c.passed)).toEqual([
+      { name: 'verifier', passed: false, detail: PRICE_CAUSE_REASON },
+    ]);
+    for (const fact of claims.filter((c) => c.type === 'fact')) {
       expect(fact.sources.every((s) => s.sourceId === source._id && s.quote !== null)).toBe(true);
       expect(fact.checks).toContainEqual({ name: 'quote_verbatim', passed: true, detail: null });
     }
-    expect(claims.every((c) => c.status !== 'removed')).toBe(true);
+    for (const metric of claims.filter((c) => c.type === 'metric')) {
+      expect(metric.checks).toContainEqual({ name: 'numbers_match', passed: true, detail: null });
+      // Code appends the market data after any source the model cited.
+      const market = metric.sources.at(-1);
+      expect(
+        await collection(mongo.db, 'sources').findOne({ _id: market?.sourceId ?? '' }),
+      ).toMatchObject({ kind: 'market_data', text: null });
+    }
     for (const call of gemini.doGenerateCalls) {
       expect(JSON.stringify(call.prompt)).not.toContain(user._id);
     }

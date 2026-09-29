@@ -1,6 +1,6 @@
-import type { AgentStep } from '@kesher/shared';
+import type { AgentRun, AgentStep, RunSummary } from '@kesher/shared';
 import { describe, expect, it } from 'vitest';
-import { DEMO_LIMITS, DEMO_RUN } from '../fixtures/research';
+import { DEMO_LIMITS, DEMO_RUN, DEMO_RUN_SUMMARIES } from '../fixtures/research';
 import { jsonTokens } from './json';
 import {
   buildRunView,
@@ -9,6 +9,7 @@ import {
   outputView,
   removedClaimIds,
   removingCheckStep,
+  runToOpen,
   stepTone,
   tokenScope,
   toolCallsLabel,
@@ -130,6 +131,18 @@ describe('withPushedStep', () => {
     expect(next.tokensUsed).toBe(3_480);
   });
 
+  it('counts a verifier step against the verification cap, not the research budget', () => {
+    const upToVerifier = { ...run, steps: DEMO_RUN.steps.slice(0, 9), tokensUsed: 3_480 };
+    const verification = { tokenCap: 6_000, tokensUsed: 0 };
+    const next = withPushedStep(
+      { ...upToVerifier, verification },
+      { runId: run._id, index: 9, step: DEMO_RUN.steps[9]! },
+    );
+    if (next === 'gap') throw new Error('expected a run');
+    expect(next.tokensUsed).toBe(3_480);
+    expect(next.verification).toEqual({ tokenCap: 6_000, tokensUsed: 1_920 });
+  });
+
   it('ignores a step it holds and reports a gap past the next one', () => {
     expect(withPushedStep(run, { runId: run._id, index: 3, step: DEMO_RUN.steps[3]! })).toBe(run);
     expect(withPushedStep(run, { runId: run._id, index: 9, step: DEMO_RUN.steps[9]! })).toBe('gap');
@@ -155,7 +168,8 @@ describe('buildRunView on the demo run', () => {
 
   it('counts tool calls against the step budget and tokens against the run budget', () => {
     expect(toolCallsLabel(DEMO_RUN)).toBe('5 of 15');
-    expect(view.tokens).toBe('5.4k of 6k');
+    expect(view.tokens).toBe('3.5k of 20k');
+    expect(view.verifierTokens).toBe('1.9k of 6k');
     expect(view.cost).toBe('$0.00');
   });
 
@@ -165,7 +179,7 @@ describe('buildRunView on the demo run', () => {
       'Gemini free tier: 250,000 tokens per minute, 500 requests per day',
       'Groq free tier: 8,000 tokens per minute, 1,000 requests per day',
     ]);
-    expect(view.budget).toBe('Token budget per run: 6,000');
+    expect(view.budget).toBe('Token budget per run: 20,000 for research, 6,000 for the verifier');
   });
 
   it('shows tokens only on model steps', () => {
@@ -195,5 +209,48 @@ describe('jsonTokens', () => {
       .map((token) => token.text)
       .join('');
     expect(text).toBe('{\n  "chunks": [ { "id": "a", "section": "b" } ]\n}');
+  });
+});
+
+describe('skipped runs', () => {
+  const skipped: AgentRun = {
+    ...DEMO_RUN,
+    trigger: 'gate',
+    gate: { decision: 'skip', reason: 'Relevance 0.50 is below the gate minimum of 0.60.' },
+    steps: DEMO_RUN.steps.slice(0, 1),
+    tokensUsed: 0,
+    verification: null,
+    status: 'skipped',
+    startedAt: null,
+  };
+
+  it('says the gate skipped the run, with its reason, and shows no verifier tokens', () => {
+    const view = buildRunView(skipped, 'TSMC', []);
+    expect(view.status.label).toBe('Skipped');
+    expect(view.summary).toBe(
+      'Skipped by the research gate on the TSMC event. Relevance 0.50 is below the gate minimum of 0.60.',
+    );
+    expect(view.verifierTokens).toBeNull();
+    expect(view.budget).toBe('Token budget per run: 20,000');
+  });
+
+  it('opens the newest run that was not skipped, or the newest when all were', () => {
+    const skip = (id: string): RunSummary => ({
+      ...DEMO_RUN_SUMMARIES[0]!,
+      _id: id,
+      status: 'skipped',
+    });
+    const [failed, done] = DEMO_RUN_SUMMARIES as [RunSummary, RunSummary];
+    expect(runToOpen([skip('a'), skip('b'), failed, done])).toBe(failed);
+    expect(runToOpen([skip('a'), skip('b')])?._id).toBe('a');
+    expect(runToOpen([])).toBeUndefined();
+  });
+});
+
+describe('removingCheckStep', () => {
+  it('opens the check that removed a given claim', () => {
+    const [removed] = removedClaimIds(DEMO_RUN.steps[8]!);
+    expect(removingCheckStep(DEMO_RUN, removed)).toBe(9);
+    expect(removingCheckStep(DEMO_RUN, 'not-a-removed-claim')).toBe(9);
   });
 });

@@ -11,5 +11,5 @@ export function runPath(runId: string, step?: number): string {
   return step === undefined ? `/runs/${runId}` : `/runs/${runId}?step=${step}`;
 }
 
-// The Agent runs tab opens the signed in user's newest run.
+// The Agent runs tab opens the signed in user's newest run that was not skipped.
 export const AGENT_RUNS_PATH = '/runs';

@@ -1,3 +1,4 @@
+import { PriceSymbol, PriceWindowName } from '@kesher/shared';
 import { z } from 'zod';
 
 // The report the research model submits through submit_report. It is flat on purpose, so both
@@ -12,7 +13,7 @@ export const DraftClaim = z.strictObject({
   type: z
     .enum(['fact', 'metric', 'inference'])
     .describe(
-      'fact: stated by a source, with a verbatim quote. metric: a number from a source. inference: your reasoning from other claims, in hedged language.',
+      'fact: stated by a source, with a verbatim quote. metric: price moves from get_price_reaction, listed in figures. inference: your reasoning from other claims, in hedged language.',
     ),
   text: z.string().trim().min(1).max(500).describe('The claim in one sentence'),
   sources: z
@@ -27,6 +28,20 @@ export const DraftClaim = z.strictObject({
     )
     .max(5),
   premises: z.array(ClaimKey).max(5).describe('For an inference: the keys of the claims it uses'),
+  figures: z
+    .array(
+      z.strictObject({
+        symbol: PriceSymbol,
+        window: PriceWindowName,
+        pct: z.number().describe('The pct get_price_reaction returned, unchanged'),
+      }),
+    )
+    // No maxItems: Gemini rejects the request when this nested array has one next to the other
+    // tools. Claim caps figures at 12, so a longer list drops the claim. Required, like premises,
+    // because a model left an optional list out of its metrics.
+    .describe(
+      'For a metric: every price move its text gives, as get_price_reaction returned it. Empty for other types.',
+    ),
 });
 export type DraftClaim = z.infer<typeof DraftClaim>;
 

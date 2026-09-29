@@ -38,3 +38,17 @@ export async function backfillResearchReports(db: Db): Promise<number> {
   );
   return result.modifiedCount;
 }
+
+// Schema migration for T14, which added AgentRun.verification and Claim.figures on metrics. Runs
+// stored before it never verified, so null is right; a metric stored before it had no figures
+// checked, so it stays unverified with none. Only a missing field is written, so a rerun changes
+// nothing. Returns the runs and the claims it changed.
+export async function backfillVerification(db: Db): Promise<{ runs: number; claims: number }> {
+  const runs = await db
+    .collection<{ _id: string }>('agent_runs')
+    .updateMany({ verification: { $exists: false } }, { $set: { verification: null } });
+  const claims = await db
+    .collection<{ _id: string }>('claims')
+    .updateMany({ type: 'metric', figures: { $exists: false } }, { $set: { figures: [] } });
+  return { runs: runs.modifiedCount, claims: claims.modifiedCount };
+}

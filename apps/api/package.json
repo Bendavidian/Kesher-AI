@@ -11,6 +11,7 @@
     "record:models": "tsx src/extract/record.ts",
     "record:bars": "tsx src/market/record.ts",
     "recording:export": "tsx src/ingest/export.ts",
+    "verify:dev": "tsx src/research/verifyDev.ts",
     "research:dev": "tsx src/research/dev.ts",
     "graph:candidates": "tsx src/graph/build-candidates.ts",
     "graph:review": "tsx src/graph/review-cli.ts",

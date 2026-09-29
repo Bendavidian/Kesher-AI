@@ -106,6 +106,8 @@ export function createApi({
           },
         },
         redact: research.redact,
+        // numbers_match reads the same price reaction the cards and get_price_reaction use.
+        ...(priceReactions ? { priceReactions } : {}),
         // One queue for automatic runs and Investigate: one research run at a time.
         queue: createQueue({ logError }),
         logError,

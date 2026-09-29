@@ -8,6 +8,7 @@ import {
   type RunFailureReason,
   type RunStepPushed,
   type RunSummary,
+  VERIFIER_STEP,
 } from '@kesher/shared';
 import { formatEtShort } from './format';
 import type { RunTokenScope } from './types';
@@ -91,11 +92,16 @@ export function withPushedStep(run: AgentRun, pushed: RunStepPushed): AgentRun |
   if (pushed.index < run.steps.length) return run;
   if (pushed.index > run.steps.length) return 'gap';
   const { step } = pushed;
-  return {
-    ...run,
-    steps: [...run.steps, step],
-    tokensUsed: run.tokensUsed + (step.kind === 'model' ? step.tokens.total : 0),
-  };
+  const tokens = step.kind === 'model' ? step.tokens.total : 0;
+  // A verifier call counts against the verification cap, never the research budget.
+  if (step.kind === 'model' && step.name === VERIFIER_STEP && run.verification) {
+    return {
+      ...run,
+      steps: [...run.steps, step],
+      verification: { ...run.verification, tokensUsed: run.verification.tokensUsed + tokens },
+    };
+  }
+  return { ...run, steps: [...run.steps, step], tokensUsed: run.tokensUsed + tokens };
 }
 
 export const TONE_LABEL: Record<StepTone, string> = {
@@ -160,6 +166,8 @@ export interface RunView {
   summary: string;
   toolCalls: string;
   tokens: string;
+  // The verifier's tokens against its own cap, or null for a run that never verifies.
+  verifierTokens: string | null;
   model: string | null;
   cost: string;
   steps: StepView[];
@@ -175,6 +183,10 @@ export function toolCallsLabel(run: AgentRun): string {
 }
 
 function summary(run: AgentRun, eventName: string): string {
+  // A skip is stored as a run so the gate's reason stays inspectable; it never started.
+  if (run.status === 'skipped') {
+    return `Skipped by the research gate on the ${eventName} event. ${run.gate.reason}`;
+  }
   const started =
     run.trigger === 'investigate'
       ? `Started when you chose Investigate on the ${eventName} event.`
@@ -201,6 +213,9 @@ export function buildRunView(
     summary: summary(run, eventName),
     toolCalls: toolCallsLabel(run),
     tokens: `${formatTokens(run.tokensUsed)} of ${formatTokens(run.tokenBudget)}`,
+    verifierTokens: run.verification
+      ? `${formatTokens(run.verification.tokensUsed)} of ${formatTokens(run.verification.tokenCap)}`
+      : null,
     // The research agent picks its model once per run, so the first model step names it.
     model: modelSteps[0]?.model ?? null,
     cost: `$${run.costUsd.toFixed(2)}`,
@@ -216,14 +231,28 @@ export function buildRunView(
       const rpd = limit.requestsPerDay.toLocaleString('en-US');
       return `${PROVIDER_LABEL[limit.provider]} free tier: ${tpm} tokens per minute, ${rpd} requests per day`;
     }),
-    budget: `Token budget per run: ${run.tokenBudget.toLocaleString('en-US')}`,
+    budget: run.verification
+      ? `Token budget per run: ${run.tokenBudget.toLocaleString('en-US')} for research, ${run.verification.tokenCap.toLocaleString('en-US')} for the verifier`
+      : `Token budget per run: ${run.tokenBudget.toLocaleString('en-US')}`,
   };
 }
 
-// The 1-based step the removed claim link opens: the first check that removed a claim.
-export function removingCheckStep(run: AgentRun): number | null {
-  const index = run.steps.findIndex((step) => stepTone(step) === 'removed');
+// The 1-based step the removed claim link opens: the check that removed that claim, or the first
+// check that removed any.
+export function removingCheckStep(run: AgentRun, claimId?: string): number | null {
+  const byClaim =
+    claimId === undefined
+      ? -1
+      : run.steps.findIndex((step) => removedClaimIds(step).includes(claimId));
+  const index =
+    byClaim === -1 ? run.steps.findIndex((step) => stepTone(step) === 'removed') : byClaim;
   return index === -1 ? null : index + 1;
+}
+
+// The run the Agent runs tab opens: the newest that was not skipped, since a Replay often ends in
+// skips, or the newest when every run was skipped. Runs arrive newest first.
+export function runToOpen(runs: readonly RunSummary[]): RunSummary | undefined {
+  return runs.find((run) => run.status !== 'skipped') ?? runs[0];
 }
 
 // One row of the Recent runs selector.
