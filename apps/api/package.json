@@ -11,11 +11,17 @@
     "record:models": "tsx src/extract/record.ts",
     "record:bars": "tsx src/market/record.ts",
     "recording:export": "tsx src/ingest/export.ts",
-    "research:dev": "tsx src/research/dev.ts"
+    "research:dev": "tsx src/research/dev.ts",
+    "graph:candidates": "tsx src/graph/build-candidates.ts",
+    "graph:review": "tsx src/graph/review-cli.ts",
+    "graph:apply": "tsx src/graph/apply-cli.ts",
+    "graph:chunks": "tsx src/graph/build-chunks.ts",
+    "graph:search": "tsx src/graph/search-cli.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.82",
     "@ai-sdk/groq": "^4.0.50",
+    "@huggingface/transformers": "^4.3.0",
     "@kesher/mcp": "*",
     "@kesher/shared": "*",
     "@modelcontextprotocol/client": "2.1.0",

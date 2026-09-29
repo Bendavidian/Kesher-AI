@@ -1,0 +1,13 @@
+{
+  "accession": "0001045810-26-000021",
+  "recordedAt": "2026-09-29T10:23:01.328Z",
+  "batches": [
+    {
+      "inputHash": "259fb7eae76c16a64583aa9e30bbe2cc2be206b4e56e8c4d728acfa554f56ad5",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "text": "{\n  \"answers\": [\n    {\n      \"sentence\": 1,\n      \"company\": \"TSM\",\n      \"role\": \"supplies_filer\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 2,\n      \"company\": \"MU\",\n      \"role\": \"supplies_filer\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 3,\n      \"company\": \"MSFT\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 3,\n      \"company\": \"AMZN\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 3,\n      \"company\": \"GOOGL\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 3,\n      \"company\": \"AMD\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 3,\n      \"company\": \"AVGO\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 3,\n      \"company\": \"INTC\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 3,\n      \"company\": \"QCOM\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 4,\n      \"company\": \"AMD\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 5,\n      \"company\": \"MSFT\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 6,\n      \"company\": \"MSFT\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 7,\n      \"company\": \"MSFT\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 8,\n      \"company\": \"MSFT\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 9,\n      \"company\": \"MSFT\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    }\n  ]\n}",
+      "usage": { "inputTokens": 1676, "outputTokens": 780, "totalTokens": 2456 }
+    }
+  ]
+}

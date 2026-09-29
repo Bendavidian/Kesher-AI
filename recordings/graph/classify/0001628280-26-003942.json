@@ -1,0 +1,20 @@
+{
+  "accession": "0001628280-26-003942",
+  "recordedAt": "2026-09-29T10:23:59.836Z",
+  "batches": [
+    {
+      "inputHash": "a598bf47d8feaa04efa2c907b1ff753ecbab1fc4be4913498e5f24348334e284",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "text": "{\n  \"answers\": [\n    {\n      \"sentence\": 1,\n      \"company\": \"GOOGL\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 2,\n      \"company\": \"GOOGL\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 3,\n      \"company\": \"GOOGL\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": false\n    },\n    {\n      \"sentence\": 4,\n      \"company\": \"GOOGL\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": true\n    },\n    {\n      \"sentence\": 5,\n      \"company\": \"GOOGL\",\n      \"role\": \"competitor\",\n      \"usesPrevious\": true\n    }\n  ]\n}",
+      "usage": { "inputTokens": 1354, "outputTokens": 439, "totalTokens": 1793 }
+    },
+    {
+      "inputHash": "7a07b90d612eaaa7a33b7cc0a59b62a830107ea1736e7c810352af7d33870c45",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "text": "{\n  \"answers\": [\n    {\n      \"sentence\": 1,\n      \"company\": \"GOOGL\",\n      \"role\": \"none\",\n      \"usesPrevious\": false\n    }\n  ]\n}",
+      "usage": { "inputTokens": 1119, "outputTokens": 90, "totalTokens": 1209 }
+    }
+  ]
+}

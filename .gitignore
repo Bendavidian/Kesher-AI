@@ -6,6 +6,9 @@ coverage/
 .claude/settings.local.json
 .claude/worktrees/
 spike/output/
+.cache/
+# Half written output of an interrupted graph job run.
+*.part
 *.log
 .DS_Store
 # Raw SIP bars: exchange data under Alpaca's data terms. A local cache that npm run record:bars fills.
