@@ -1,5 +1,8 @@
 export { HealthResponse } from './health';
-export { ReplayResponse } from './dev';
+export { ReplayResponse, ResetResponse } from './dev';
+export * from './auth';
+export * from './demo';
+export * from './realtime';
 export { normalizeText } from './text';
 export * from './whyYou';
 export * from './feed';

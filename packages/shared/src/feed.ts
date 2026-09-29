@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { Id, NonBlank, Tier, type Relevance } from './domain/common';
-import { FeedItem, MarketEvent } from './domain/event';
+import { Confidence, Id, NonBlank, Relevance, Tier } from './domain/common';
+import { FeedItem, FeedPath, MarketEvent } from './domain/event';
 import { FilingForm } from './domain/filing';
 import { RelationshipType } from './domain/graph';
 import { Source } from './domain/source';
@@ -74,3 +74,21 @@ export const FeedCard = z.strictObject({
   priceReaction: z.null(),
 });
 export type FeedCard = z.infer<typeof FeedCard>;
+
+// GET /events/:eventId/explain (docs/INTERFACES.md): why an event is or is not in the signed in
+// user's feed, computed on request by the same code as relevance and never stored. It is how the
+// web shows None for an event that no FeedCard list carries. No FeedItem, so no research state.
+export const EventExplain = z
+  .strictObject({
+    event: FeedCardEvent,
+    source: FeedCardSource,
+    relevance: Relevance,
+    path: FeedPath.nullable(),
+    confidence: Confidence,
+    evidence: z.array(FeedEvidence).max(2),
+  })
+  .refine((explain) => (explain.path === null) === (explain.relevance === 0), {
+    error: 'an explanation has a path exactly when its relevance is above 0',
+    path: ['path'],
+  });
+export type EventExplain = z.infer<typeof EventExplain>;

@@ -1,13 +1,17 @@
-import type { Company, Holding, RelationshipType, Source, Theme, User } from '@kesher/shared';
+import {
+  DEMO_PERSONAS,
+  type Company,
+  type Holding,
+  type RelationshipType,
+  type Source,
+  type Theme,
+  type User,
+} from '@kesher/shared';
 
-// The pinned demo item (SPEC.md Replay and recording). An Alpaca news id, not a Source._id;
-// T03 replays it by id, never by keyword.
+// The pinned demo item and the public demo password live in packages/shared, so the web's
+// persona switcher and Replay control use the same values (SPEC.md Replay and recording).
+export { DEMO_PASSWORD, DEMO_SOURCE_ID } from '@kesher/shared';
 export const DEMO_SOURCE_PROVIDER = 'alpaca';
-export const DEMO_SOURCE_ID = '38062166';
-
-// Public on purpose: the persona switcher is a demo control over seeded users, not
-// authentication (docs/UI.md). Only its scrypt hash is stored.
-export const DEMO_PASSWORD = 'kesher-demo';
 
 export interface PersonaSeed {
   email: User['email'];
@@ -19,7 +23,7 @@ export interface PersonaSeed {
 // SPEC.md: A holds NVDA, MSFT, AMZN; B holds AMD, AVGO, TSM, ASML; C holds KO, JNJ, XOM.
 export const PERSONAS: PersonaSeed[] = [
   {
-    email: 'persona.a@kesher.example',
+    email: DEMO_PERSONAS[0].email,
     displayName: 'Persona A, AI investor',
     holdings: [
       { symbol: 'NVDA', quantity: 100 },
@@ -29,7 +33,7 @@ export const PERSONAS: PersonaSeed[] = [
     interests: ['ai_accelerators', 'cloud', 'data_centers'],
   },
   {
-    email: 'persona.b@kesher.example',
+    email: DEMO_PERSONAS[1].email,
     displayName: 'Persona B, semiconductor investor',
     holdings: [
       { symbol: 'AMD', quantity: 120 },
@@ -40,7 +44,7 @@ export const PERSONAS: PersonaSeed[] = [
     interests: ['chip_design', 'foundry', 'semicap_equipment'],
   },
   {
-    email: 'persona.c@kesher.example',
+    email: DEMO_PERSONAS[2].email,
     displayName: 'Persona C, unrelated investor',
     holdings: [
       { symbol: 'KO', quantity: 200 },

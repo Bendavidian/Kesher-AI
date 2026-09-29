@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ReplayResponse } from './dev';
+import { ReplayResponse, ResetResponse } from './dev';
 
 describe('ReplayResponse', () => {
   const ids = {
@@ -28,5 +28,18 @@ describe('ReplayResponse', () => {
   it('rejects a provider id in place of a Source id, and unknown keys', () => {
     expect(ReplayResponse.safeParse({ ...processed, sourceId: '38062166' }).success).toBe(false);
     expect(ReplayResponse.safeParse({ ...processed, userId: ids.sourceId }).success).toBe(false);
+  });
+});
+
+describe('ResetResponse', () => {
+  const ids = {
+    sourceId: '00000000-0000-4000-8000-000000000001',
+    eventId: '00000000-0000-4000-8000-000000000002',
+  };
+
+  it('names the item and counts the deleted FeedItems', () => {
+    expect(ResetResponse.parse({ ...ids, deleted: 3 })).toEqual({ ...ids, deleted: 3 });
+    expect(ResetResponse.safeParse({ ...ids, deleted: -1 }).success).toBe(false);
+    expect(ResetResponse.safeParse({ ...ids, deleted: 1.5 }).success).toBe(false);
   });
 });
