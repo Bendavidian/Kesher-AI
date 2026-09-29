@@ -11,7 +11,15 @@ import {
   toolCallsLabel,
 } from './run';
 
-const base = { name: 'x', input: {}, outputSummary: '', latencyMs: 1, startedAt: new Date(0) };
+const base = {
+  name: 'x',
+  input: {},
+  outputSummary: '',
+  output: '',
+  outputTruncated: false,
+  latencyMs: 1,
+  startedAt: new Date(0),
+};
 const STEPS: Record<AgentStep['kind'], AgentStep> = {
   code: { kind: 'code', ...base },
   tool: { kind: 'tool', ...base },
