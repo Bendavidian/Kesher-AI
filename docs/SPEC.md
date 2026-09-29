@@ -86,7 +86,7 @@ X is V2, so the MVP has no X sources: Tier 1 is SEC filings and company IR relea
 Personas: A, AI investor (NVDA, MSFT, AMZN). B, semiconductor investor (AMD, AVGO, TSM, ASML). C, unrelated investor (KO, JNJ, XOM).
 
 ## Research agent
-- Input: the event, the user's path and holdings, a step budget (auto mode 6 tool calls, deep mode 15) and a token budget (8,000 tokens per run in auto mode and 20,000 in deep mode, tuned in T16; see the decision log, T08).
+- Input: the event, the user's path and holdings, a step budget (auto mode 6 tool calls, deep mode 15) and a token budget (12,000 tokens per run in auto mode and 20,000 in deep mode, tuned in T16; see the decision log, T08).
 - Tools: read only, scoped by the run token. Tool output is capped: at most 3 filing chunks per call.
 - Output: typed claims plus open questions, as JSON validated with zod.
 - Stops when either budget is spent or every report section has supported claims.
@@ -219,3 +219,4 @@ Thesis guardian, BullMQ and Redis, full PWA, fund look through exposure, Israeli
 - 29 Sep 2026 (T08): A 429 inside a run waits on the same provider, honoring retry-after (or Gemini's retryDelay) up to 30 seconds per wait, at most 3 retries. A longer wait, such as a daily quota, or a fourth 429 ends the run as failed with reason rate_limited, recorded as a step, with no report. A daily quota never blocks a run.
 - 29 Sep 2026 (T08): The deterministic claim checks run before the verifier exists. A fact whose quote is not found verbatim (after normalizeText) in the title or text of a source a tool returned in this run is removed; one whose quote is found stays unverified until T14. An inference whose premise was removed is removed. A draft claim that cannot form a valid Claim is dropped and logged in the run.
 - 29 Sep 2026 (T08): T08 is split under one id, because Investigate needs the auth context from T06. Part 1 builds the agent, its steps, the claims, the checks and the recordings, with a development script (npm run research:dev) that runs persona A on the demo event and mints its own run token. Part 2, after T06, adds POST /events/:eventId/investigate with the user from the auth context, the Investigate button and the basic report on the card.
+- 29 Sep 2026 (T08): The auto mode token budget is raised from 8,000 to 12,000 tokens per run, next to 20,000 in deep mode. The first real auto run made one tool call and stopped at 3,157 tokens, because a tool turn starts only when a worst case report can still follow it. T16 still tunes both budgets.

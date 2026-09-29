@@ -13,9 +13,9 @@ import {
 const deep = { stepBudget: STEP_BUDGET.deep, tokenBudget: TOKEN_BUDGET.deep };
 
 describe('budgets', () => {
-  it('counts tool calls, 6 in auto and 15 in deep, with 8,000 and 20,000 tokens', () => {
+  it('counts tool calls, 6 in auto and 15 in deep, with 12,000 and 20,000 tokens', () => {
     expect(STEP_BUDGET).toEqual({ auto: 6, deep: 15 });
-    expect(TOKEN_BUDGET).toEqual({ auto: 8_000, deep: 20_000 });
+    expect(TOKEN_BUDGET).toEqual({ auto: 12_000, deep: 20_000 });
     expect(REPORT_RESERVE_TOKENS).toBe(1_500);
   });
 });

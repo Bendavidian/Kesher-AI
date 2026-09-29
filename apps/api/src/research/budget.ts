@@ -6,7 +6,7 @@ import type { AgentRun } from '@kesher/shared';
 export type RunMode = AgentRun['mode'];
 
 export const STEP_BUDGET: Record<RunMode, number> = { auto: 6, deep: 15 };
-export const TOKEN_BUDGET: Record<RunMode, number> = { auto: 8_000, deep: 20_000 };
+export const TOKEN_BUDGET: Record<RunMode, number> = { auto: 12_000, deep: 20_000 };
 
 // Kept for the report's output. A tool turn gets the same output cap, so a report the model
 // submits early is not cut short.
