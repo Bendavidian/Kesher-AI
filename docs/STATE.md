@@ -218,7 +218,6 @@ For T11, listed under T11 in BACKLOG.md:
 - whether in_sector and has_theme become edges;
 - whether the seed or T11 owns the company fields.
 The UI language is settled by docs/UI.md: English interface, with Hebrew summaries as a later option.
-SPEC.md and STATE.md refer to numbered design points (design point 1, and design point 4 for AUTO_RESEARCH), but the list itself is not in the repository. Add it under docs/ if it should stay a reference.
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
