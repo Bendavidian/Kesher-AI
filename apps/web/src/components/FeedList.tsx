@@ -25,7 +25,7 @@ interface RowProps {
 }
 
 export function FeedRow({ entry, selected, onSelect }: RowProps) {
-  const hidden = entry.item.relevance === 0;
+  const hidden = entry.score.relevance === 0;
   const timeClass = entry.replayed && !hidden ? 'font-bold text-you' : 'font-semibold text-text-3';
   const shape = hidden
     ? 'rounded-panel border border-border bg-raised px-3.5 text-text-2'
@@ -41,7 +41,7 @@ export function FeedRow({ entry, selected, onSelect }: RowProps) {
         <span className={`text-xs ${timeClass}`}>
           {entry.replayed ? 'Replayed now' : 'Recorded'}
         </span>
-        <RelevancePill relevance={entry.item.relevance} />
+        <RelevancePill relevance={entry.score.relevance} />
       </span>
       <span className="text-sm leading-[1.35] font-bold">{entry.event.headline}</span>
       <MiniPath path={entry.path} />
@@ -55,6 +55,8 @@ interface ListProps {
   hidden: FeedEntry[];
   selectedEventId: string | null;
   onSelect: (eventId: string) => void;
+  // Shown in place of the lists while signing in, or when the feed could not load.
+  notice?: string | null;
   className?: string;
 }
 
@@ -64,6 +66,7 @@ export function FeedList({
   hidden,
   selectedEventId,
   onSelect,
+  notice = null,
   className = '',
 }: ListProps) {
   const held = persona.holdings.map((holding) => holding.symbol);
@@ -93,10 +96,15 @@ export function FeedList({
       </div>
 
       <div className="flex flex-col xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
-        {visible.length > 0 && (
+        {notice && (
+          <p role="status" className="p-4 text-[13px] leading-normal text-text-2">
+            {notice}
+          </p>
+        )}
+        {!notice && visible.length > 0 && (
           <ol className="flex flex-col">
             {visible.map((entry) => (
-              <li key={entry.item._id}>
+              <li key={entry.key}>
                 <FeedRow
                   entry={entry}
                   selected={entry.event._id === selectedEventId}
@@ -107,15 +115,24 @@ export function FeedList({
           </ol>
         )}
 
-        {(visible.length === 0 || hidden.length > 0) && (
+        {!notice && (visible.length === 0 || hidden.length > 0) && (
           <div className="flex flex-col gap-3 p-4">
             {visible.length === 0 && (
               <div className="flex flex-col gap-1.5 rounded-panel border border-dashed border-border-strong p-4">
                 <p className="text-[15px] font-extrabold">Nothing connects to your holdings yet</p>
                 <p className="text-[13px] leading-normal text-text-2">
-                  {hidden.length} recorded {hidden.length === 1 ? 'event' : 'events'} had no path to{' '}
-                  {joinList(held, 'or')} within two stops, so Kesher keeps{' '}
-                  {hidden.length === 1 ? 'it' : 'them'} out of your feed.
+                  {hidden.length > 0 ? (
+                    <>
+                      {hidden.length} {hidden.length === 1 ? 'event' : 'events'} had no path to{' '}
+                      {joinList(held, 'or')} within two stops, so Kesher keeps{' '}
+                      {hidden.length === 1 ? 'it' : 'them'} out of your feed.
+                    </>
+                  ) : (
+                    <>
+                      An event appears here when it connects to {joinList(held, 'or')} within two
+                      stops.
+                    </>
+                  )}
                 </p>
               </div>
             )}
@@ -124,7 +141,7 @@ export function FeedList({
                 <h2 className="text-xs font-bold text-text-3">Hidden for you</h2>
                 <ol className="flex flex-col gap-2">
                   {hidden.map((entry) => (
-                    <li key={entry.item._id}>
+                    <li key={entry.key}>
                       <FeedRow
                         entry={entry}
                         selected={entry.event._id === selectedEventId}

@@ -9,7 +9,7 @@ import { PERSONAS } from './personas';
 const REPLAYED_AT = new Date('2026-09-28T12:00:00Z');
 
 // Alpaca news 38062166, the pinned demo item.
-export const DEMO_NEWS_SOURCE: NewsSourceView = {
+export const DEMO_NEWS_SOURCE: NewsSourceView & { wire: string } = {
   _id: '9a3d6c1e-2b4f-4e5a-8c7d-0e1f2a3b4c01',
   provider: 'alpaca',
   wire: 'Benzinga',

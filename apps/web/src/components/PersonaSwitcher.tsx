@@ -1,12 +1,14 @@
-import type { Persona, PersonaKey } from '../view/types';
+import type { PersonaLabels } from '../view/personas';
+import type { PersonaKey } from '../view/types';
 
 interface Props {
-  personas: Persona[];
+  personas: readonly PersonaLabels[];
   value: PersonaKey;
   onChange: (key: PersonaKey) => void;
 }
 
-// A demo control over the seeded users, not authentication (docs/UI.md, Copy rules).
+// A demo control over the seeded users, not authentication (docs/UI.md, Copy rules). Choosing a
+// persona signs in as that seeded user, so the api and the socket answer for it.
 export function PersonaSwitcher({ personas, value, onChange }: Props) {
   return (
     <div className="flex items-center gap-2.5">

@@ -66,6 +66,25 @@ export function ReplayStatus({ at }: { at: Date }) {
   );
 }
 
+interface ReplayProps {
+  busy: boolean;
+  onReplay: () => void;
+}
+
+// Development only: resets and replays the demo item, so every open session sees it arrive.
+export function ReplayButton({ busy, onReplay }: ReplayProps) {
+  return (
+    <button
+      type="button"
+      onClick={onReplay}
+      disabled={busy}
+      className="flex h-11 cursor-pointer items-center rounded-button border border-border-strong px-3.5 text-[13px] font-bold whitespace-nowrap text-text hover:border-you focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-you disabled:cursor-default disabled:opacity-60"
+    >
+      {busy ? 'Replaying' : 'Replay demo event'}
+    </button>
+  );
+}
+
 // Whose report or run this is. A label, not a control: the persona switcher lives on the feed.
 export function ViewingAs({ label }: { label: string }) {
   return (

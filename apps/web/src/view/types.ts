@@ -2,20 +2,20 @@ import type {
   AgentRun,
   Benchmark,
   FilingForm,
+  PersonaKey,
+  PublicUser,
   Source,
   Tier,
   UniverseSymbol,
-  User,
 } from '@kesher/shared';
 
 // View types for the web screens. They cover what packages/shared has no schema for yet; the
 // domain types themselves (FeedItem, MarketEvent, Company, Relationship) come from there.
 
-export type PersonaKey = 'A' | 'B' | 'C';
+export type { PersonaKey };
 
-// The public part of a seeded user, plus the labels the switcher shows. T06 wiring replaces
-// this with the public user shape the api returns; passwordHash and email never reach the web.
-export interface Persona extends Pick<User, '_id' | 'displayName' | 'holdings'> {
+// The signed in user from the api (PublicUser), plus the labels the switcher shows.
+export interface Persona extends Pick<PublicUser, '_id' | 'displayName' | 'holdings'> {
   key: PersonaKey;
   switcherLabel: string;
   youLabel: string;
@@ -26,7 +26,8 @@ export interface NewsSourceView extends Pick<
   Source,
   '_id' | 'provider' | 'tier' | 'externalId' | 'publishedAt'
 > {
-  wire: string;
+  // The publisher behind the provider, such as Benzinga; null when the provider names none.
+  wire: string | null;
 }
 
 // A filing cited as edge evidence, keyed by Evidence.sourceId.
