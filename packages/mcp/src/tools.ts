@@ -13,6 +13,7 @@ import {
   type MarketEvent,
   type PriceReaction,
   type Source,
+  type User,
 } from '@kesher/shared';
 import type { Collection, Filter } from 'mongodb';
 import { z } from 'zod';
@@ -20,6 +21,7 @@ import type { RunTokenClaims, ToolName } from './token';
 
 // Read only access; the api passes its collections and its market data in.
 export interface ToolDeps {
+  users: Collection<User>;
   events: Collection<MarketEvent>;
   sources: Collection<Source>;
   // priceReactionFor in packages/shared over the api's market data: the subjects, then SMH and SPY.
@@ -273,6 +275,3 @@ export const getPriceReaction: ToolDefinition<
     }
   },
 };
-
-// Every tool the server implements. The run token decides which of them a caller sees.
-export const TOOLS = [getEvent, searchNews, getPriceReaction] as const;

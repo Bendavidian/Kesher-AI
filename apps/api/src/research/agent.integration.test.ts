@@ -11,6 +11,7 @@ import {
   type User,
 } from '@kesher/shared';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { TOOLS } from '@kesher/mcp';
 import { createApp } from '../app';
 import { collection } from '../db/collections';
 import { ensureCollections, ensureIndexes } from '../db/indexes';
@@ -19,7 +20,7 @@ import type { Clock } from '../llm/limiter';
 import { mockModel, rateLimitError, resolveMocks, type ModelReply } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import { runResearch, type ResearchRequest } from './agent';
-import { TOKEN_REFRESH_AFTER_MS } from './mcp';
+import { RESEARCH_TOOLS, TOKEN_REFRESH_AFTER_MS } from './mcp';
 
 const SECRET = 'research-secret-that-is-long-enough';
 
@@ -258,7 +259,15 @@ describe('runResearch', () => {
     const tokenStep = stored.steps[2];
     expect(tokenStep?.input).toEqual({
       agent: 'research',
-      tools: ['get_event', 'search_news'],
+      tools: [
+        'get_my_portfolio',
+        'get_event',
+        'search_news',
+        'search_filings',
+        'get_company_relationships',
+        'get_price_reaction',
+        'get_financial_facts',
+      ],
       ttlSeconds: 300,
     });
     const search = stored.steps[6];
@@ -315,11 +324,9 @@ describe('runResearch', () => {
     await run();
 
     for (const call of gemini.doGenerateCalls) {
-      expect(call.tools?.map((t) => t.name).sort()).toEqual([
-        'get_event',
-        'search_news',
-        'submit_report',
-      ]);
+      // What the server serves on the research token, and the local report tool.
+      const served = TOOLS.map((tool) => tool.name).filter((name) => RESEARCH_TOOLS.includes(name));
+      expect(call.tools?.map((t) => t.name).sort()).toEqual([...served, 'submit_report'].sort());
       const prompt = JSON.stringify(call.prompt);
       expect(prompt).not.toContain(user._id);
       expect(prompt).not.toContain(user.email);
@@ -463,7 +470,15 @@ describe('runResearch', () => {
     const refreshed = stored.steps.find((s) => s.name === 'Run token refreshed');
     expect(refreshed?.input).toEqual({
       agent: 'research',
-      tools: ['get_event', 'search_news'],
+      tools: [
+        'get_my_portfolio',
+        'get_event',
+        'search_news',
+        'search_filings',
+        'get_company_relationships',
+        'get_price_reaction',
+        'get_financial_facts',
+      ],
       ttlSeconds: 300,
     });
     // The refresh comes right before the search, which still succeeds on the new token.
@@ -472,8 +487,9 @@ describe('runResearch', () => {
   });
 
   it('never sends a tool the token does not list to MCP, and names it only in the input', async () => {
-    const portfolio: ModelReply = { toolCalls: [{ toolName: 'get_my_portfolio', input: {} }] };
-    const { run } = setup([portfolio, report]);
+    // A V2 tool that no token lists and the server does not serve.
+    const xPosts: ModelReply = { toolCalls: [{ toolName: 'search_x_posts', input: {} }] };
+    const { run } = setup([xPosts, report]);
 
     const outcome = await run();
 
@@ -482,7 +498,7 @@ describe('runResearch', () => {
     const step = stored.steps.find((s) => s.kind === 'tool');
     expect(step).toMatchObject({
       name: 'unknown_tool',
-      input: { toolName: 'get_my_portfolio' },
+      input: { toolName: 'search_x_posts' },
       outputSummary: 'Not run: the run token lists no such tool.',
     });
   });

@@ -1,7 +1,8 @@
 import { McpServer, type CallToolResult } from '@modelcontextprotocol/server';
 import type { z } from 'zod';
 import { authorize, type RunTokenClaims } from './token';
-import { TOOLS, type ToolDefinition, type ToolDeps } from './tools';
+import { TOOLS } from './registry';
+import type { ToolDefinition, ToolDeps } from './tools';
 
 export const SERVER_INFO = { name: 'kesher', version: '0.1.0' } as const;
 

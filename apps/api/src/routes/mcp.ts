@@ -56,6 +56,7 @@ export function mcpRouter(
   const serve = createMcpFetch({
     secret,
     deps: {
+      users: collection(db, 'users'),
       events: collection(db, 'market_events'),
       sources: collection(db, 'sources'),
       // A provider failure is logged here and rethrown on purpose: the tool turns it into

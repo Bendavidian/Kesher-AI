@@ -8,6 +8,7 @@ import {
   type MarketEvent,
   type PriceSymbol,
   type Source,
+  type User,
 } from '@kesher/shared';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -92,6 +93,18 @@ const event: MarketEvent = {
   createdAt: new Date('2024-04-03T04:00:00Z'),
 };
 
+function user(_id: string, holdings: User['holdings']): User {
+  return {
+    _id,
+    email: `${_id}@example.com`,
+    passwordHash: 'not-a-real-hash',
+    displayName: 'Persona',
+    holdings,
+    interests: [],
+    createdAt: new Date('2026-09-28T00:00:00Z'),
+  };
+}
+
 async function listen(server: Server): Promise<string> {
   await new Promise<void>((resolve) => server.once('listening', resolve));
   const { port } = server.address() as AddressInfo;
@@ -112,6 +125,13 @@ describe('POST /mcp', () => {
     await ensureIndexes(mongo.db);
     await collection(mongo.db, 'sources').insertMany([demo, later, older, filing, ...filler]);
     await collection(mongo.db, 'market_events').insertOne(event);
+    await collection(mongo.db, 'users').insertMany([
+      user(personaA, [
+        { symbol: 'TSM', quantity: 5 },
+        { symbol: 'NVDA', quantity: 10 },
+      ]),
+      user(personaB, [{ symbol: 'KO', quantity: 40 }]),
+    ]);
     const { reaction } = await loadReactionFixture(DEMO_SOURCE_ID);
     // The committed demo reaction for any past headline; the real computation is tested in market.
     const priceReactions: PriceReactions = (subjects, headline) => {
@@ -226,6 +246,36 @@ describe('POST /mcp', () => {
         expect(result.isError).toBe(true);
         expect(JSON.stringify(result.content)).toContain('userId');
       }
+    });
+  });
+
+  describe('get_my_portfolio', () => {
+    it("returns the token user's holdings and nothing about anyone else", async () => {
+      for (const [userId, holdings] of [
+        [
+          personaA,
+          [
+            { symbol: 'NVDA', quantity: 10 },
+            { symbol: 'TSM', quantity: 5 },
+          ],
+        ],
+        [personaB, [{ symbol: 'KO', quantity: 40 }]],
+      ] as const) {
+        const client = await connect(['get_my_portfolio'], userId);
+        const result = await client.callTool({ name: 'get_my_portfolio', arguments: {} });
+        expect(result.structuredContent).toEqual({ holdings });
+        expect(JSON.stringify(result.content)).not.toContain('@example.com');
+      }
+    });
+
+    it('rejects any argument, so a call cannot name another user', async () => {
+      const client = await connect(['get_my_portfolio'], personaA);
+      const result = await client.callTool({
+        name: 'get_my_portfolio',
+        arguments: { userId: personaB },
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).not.toContain('KO');
     });
   });
 
