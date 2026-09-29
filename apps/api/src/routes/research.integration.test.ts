@@ -57,11 +57,11 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
   const report = (cookie: string, id: string) =>
     fetch(`${api.url}/reports/${id}`, { headers: { cookie } });
 
-  // Waits until the user's item left running, as the background run settles it.
+  // Waits until the user's item left queued and running, as the background run settles it.
   const settled = async (key: PersonaKey): Promise<FeedItem> => {
     for (let i = 0; i < 500; i += 1) {
       const item = await itemOf(key);
-      if (item.research.state !== 'running') return item;
+      if (item.research.state !== 'queued' && item.research.state !== 'running') return item;
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     throw new Error('research never settled');
@@ -152,6 +152,7 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
       { eventId },
       { $set: { research: { state: 'none', runId: null, reportId: null } } },
     );
+    await collection(mongo.db, 'research_budget').deleteMany({});
   });
 
   afterAll(async () => {
@@ -175,12 +176,12 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
     expect((await itemOf('C')).research.state).toBe('none');
   });
 
-  it('answers 202 with the running card, then pushes the done card with its report', async () => {
+  it('answers 202 with the queued card, then pushes running and the done card with its report', async () => {
     const response = await investigate(cookies.A);
     expect(response.status).toBe(202);
     const card = FeedCard.parse(revive(await response.json()));
     expect(card.item.userId).toBe(await userId('A'));
-    expect(card.item.research).toMatchObject({ state: 'running', reportId: null });
+    expect(card.item.research).toMatchObject({ state: 'queued', reportId: null });
     const runId = card.item.research.runId;
     expect(runId).not.toBeNull();
 
@@ -189,8 +190,9 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
 
     await expect
       .poll(() => updates.A.map((c) => c.item.research.state))
-      .toEqual(['running', 'done']);
-    expect(updates.A[1]!.item.research.reportId).toBe(item.research.reportId);
+      .toEqual(['queued', 'running', 'done']);
+    expect(updates.A.map((c) => c.item.research.runId)).toEqual([runId, runId, runId]);
+    expect(updates.A[2]!.item.research.reportId).toBe(item.research.reportId);
     expect(updates.B).toEqual([]);
 
     const run = AgentRun.parse(await collection(mongo.db, 'agent_runs').findOne({ _id: runId! }));
@@ -200,7 +202,34 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
       mode: 'deep',
       trigger: 'investigate',
       status: 'succeeded',
+      gate: {
+        decision: 'run',
+        reason:
+          'Investigate skips the relevance and importance conditions, not the daily budget: research run 1 of 30 today.',
+      },
     });
+    expect(await collection(mongo.db, 'research_budget').findOne()).toMatchObject({ runs: 1 });
+  });
+
+  it('answers 429 once the daily budget is spent, and changes nothing', async () => {
+    await collection(mongo.db, 'research_budget').insertOne({
+      _id: '00000000-0000-4000-8000-00000000b0d9',
+      day: new Date().toISOString().slice(0, 10),
+      runs: 30,
+      updatedAt: new Date(),
+    });
+    const runsBefore = await collection(mongo.db, 'agent_runs').countDocuments();
+    const itemBefore = await itemOf('A');
+
+    const response = await investigate(cookies.A);
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: "Today's research budget is spent (30 of 30 runs). It resets at 00:00 UTC.",
+    });
+    expect(await itemOf('A')).toEqual(itemBefore);
+    expect(await collection(mongo.db, 'agent_runs').countDocuments()).toBe(runsBefore);
+    expect(await collection(mongo.db, 'research_budget').findOne()).toMatchObject({ runs: 30 });
+    expect(updates.A).toEqual([]);
   });
 
   it('returns a report in which every kept fact cites a source with a verified quote', async () => {
@@ -318,6 +347,7 @@ describe('POST /events/:eventId/investigate and GET /reports/:reportId, on mongo
     if (start.outcome !== 'started') throw new Error('expected started');
     await start.done;
     expect((await itemOf('A')).research.state).toBe('done');
-    expect(errors).toHaveLength(2);
+    // queued, running and done: every push failed, and the run still settled.
+    expect(errors).toHaveLength(3);
   });
 });

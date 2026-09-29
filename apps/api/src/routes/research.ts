@@ -13,8 +13,8 @@ export function researchRouter(deps: InvestigateDeps, secret: string): Router {
   const router = Router();
   router.use(['/events', '/reports'], requireUser(secret));
 
-  // Answers 202 with the card in state running; the run goes on in the background and the card
-  // follows it through feed:update.
+  // Answers 202 with the card in state queued; the run goes on in the job queue and the card
+  // follows it through feed:update. 429 once the daily research budget is spent.
   router.post('/events/:eventId/investigate', async (req, res) => {
     const eventId = Id.safeParse(req.params.eventId);
     if (!eventId.success) {
@@ -28,6 +28,13 @@ export function researchRouter(deps: InvestigateDeps, secret: string): Router {
     }
     if (start.outcome === 'already_running') {
       res.status(409).json({ error: 'research on this event is already running' });
+      return;
+    }
+    if (start.outcome === 'budget_spent') {
+      const { runs, limit } = start.reservation;
+      res.status(429).json({
+        error: `Today's research budget is spent (${runs} of ${limit} runs). It resets at 00:00 UTC.`,
+      });
       return;
     }
     const card = await cardOf(db, start.item);
