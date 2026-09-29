@@ -101,10 +101,14 @@ Notes from part 2 for later tasks:
 - T12: the daily budget check belongs in startInvestigation (apps/api/src/research/investigate.ts), which Investigate must not skip. The run is a fire and forget promise in the api process; the job queue replaces it. A run lost to a restart leaves its AgentRun in status running; only its FeedItem is taken over after 15 minutes (STALE_RESEARCH_MS).
 - T14: until the verifier supports facts, every inference stays hidden on the report screen with a neutral line ("1 inference waits for verification", buildReportView in apps/web/src/view/report.ts). The removed block and the red segments count only claims with status removed.
 
-### [~] T09 Agent Runs view, thin
+### [x] T09 Agent Runs view, thin
 A timeline of one run: trigger, steps, tool calls with latency, sources, check results, token usage.
 Build to docs/UI.md. docs/design/agent-run.dc.html is markup reference only; it needs the design canvas runtime and does not run on its own.
 Done when: the run from T08 is fully inspectable from its card.
+Notes for later tasks:
+- T12: gate runs appear in GET /runs and the run screen as they are; the summary line already words trigger gate. A run lost to a restart stays running in the list, since only its FeedItem is taken over.
+- T14: a check step turns red when its output lists removedClaimIds, so the verifier should record removals the same way. Its model steps add their provider and model to the served limits by themselves.
+- Each run screen opens its own socket next to the feed's; share one connection if more screens listen.
 
 ## Phase 2: deepen
 
