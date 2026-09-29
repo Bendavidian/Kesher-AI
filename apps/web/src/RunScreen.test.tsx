@@ -130,7 +130,8 @@ describe('Agent run screen', () => {
     await renderRun();
     const tiles = screen.getByRole('group', { name: 'Run summary' });
     expect(within(tiles).getByText('5 of 15')).toBeTruthy();
-    expect(within(tiles).getByText('5.4k of 6k')).toBeTruthy();
+    expect(within(tiles).getByText('3.5k of 20k')).toBeTruthy();
+    expect(within(tiles).getByText('Verifier 1.9k of 6k')).toBeTruthy();
     expect(within(tiles).getByText('gemini-3.5-flash-lite')).toBeTruthy();
     expect(within(tiles).getByText('$0.00')).toBeTruthy();
   });
@@ -172,7 +173,7 @@ describe('Agent run screen', () => {
   it('shows the provider and model of a model step', async () => {
     await renderRun(runPath(DEMO_RUN._id, 10));
     const panel = detail();
-    expect(within(panel).getByRole('heading', { level: 2, name: 'Verifier agent' })).toBeTruthy();
+    expect(within(panel).getByRole('heading', { level: 2, name: 'Verifier' })).toBeTruthy();
     expect(within(panel).getByText('Groq, openai/gpt-oss-120b')).toBeTruthy();
     expect(within(panel).getByText(/1,920 tokens/)).toBeTruthy();
   });
@@ -200,7 +201,9 @@ describe('Agent run screen', () => {
   it('shows the limits the api serves and the run token budget in the footer', async () => {
     await renderRun();
     const footer = screen.getByRole('contentinfo', { name: 'Run limits' });
-    expect(within(footer).getByText('Token budget per run: 6,000')).toBeTruthy();
+    expect(
+      within(footer).getByText('Token budget per run: 20,000 for research, 6,000 for the verifier'),
+    ).toBeTruthy();
     expect(
       within(footer).getByText('Groq free tier: 8,000 tokens per minute, 1,000 requests per day'),
     ).toBeTruthy();
