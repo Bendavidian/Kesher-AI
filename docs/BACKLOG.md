@@ -112,7 +112,7 @@ Notes for later tasks:
 
 ## Phase 2: deepen
 
-### [ ] T10 Live ingestion and recording
+### [~] T10 Live ingestion and recording
 Alpaca news WebSocket and an EDGAR poller for the universe. Every live item is recorded for replay. The free Alpaca plan allows one live WebSocket, so live ingestion runs only where LIVE_INGEST is on, which is one machine only.
 Done when: a live news item reaches the feed without manual action and can be replayed later.
 Notes from T04:
@@ -120,6 +120,11 @@ Notes from T04:
 - EDGAR items must carry the filer's universe symbol, mapped from the CIK, in symbols before processItem, or the pre filter drops them.
 - The job queue should serialize work per source id. processItem skips steps that already ran and its writes are conditional, so concurrent calls for one item stay correct, but each can spend a model call before the loser's write is discarded.
 - Note from T05: graph start nodes are the extracted companies that the event's sources tagged, taken as the union over the cluster (eventCompanies, apps/api/src/relevance/score.ts). Once clustering puts several items in one event, an untrusted later item can widen that set; decide then whether to intersect per source.
+Notes from T10 for later tasks:
+- T11: a live filing's Source has text null and a code written title (company, form, 8-K item labels), so extraction reads only that title. Once filing chunks exist, decide whether live filings get their text screened and extracted.
+- T12: the in process queue (apps/api/src/ingest/queue.ts) runs live items one at a time; gate runs can use it or a queue of their own. A live item reaches onScored inside a queued job, so research started from there must not block the queue.
+- T16: live rows of ingest_counters now fill up where LIVE_INGEST is on; items that fail the Source schema are logged, not counted.
+- T18: the deployed instance needs LIVE_INGEST=true with the Alpaca keys and SEC_USER_AGENT, and both development machines false. Recordings go to the database there, so nothing on its disk needs to last.
 
 ### [ ] T11 Graph build job
 Finnhub peers and profiles. LLM extraction of supplier and customer edges from 10-K sections with verbatim quotes. A review CLI to accept or reject edges. The same sections chunked and embedded into FilingChunk.
@@ -168,6 +173,11 @@ Note from T04: count unscreened items separately. A screen that did not finish (
 ### [ ] T18 Deploy, README, demo
 Deployed web and api, a README with an architecture diagram and the eval numbers, and a rehearsed five minute demo from a recorded event. The deployed instance becomes the single live ingester (LIVE_INGEST on there, off on both development machines). Check that the local embedding model fits the host's memory. Decide the api production runtime: since T01 the api runs from TypeScript source through tsx and @kesher/shared exports its source, so deploy either keeps tsx or bundles the api.
 Done when: the demo runs end to end on the deployed app.
+
+### [ ] T19 Live ingestion hardening
+Found in T10. Items published while the Alpaca stream was down are lost: after a reconnect, fetch the gap from the REST news endpoint by time and pass it through the same path (the pre filter and the duplicate check keep it idempotent). Groq allows 200,000 tokens a day, about 220 extractions at roughly 900 tokens each; past that, extraction falls back to Gemini, which research also uses. Add a daily cap or priority for live extraction, counted like the other drops, before LIVE_INGEST runs all day. The first start on an empty database also hands over the last 24 hours of universe filings at once.
+From the T10 review: a half open socket never closes, so the stream can go silent without reconnecting (add an idle check that tolerates quiet nights, or ping); the live queue has no length cap (cap it and count what is shed); the EDGAR poller logs a 429 or 403 per company every 5 minutes with no backoff.
+Done when: a test drops the stream, delivers items only through the REST gap, and each is processed once; and a test shows the cap stops live extraction without touching replay or Investigate.
 
 ## V2 (not in MVP)
 Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).
