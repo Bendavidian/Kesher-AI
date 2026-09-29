@@ -10,7 +10,8 @@
     "record": "tsx src/ingest/record.ts",
     "record:models": "tsx src/extract/record.ts",
     "research:dev": "tsx src/research/dev.ts",
-    "graph:candidates": "tsx src/graph/build-candidates.ts"
+    "graph:candidates": "tsx src/graph/build-candidates.ts",
+    "graph:review": "tsx src/graph/review-cli.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.82",
