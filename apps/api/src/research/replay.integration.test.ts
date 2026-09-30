@@ -22,19 +22,26 @@ import { createModelClient, MODELS } from '../llm/client';
 import { loadModelRecording } from '../llm/recordings';
 import { reviveReaction } from '../market/fixture';
 import type { PriceReactions } from '../market/reactions';
-import { DEMO_SOURCE_ID, PERSONAS } from '../seed/config';
+import { COMPANIES, DEMO_SOURCE_ID, EDGES, FILINGS, PERSONAS } from '../seed/config';
+import { oneHot } from '../test/embedder';
 import { mockModel, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import { memorySearch } from '../test/search';
 import { runResearch } from './agent';
+import { ReportDraft } from './draft';
 import { loadResearchRecording, type ResearchRecording } from './recordings';
-import { PRICE_CAUSE_REASON } from './verifier';
 
 const SECRET = 'replay-secret-that-is-long-enough!!';
 
 // The real research run on the demo item (npm run research:dev -- --record), replayed through
 // mock models against a real MCP server. The item is stored under the Atlas ids the run used, so
 // the recorded tool calls and cited source ids resolve. No provider is called.
+const seededEdge = () => {
+  const edge = EDGES.find((e) => e.from === 'TSM' && e.to === 'NVDA');
+  if (!edge) throw new Error('no seeded TSM supplier_of NVDA edge');
+  return edge;
+};
+
 describe('research replay of the demo item', () => {
   let mongo: TestMongo;
   let server: Server;
@@ -42,6 +49,7 @@ describe('research replay of the demo item', () => {
   let recording: ResearchRecording;
   let user: User;
   let source: Source;
+  let filing: Source;
   // The price reaction the recorded run read, for get_price_reaction and numbers_match alike.
   let reaction: PriceReaction;
   const priceReactions: PriceReactions = () => Promise.resolve(reaction);
@@ -79,8 +87,26 @@ describe('research replay of the demo item', () => {
       embedding: null,
       createdAt: new Date(),
     };
-    // Persona A's path as scoring stores it. The agent reads only the path, never the edge, so
-    // the relationship id is synthetic and no edge is stored here.
+    // Persona A's path through the seeded TSM supplier_of NVDA edge, under the Atlas ids the run
+    // used, so the code fact cites the same filing Source the recorded claims do.
+    const [hop] = recording.ids.path ?? [];
+    const edge = seededEdge();
+    const nvidia = COMPANIES.find((c) => c.symbol === 'NVDA');
+    if (!hop || !nvidia) throw new Error('the recording has no path edge');
+    filing = { ...FILINGS.NVDA.source, _id: hop.filingSourceId, createdAt: new Date() };
+    // What search_filings returned in the run, as far as the report quotes it: a chunk of the
+    // NVIDIA 10-K for each quote the model's claims took from that filing.
+    const reportCall = recording.turns
+      .flatMap((turn) => turn.toolCalls)
+      .find((call) => call.toolName === 'submit_report');
+    const draft = ReportDraft.parse(JSON.parse(reportCall?.input ?? '{}'));
+    const filingQuotes = [
+      ...new Set(
+        draft.claims.flatMap((claim) =>
+          claim.sources.flatMap((s) => (s.sourceId === filing._id && s.quote ? [s.quote] : [])),
+        ),
+      ),
+    ];
     const item: FeedItem = {
       _id: randomUUID(),
       userId: user._id,
@@ -95,7 +121,7 @@ describe('research replay of the demo item', () => {
             to: 'NVDA',
             type: 'supplier_of',
             weight: 0.8,
-            relationshipId: randomUUID(),
+            relationshipId: hop.relationshipId,
           },
         ],
       },
@@ -110,7 +136,42 @@ describe('research replay of the demo item', () => {
     await ensureCollections(mongo.db);
     await ensureIndexes(mongo.db);
     await collection(mongo.db, 'users').insertOne(user);
-    await collection(mongo.db, 'sources').insertOne(source);
+    await collection(mongo.db, 'sources').insertMany([source, filing]);
+    await collection(mongo.db, 'companies').insertOne({
+      ...nvidia,
+      _id: randomUUID(),
+      createdAt: new Date(),
+    });
+    await collection(mongo.db, 'relationships').insertOne({
+      _id: hop.relationshipId,
+      from: edge.from,
+      to: edge.to,
+      type: edge.type,
+      weight: 0.8,
+      evidence: {
+        sourceId: filing._id,
+        quote: edge.quote,
+        filingDate: FILINGS.NVDA.filingDate,
+        url: filing.url,
+        reviewed: true,
+      },
+      createdAt: new Date(),
+    });
+    if (filingQuotes.length > 0) {
+      await collection(mongo.db, 'filing_chunks').insertMany(
+        filingQuotes.map((text, chunkIndex) => ({
+          _id: randomUUID(),
+          sourceId: filing._id,
+          symbol: 'NVDA' as const,
+          form: '10-K' as const,
+          section: 'Item 1A. Risk Factors',
+          chunkIndex,
+          text,
+          embedding: oneHot(text),
+          createdAt: new Date(),
+        })),
+      );
+    }
     await collection(mongo.db, 'market_events').insertOne(event);
     await collection(mongo.db, 'feed_items').insertOne(item);
     server = createApp({
@@ -129,7 +190,7 @@ describe('research replay of the demo item', () => {
     await mongo?.stop();
   });
 
-  it('returns a verified report: facts quoted, metrics matching the market, a causal inference removed', async () => {
+  it('returns a verified report that opens with the code claims: the 10-K fact and the price metric', async () => {
     const gemini = mockModel(
       recording.model,
       recording.turns.map((turn) => ({
@@ -195,24 +256,33 @@ describe('research replay of the demo item', () => {
     const claims = (
       await collection(mongo.db, 'claims').find({ reportId: report._id }).toArray()
     ).map((c) => Claim.parse(c));
-    const types = new Set(claims.map((c) => c.type));
-    expect(types).toEqual(new Set(['fact', 'metric', 'inference']));
-    // The facts and metrics pass every check, the verifier included.
-    for (const claim of claims.filter((c) => c.type !== 'inference')) {
+    expect(report.omitted).toEqual([]);
+    // Code's claims come first: the path's 10-K fact and the price metric, both supported.
+    const [pathFact, priceMetric, ...modelClaims] = claims;
+    expect(pathFact).toMatchObject({
+      origin: 'code',
+      type: 'fact',
+      text: "TSMC supplies NVIDIA, according to NVIDIA's 10-K.",
+      status: 'supported',
+      sources: [{ sourceId: filing._id, quote: seededEdge().quote }],
+    });
+    expect(priceMetric).toMatchObject({
+      origin: 'code',
+      type: 'metric',
+      text: 'TSM opened −1.16% below its previous close and NVDA opened −1.07% below its previous close; SMH −1.00%, SPY −0.22%.',
+      status: 'supported',
+    });
+    // Then the model's, as recorded: every claim passed every check, the verifier included.
+    expect(modelClaims.every((c) => c.origin === 'model')).toBe(true);
+    expect(new Set(modelClaims.map((c) => c.type))).toEqual(
+      new Set(['fact', 'metric', 'inference']),
+    );
+    for (const claim of claims) {
       expect(claim.status).toBe('supported');
       expect(claim.checks.every((c) => c.passed)).toBe(true);
       expect(claim.checks.map((c) => c.name)).toContain('verifier');
     }
-    // The inference ties the event to the price moves as a cause, hedged; no source states that
-    // cause, so the verifier removed it (principle 7). Nothing else failed on it.
-    const [inference] = claims.filter((c) => c.type === 'inference');
-    expect(inference?.text).toMatch(/contributed to/);
-    expect(inference?.status).toBe('removed');
-    expect(inference?.checks.filter((c) => !c.passed)).toEqual([
-      { name: 'verifier', passed: false, detail: PRICE_CAUSE_REASON },
-    ]);
     for (const fact of claims.filter((c) => c.type === 'fact')) {
-      expect(fact.sources.every((s) => s.sourceId === source._id && s.quote !== null)).toBe(true);
       expect(fact.checks).toContainEqual({ name: 'quote_verbatim', passed: true, detail: null });
     }
     for (const metric of claims.filter((c) => c.type === 'metric')) {

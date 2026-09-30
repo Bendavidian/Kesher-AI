@@ -116,7 +116,8 @@ try {
 
   const turns: RecordedTurn[] = [];
   const verifierCalls: RecordedVerifierCall[] = [];
-  // The reaction numbers_match reads, kept for the recording.
+  // The reactions the run reads, kept for the recording as one: the first read's rows, then any
+  // row a later read added. The replay serves it to every read.
   let checkedReaction: PriceReaction | null = null;
   const models = createModelClient({ resolve: resolveFromKeys(keys) });
   const outcome = await runResearch(
@@ -126,8 +127,18 @@ try {
       mcp: { url, secret: MCP_TOKEN_SECRET },
       redact,
       priceReactions: async (subjects, headline) => {
-        checkedReaction = await priceReactions(subjects, headline);
-        return checkedReaction;
+        const read = await priceReactions(subjects, headline);
+        const known = checkedReaction;
+        checkedReaction = known
+          ? {
+              ...known,
+              rows: [
+                ...known.rows,
+                ...read.rows.filter((row) => !known.rows.some((k) => k.symbol === row.symbol)),
+              ],
+            }
+          : read;
+        return read;
       },
       onTurn: (t) => turns.push(t),
       onVerifierCall: (call) => verifierCalls.push(call),
@@ -169,7 +180,7 @@ try {
     print('');
     print('Claims:');
     for (const claim of claims) {
-      print(`- [${claim.type}, ${claim.status}] ${claim.text}`);
+      print(`- [${claim.origin} ${claim.type}, ${claim.status}] ${claim.text}`);
       for (const s of claim.sources) print(`    source ${s.sourceId}: ${s.quote ?? '(no quote)'}`);
       for (const check of claim.checks) {
         print(`    ${check.name}: ${check.passed ? 'passed' : `failed, ${check.detail ?? ''}`}`);
@@ -178,6 +189,9 @@ try {
     print('');
     print('Open questions:');
     for (const question of report.openQuestions) print(`- ${question}`);
+    for (const omission of report.omitted) {
+      print(`Left out by code: ${omission.kind}, ${omission.reason}`);
+    }
   }
 
   if (record) {
@@ -185,6 +199,19 @@ try {
       console.error(`Not recorded: the run ended as ${outcome.status}.`);
       process.exitCode = 1;
     } else {
+      // The path's edges and their filings, as the run's code facts cited them.
+      const item = await collection(db, 'feed_items').findOne({
+        userId: user._id,
+        eventId: event._id,
+      });
+      const hops = item?.path?.hops ?? [];
+      const edges = await collection(db, 'relationships')
+        .find({ _id: { $in: hops.map((hop) => hop.relationshipId) } })
+        .toArray();
+      const pathIds = hops.flatMap((hop) => {
+        const edge = edges.find((e) => e._id === hop.relationshipId);
+        return edge ? [{ relationshipId: edge._id, filingSourceId: edge.evidence.sourceId }] : [];
+      });
       const recording = ResearchRecording.parse({
         externalId: DEMO_SOURCE_ID,
         recordedAt: new Date().toISOString(),
@@ -192,7 +219,7 @@ try {
         mode,
         provider: run.steps.find((s) => s.kind === 'model')?.provider,
         model: run.steps.find((s) => s.kind === 'model')?.model,
-        ids: { eventId: event._id, sourceIds: event.sourceIds },
+        ids: { eventId: event._id, sourceIds: event.sourceIds, path: pathIds },
         turns,
         verifier: verifierCalls,
         reaction: checkedReaction,

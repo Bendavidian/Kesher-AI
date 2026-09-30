@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   AgentRun,
   AgentStep,
+  CODE_CLAIMS_STEP,
   PriceReactionError,
   Report,
   type PriceReaction,
@@ -20,6 +21,7 @@ import { RunRateLimitError, type ModelClient, type RunStepResult } from '../llm/
 import { estimateTokens, planTurn, STEP_BUDGET, TOKEN_BUDGET, type RunMode } from './budget';
 import type { PriceReactions } from '../market/reactions';
 import { checkDraft, DETERMINISTIC_CHECKS, type CheckedDraft } from './checks';
+import { codeClaimsFrom, pathEvidence, pathSubjects } from './core';
 import { REPORT_DRAFT_JSON_SCHEMA, ReportDraft } from './draft';
 import { upsertMarketSource } from './marketSource';
 import { openToolbox, RESEARCH_TOOLS, type TokenIssued, type Toolbox } from './mcp';
@@ -120,6 +122,15 @@ function summarizeTool(name: string, ok: boolean, output: unknown): string {
     return `Loaded the event with ${record.sourceIds?.length ?? 0} sources.`;
   }
   return `${name} answered.`;
+}
+
+// Two reads of one event's reaction can share rows only when they anchor and window alike.
+function sameWindows(a: PriceReaction, b: PriceReaction): boolean {
+  return (
+    a.anchor.baseTime.getTime() === b.anchor.baseTime.getTime() &&
+    a.windows.length === b.windows.length &&
+    a.windows.every((w, i) => w.name === b.windows[i]?.name)
+  );
 }
 
 // A turn with unknown usage is charged its estimate and its full output cap.
@@ -295,6 +306,7 @@ export async function runResearch(
     startedAt: number,
     extra: Record<string, unknown>,
     only?: string[],
+    note?: string,
   ): Promise<void> {
     const ran = checked.claims.filter(
       (c) => (!only || only.includes(c._id)) && c.checks.some((check) => check.name === name),
@@ -304,10 +316,12 @@ export async function runResearch(
       kind: 'check',
       name,
       input: { claims: ran.length },
-      outputSummary:
+      outputSummary: [
         removed.length === 0
           ? `${ran.length} checked, none removed.`
           : `${ran.length} checked, ${removed.length} removed.`,
+        ...(note ? [note] : []),
+      ].join(' '),
       output: {
         removedClaimIds: removed,
         failures: ran.flatMap((c) =>
@@ -424,11 +438,51 @@ export async function runResearch(
       { name: REPORT_TOOL, schema: REPORT_DRAFT_JSON_SCHEMA },
     ]);
 
+    // The deterministic report core (core.ts): the price reaction for the path's event company
+    // and holding, read at the event's own time, and the path's reviewed evidence. Code writes its
+    // claims before the model's first turn, so the brief can list them.
+    const subjects = pathSubjects(path);
+    const pathReaction = await readReaction(subjects, event.publishedAt);
+    const coreStarted = now();
+    const core = codeClaimsFrom(path, await pathEvidence(db, event._id, path), pathReaction);
+    await record({
+      kind: 'code',
+      name: CODE_CLAIMS_STEP,
+      input: { hops: path.hops.length, symbols: subjects },
+      outputSummary: [
+        core.claims.length === 0
+          ? 'No claims written by code.'
+          : `Wrote ${core.claims.map((c) => `${c.key} (${c.type})`).join(', ')}.`,
+        ...core.omitted.map(
+          (o) => `Left out a ${o.kind.replace('_', ' ')}: ${o.reason.replace('_', ' ')}.`,
+        ),
+      ].join(' '),
+      output: {
+        claims: core.claims.map((c) => ({
+          key: c.key,
+          type: c.type,
+          text: c.text,
+          sourceIds: c.sources.map((source) => source.sourceId),
+          figures: c.figures,
+        })),
+        omitted: core.omitted,
+      },
+      startedAt: coreStarted,
+      latencyMs: now() - coreStarted,
+    });
+
     const held = user.holdings.map((h) => h.symbol);
     const messages: ModelMessage[] = [
       {
         role: 'user',
-        content: buildBrief({ eventId: event._id, path, held, stepBudget }),
+        content: buildBrief({
+          eventId: event._id,
+          path,
+          held,
+          stepBudget,
+          codeClaims: core.claims,
+          omitted: core.omitted,
+        }),
       },
     ];
 
@@ -646,6 +700,11 @@ export async function runResearch(
     // The report: code checks every claim against the sources the tools returned and the market
     // data it reads itself, then the verifier judges the claims the checks kept.
     const checksStarted = now();
+    // The filings the code facts cite join what the tools returned, with their evidence quotes.
+    for (const [sourceId, quotes] of core.passages) {
+      seen.add(sourceId);
+      passages.set(sourceId, [...(passages.get(sourceId) ?? []), ...quotes]);
+    }
     const sources = await collection(db, 'sources')
       .find({ _id: { $in: [...seen] } }, { projection: { title: 1, text: 1 } })
       .toArray();
@@ -654,32 +713,81 @@ export async function runResearch(
     const seenSources = new Map(sources.map((s) => [s._id, withPassages(s, passages.get(s._id))]));
     const reportId = newId();
 
-    const figures = draft.claims.flatMap((c) => (c.type === 'metric' ? c.figures : []));
-    const subjects = [...new Set(figures.map((f) => f.symbol))];
-    let reaction: PriceReaction | null = null;
+    // One reaction and one market data Source for every metric, code's and the model's. The code
+    // metric's figures come from the first read, so they are checked against it. A symbol only a
+    // model figure names is read on its own and its rows join the first read; if that read fails,
+    // metrics naming it stay unchecked and unverified.
+    const figures = [...core.claims, ...draft.claims].flatMap((c) =>
+      c.type === 'metric' ? c.figures : [],
+    );
+    const figureSymbols = [...new Set(figures.map((f) => f.symbol))];
+    const missing = figureSymbols.filter(
+      (symbol) => !pathReaction?.rows.some((row) => row.symbol === symbol),
+    );
+    let reaction: PriceReaction | null = pathReaction;
+    const unread = new Set<string>();
+    if (missing.length > 0) {
+      const extra = await readReaction(missing, event.publishedAt);
+      if (!pathReaction) reaction = extra;
+      else if (extra && sameWindows(pathReaction, extra)) {
+        reaction = {
+          ...pathReaction,
+          rows: [...pathReaction.rows, ...extra.rows.filter((row) => missing.includes(row.symbol))],
+        };
+      } else for (const symbol of missing) unread.add(symbol);
+    }
     let marketSourceId: string | null = null;
     if (figures.length > 0) {
-      reaction = await readReaction(subjects, event.publishedAt);
-      marketSourceId = await upsertMarketSource(db, event._id, subjects, {
+      marketSourceId = await upsertMarketSource(db, event._id, figureSymbols, {
         now: new Date(checksStarted),
         newId,
       });
     }
 
-    const checked = checkDraft(draft, {
-      seen: seenSources,
-      reportId,
-      newId,
-      now: new Date(checksStarted),
-      reaction,
-      marketSourceId,
-    });
+    const checked = checkDraft(
+      draft,
+      {
+        seen: seenSources,
+        reportId,
+        newId,
+        now: new Date(checksStarted),
+        reaction,
+        marketSourceId,
+        unread,
+      },
+      core.claims,
+    );
     for (const name of DETERMINISTIC_CHECKS) {
-      await recordCheck(name, checked, checked.removedBy[name], checksStarted, {
-        ...(name === 'no_advice' && checked.droppedQuestions.length > 0
-          ? { droppedOpenQuestions: checked.droppedQuestions }
-          : {}),
-      });
+      // A premise the report does not have costs its inference, never the report; the step says
+      // how many, so a report that shrinks for it is visible.
+      const unknown = checked.unknownPremise;
+      const lostToUnknown =
+        name === 'premises_supported' && unknown.removed.length + unknown.dropped.length > 0;
+      await recordCheck(
+        name,
+        checked,
+        checked.removedBy[name],
+        checksStarted,
+        {
+          ...(name === 'no_advice' && checked.droppedQuestions.length > 0
+            ? { droppedOpenQuestions: checked.droppedQuestions }
+            : {}),
+          ...(lostToUnknown
+            ? {
+                unknownPremise: {
+                  removed: unknown.removed.length,
+                  dropped: unknown.dropped.length,
+                  removedClaimIds: unknown.removed,
+                  droppedKeys: unknown.dropped,
+                },
+              }
+            : {}),
+        },
+        undefined,
+        lostToUnknown
+          ? `Inferences naming a premise not in the report: ${unknown.removed.length} removed, ${unknown.dropped.length} dropped.`
+          : undefined,
+      );
     }
     if (checked.dropped.length > 0) {
       await record({
@@ -758,6 +866,7 @@ export async function runResearch(
               ? [{ title: REPORT_SECTION, claimIds: finalClaims.map((c) => c._id) }]
               : [],
           openQuestions: checked.openQuestions,
+          omitted: core.omitted,
           createdAt: new Date(now()),
         }),
       );

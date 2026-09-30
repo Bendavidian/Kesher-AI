@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
-import { backfillPublishers, backfillResearchReports, backfillVerification } from './backfill';
+import {
+  backfillPublishers,
+  backfillReportCore,
+  backfillResearchReports,
+  backfillVerification,
+} from './backfill';
 
 const at = new Date('2026-09-28T12:00:00Z');
 
@@ -127,5 +132,45 @@ describe('backfillVerification on mongod', () => {
 
   it('changes nothing on a second run', async () => {
     expect(await backfillVerification(mongo.db)).toEqual({ runs: 0, claims: 0 });
+  });
+});
+
+describe('backfillReportCore on mongod', () => {
+  let mongo: TestMongo;
+
+  beforeAll(async () => {
+    mongo = await startTestMongo('kesher_backfill_report_core_test');
+    await mongo.db.collection<{ _id: string; origin?: string }>('claims').insertMany([
+      // As T14 stored it, before origin existed.
+      { _id: 'old' },
+      { _id: 'code', origin: 'code' },
+    ]);
+    await mongo.db
+      .collection<{ _id: string; omitted?: object[] }>('reports')
+      .insertMany([
+        { _id: 'old' },
+        { _id: 'new', omitted: [{ kind: 'price_metric', reason: 'not_ready' }] },
+      ]);
+  }, MONGO_START_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await mongo?.stop();
+  });
+
+  it("marks older claims as the model's and gives older reports nothing omitted", async () => {
+    expect(await backfillReportCore(mongo.db)).toEqual({ claims: 1, reports: 1 });
+    const claims = await mongo.db.collection<{ _id: string }>('claims').find().toArray();
+    expect(claims).toContainEqual({ _id: 'old', origin: 'model' });
+    expect(claims).toContainEqual({ _id: 'code', origin: 'code' });
+    const reports = await mongo.db.collection<{ _id: string }>('reports').find().toArray();
+    expect(reports).toContainEqual({ _id: 'old', omitted: [] });
+    expect(reports).toContainEqual({
+      _id: 'new',
+      omitted: [{ kind: 'price_metric', reason: 'not_ready' }],
+    });
+  });
+
+  it('changes nothing on a second run', async () => {
+    expect(await backfillReportCore(mongo.db)).toEqual({ claims: 0, reports: 0 });
   });
 });

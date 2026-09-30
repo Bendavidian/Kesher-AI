@@ -32,6 +32,9 @@ export interface CheckContext {
   // The market data Source a metric with figures cites (marketSource.ts). null when the draft
   // has no figures.
   marketSourceId: string | null;
+  // Symbols whose market data could not be read after the first read. A metric naming one stays
+  // unchecked and unverified, like a metric without any market data.
+  unread?: ReadonlySet<string>;
 }
 
 // The checks that run before the verifier, in the order they run on each claim.
@@ -45,7 +48,7 @@ export const DETERMINISTIC_CHECKS = [
 export type DeterministicCheck = (typeof DETERMINISTIC_CHECKS)[number];
 
 export interface CheckedDraft {
-  // Kept and removed claims, in draft order.
+  // Kept and removed claims: the code claims first, then the draft in its order.
   claims: Claim[];
   // Each claim's draft key, by claim id, for the details of later checks.
   keys: ReadonlyMap<string, string>;
@@ -53,6 +56,10 @@ export interface CheckedDraft {
   dropped: { key: string; reason: string }[];
   // For each check, the ids of the claims it removed.
   removedBy: Record<DeterministicCheck, string[]>;
+  // Inferences that named a premise not in the report: the ids of those premises_supported
+  // removed, and the draft keys of those dropped because none of their premises is in it. The
+  // run records both, so a report that shrinks for this is visible (SPEC.md decision log, T20).
+  unknownPremise: { removed: string[]; dropped: string[] };
   // The open questions kept, and those dropped for advice language.
   openQuestions: string[];
   droppedQuestions: string[];
@@ -187,7 +194,8 @@ function sourceChecks(draft: DraftClaim, seen: CheckContext['seen']): CheckResul
 function claimChecks(draft: DraftClaim, ctx: CheckContext): CheckResult[] {
   const checks = sourceChecks(draft, ctx.seen);
   const figures = draft.figures;
-  if (draft.type === 'metric' && figures.length > 0 && ctx.reaction) {
+  const readable = figures.every((figure) => !ctx.unread?.has(figure.symbol));
+  if (draft.type === 'metric' && figures.length > 0 && ctx.reaction && readable) {
     checks.push(result('numbers_match', numberFailures(draft.text, figures, ctx.reaction)));
   }
   const advice = containsAdvice(draft.text);
@@ -203,13 +211,23 @@ function claimSources(draft: DraftClaim, ctx: CheckContext) {
   return [...cited, { sourceId: ctx.marketSourceId, quote: null }];
 }
 
-export function checkDraft(draft: ReportDraft, ctx: CheckContext): CheckedDraft {
-  const idOf = new Map(draft.claims.map((c) => [c.key, ctx.newId()]));
+// The claims code wrote (core.ts) come first, then the model's, and every one goes through the
+// same checks. A model inference may name a code claim as its premise by key.
+export function checkDraft(
+  draft: ReportDraft,
+  ctx: CheckContext,
+  codeClaims: readonly DraftClaim[] = [],
+): CheckedDraft {
+  const all = [
+    ...codeClaims.map((c) => ({ ...c, origin: 'code' as const })),
+    ...draft.claims.map((c) => ({ ...c, origin: 'model' as const })),
+  ];
+  const idOf = new Map(all.map((c) => [c.key, ctx.newId()]));
   const dropped: CheckedDraft['dropped'] = [];
   const built = new Map<string, Claim>();
   const unknownPremises = new Map<string, string[]>();
 
-  for (const draftClaim of draft.claims) {
+  for (const draftClaim of all) {
     const checks = claimChecks(draftClaim, ctx);
     const known = draftClaim.premises.filter((k) => k !== draftClaim.key && idOf.has(k));
     if (draftClaim.type === 'inference') {
@@ -219,6 +237,7 @@ export function checkDraft(draft: ReportDraft, ctx: CheckContext): CheckedDraft 
     const candidate = Claim.safeParse({
       _id: idOf.get(draftClaim.key),
       reportId: ctx.reportId,
+      origin: draftClaim.origin,
       type: draftClaim.type,
       text: draftClaim.text,
       status: checks.every((c) => c.passed) ? 'unverified' : 'removed',
@@ -232,6 +251,15 @@ export function checkDraft(draft: ReportDraft, ctx: CheckContext): CheckedDraft 
     });
     if (candidate.success) {
       built.set(draftClaim.key, candidate.data);
+    } else if (
+      draftClaim.type === 'inference' &&
+      unknownPremises.has(draftClaim.key) &&
+      known.length === 0
+    ) {
+      dropped.push({
+        key: draftClaim.key,
+        reason: `none of its premises is in the report: ${draftClaim.premises.join(', ')}`,
+      });
     } else {
       dropped.push({
         key: draftClaim.key,
@@ -250,7 +278,7 @@ export function checkDraft(draft: ReportDraft, ctx: CheckContext): CheckedDraft 
         unknown.map((k) => `premise ${k} is not in the report`),
       );
   }
-  const draftByKey = new Map(draft.claims.map((c) => [c.key, c]));
+  const draftByKey = new Map(all.map((c) => [c.key, c]));
   const premisesOf = (key: string) =>
     (draftByKey.get(key)?.premises ?? []).filter((k) => idOf.has(k));
   for (let changed = true; changed;) {
@@ -316,6 +344,13 @@ export function checkDraft(draft: ReportDraft, ctx: CheckContext): CheckedDraft 
     claims,
     keys: new Map([...built.entries()].map(([key, claim]) => [claim._id, key])),
     dropped,
+    unknownPremise: {
+      removed: [...unknownPremises.keys()].flatMap((key) => {
+        const claim = built.get(key);
+        return claim ? [claim._id] : [];
+      }),
+      dropped: [...unknownPremises.keys()].filter((key) => !built.has(key)),
+    },
     removedBy,
     openQuestions,
     droppedQuestions,

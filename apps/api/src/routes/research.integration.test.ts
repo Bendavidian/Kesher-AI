@@ -120,10 +120,17 @@ describe('Investigate, GET /reports/:reportId and the run routes, on mongod', ()
   ];
   const useModel = (replies: ModelReply[], onCall?: (call: number) => Promise<void> | void) => {
     const gemini = mockModel(MODELS.research.model, replies, undefined, onCall);
-    // Groq answers only the verifier, which supports the one claim the checks kept.
+    // Groq answers only the verifier. It supports the claims the checks kept: for A, code's 10-K
+    // fact and price metric (k1, k2) and the model's fact (k3); B holds TSM, so only the metric
+    // and the model's fact.
     const groq = mockModel(MODELS.extraction.model, [
       JSON.stringify({
-        verdicts: [{ claim: 'k1', verdict: 'supported', priceCause: false, reason: 'stated' }],
+        verdicts: ['k1', 'k2', 'k3'].map((claim) => ({
+          claim,
+          verdict: 'supported',
+          priceCause: false,
+          reason: 'stated',
+        })),
       }),
     ]);
     research = createModelClient({
@@ -172,9 +179,13 @@ describe('Investigate, GET /reports/:reportId and the run routes, on mongod', ()
       socket.on(SOCKET_EVENTS.feedUpdate, (card: unknown) =>
         updates[key].push(FeedCard.parse(revive(card))),
       );
-      socket.on(SOCKET_EVENTS.runStep, (pushed: unknown) =>
-        stepPushes[key].push(RunStepPushed.parse(revive(pushed))),
-      );
+      // A step's input stays as sent, as the web decodes it: the Market data read step's event
+      // time is an ISO string, not a date.
+      socket.on(SOCKET_EVENTS.runStep, (pushed: { step: { input: unknown } }) => {
+        const revived = revive(pushed) as { step: { input: unknown } };
+        revived.step.input = pushed.step.input;
+        stepPushes[key].push(RunStepPushed.parse(revived));
+      });
       socket.on(SOCKET_EVENTS.runEnd, (ended: unknown) =>
         endPushes[key].push(RunEnded.parse(ended)),
       );
@@ -320,19 +331,33 @@ describe('Investigate, GET /reports/:reportId and the run routes, on mongod', ()
     expect(detail.card?.priceReaction).not.toBeNull();
     const kept = detail.claims.filter((c) => c.status !== 'removed');
     const removed = detail.claims.filter((c) => c.status === 'removed');
-    expect(kept.map((c) => c.text)).toEqual(['TSMC paused some production after the earthquake.']);
+    // Code writes the path's 10-K fact and the price metric from the seeded edge and the reaction.
+    expect(kept.map((c) => [c.origin, c.type, c.status, c.text])).toEqual([
+      ['code', 'fact', 'supported', "TSMC supplies NVIDIA, according to NVIDIA's 10-K."],
+      [
+        'code',
+        'metric',
+        'supported',
+        'TSM opened −1.16% below its previous close and NVDA opened −1.07% below its previous close; SMH −1.00%, SPY −0.22%.',
+      ],
+      ['model', 'fact', 'supported', 'TSMC paused some production after the earthquake.'],
+    ]);
+    expect(kept[0]?.checks).toContainEqual({ name: 'quote_verbatim', passed: true, detail: null });
+    expect(kept[1]?.checks).toContainEqual({ name: 'numbers_match', passed: true, detail: null });
+    expect(detail.report.omitted).toEqual([]);
     expect(removed.map((c) => c.text)).toEqual(['Every TSMC fab was destroyed.']);
-    for (const claim of kept.filter((c) => c.type === 'fact')) {
+    for (const claim of kept.filter((c) => c.type === 'fact' && c.origin === 'model')) {
       expect(claim.sources.length).toBeGreaterThan(0);
       for (const cited of claim.sources) {
         const source = await collection(mongo.db, 'sources').findOne({ _id: cited.sourceId });
-        expect(normalizeText(source!.text!)).toContain(normalizeText(cited.quote));
+        expect(normalizeText(source!.text!)).toContain(normalizeText(cited.quote ?? ''));
       }
       expect(claim.checks).toContainEqual(
         expect.objectContaining({ name: 'quote_verbatim', passed: true }),
       );
     }
-    expect(detail.sources).toEqual([
+    expect(detail.sources.map((source) => source.kind)).toEqual(['filing', 'market_data', 'news']);
+    expect(detail.sources.slice(2)).toEqual([
       {
         _id: demo._id,
         kind: 'news',
@@ -479,7 +504,12 @@ describe('Investigate, GET /reports/:reportId and the run routes, on mongod', ()
     expect(getEvent?.output).toContain(eventId);
     expect(detail.run.steps.some((s) => s.name === 'Run token issued')).toBe(true);
     expect(detail.reportId).toBe(research.reportId);
-    expect(detail.claims.map((c) => c.status).sort()).toEqual(['removed', 'supported']);
+    expect(detail.claims.map((c) => c.status).sort()).toEqual([
+      'removed',
+      'supported',
+      'supported',
+      'supported',
+    ]);
     expect(detail.eventSymbol).toBe('TSM');
     // The verifier's model steps bring their own limits.
     expect(detail.limits).toEqual([

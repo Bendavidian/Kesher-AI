@@ -44,7 +44,13 @@ export const ResearchRecording = z.strictObject({
   mode: z.enum(['auto', 'deep']),
   provider: LlmProvider,
   model: z.string().min(1),
-  ids: z.strictObject({ eventId: Id, sourceIds: z.array(Id).min(1) }),
+  ids: z.strictObject({
+    eventId: Id,
+    sourceIds: z.array(Id).min(1),
+    // Each hop of the persona's path: its edge and the filing its evidence quotes, so the code
+    // fact resolves in a replay. Missing in recordings made before T20.
+    path: z.array(z.strictObject({ relationshipId: Id, filingSourceId: Id })).optional(),
+  }),
   turns: z.array(RecordedTurn).min(1),
   // The verifier's calls after the report, in order. Missing in recordings made before T14.
   verifier: z.array(RecordedVerifierCall).optional(),

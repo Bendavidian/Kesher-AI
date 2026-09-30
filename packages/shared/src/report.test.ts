@@ -37,6 +37,7 @@ const run = {
 const claim = {
   _id: id(5),
   reportId: id(6),
+  origin: 'model',
   type: 'fact',
   text: 'TSMC paused some production.',
   status: 'unverified',
@@ -52,6 +53,7 @@ const detail = {
     runId: id(2),
     sections: [{ title: 'Claims', claimIds: [id(5)] }],
     openQuestions: [],
+    omitted: [],
     createdAt: at,
   },
   claims: [claim],

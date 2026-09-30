@@ -1,4 +1,12 @@
-import type { AgentRun, CheckName, Claim, ClaimStatus, PriceAnchor, Report } from '@kesher/shared';
+import type {
+  AgentRun,
+  CheckName,
+  Claim,
+  ClaimStatus,
+  CodeClaimOmission,
+  PriceAnchor,
+  Report,
+} from '@kesher/shared';
 import { formatDay, joinList } from './format';
 import { MODE_LABEL, toolCallsLabel } from './run';
 import type { ReportSourceView } from './types';
@@ -189,6 +197,17 @@ function hiddenNotes(hidden: Map<string, HiddenReason>): string[] {
   });
 }
 
+// A claim code writes in every report and left out of this one (Report.omitted, T20). Neutral,
+// like a hidden claim: nothing was removed.
+function omittedNote(omission: CodeClaimOmission): string {
+  if (omission.kind === 'path_fact') {
+    return "The filing quote for a link on your path couldn't be read, so it is not shown";
+  }
+  return omission.reason === 'not_ready'
+    ? "The price reaction wasn't available yet, so no price metric is shown"
+    : "The market data couldn't be read, so no price metric is shown";
+}
+
 // anchor is the event's price reaction anchor from the card, for the metric evidence line.
 export function buildReportView(
   report: Report,
@@ -244,7 +263,7 @@ export function buildReportView(
     openQuestions: report.openQuestions,
     removedReasons: [...removed.values()],
     removedClaimIds: [...removed.keys()],
-    hiddenNotes: hiddenNotes(hidden),
+    hiddenNotes: [...hiddenNotes(hidden), ...report.omitted.map(omittedNote)],
     sources: [...sourceNumber].flatMap(([id, number]) => {
       const source = sources.get(id);
       return source ? [{ ...source, number }] : [];

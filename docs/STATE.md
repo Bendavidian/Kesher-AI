@@ -1,9 +1,25 @@
 # State
 
-Updated: 30 Sep 2026, T16 part 1 done, merged with main after T13 part 2, T14 and T21
+Updated: 30 Sep 2026, T20 done, merged with main after T16 part 1
 
 ## Where we are
-T00 to T14 and T21 are done; T16 part 1 is done and T16 stays [~] until part 2. The T16 branch has merged main after T13 part 2, T14 and T21; PR 21 is open.
+T00 to T14, T20 and T21 are done; T16 part 1 is done and T16 stays [~] until part 2. T20, the deterministic report core, has merged main after T16 part 1, so point 5 of the MVP definition of done now holds in every report the model completes.
+
+T20 made the 10-K fact and the price metric code claims in every report (SPEC.md decision log, T20):
+- Before the model's first turn, code reads the price reaction for the path's event company and holding (Market data read) and writes, in a code step Code claims (CODE_CLAIMS_STEP):
+  - e1 and e2, a fact per hop: the edge's reviewed evidence quote, citing its filing Source, text from pathFactText ("TSMC supplies NVIDIA, according to NVIDIA's 10-K."). FACT_VERB says "is a customer of" for customer_of, since HOP_VERB's "buys from" is advice language to no_advice. A direct holding gets no fact.
+  - m1, a metric from priceMetricFor: the reaction's first window (open gap, or 15 minutes after a headline inside the session) for the subjects, SMH and SPY, with figures, citing the market_data Source ("TSM opened −1.16% below its previous close and NVDA opened −1.07% below its previous close; SMH −1.00%, SPY −0.22%.").
+  - Templates in packages/shared/src/reportCore.ts; the api side in apps/api/src/research/core.ts, which loads the evidence with the card's loader (assembleParts).
+- Code claims come first, carry origin code (model claims origin model), and go through checkDraft and the verifier like the model's. The filing's text for them is their own evidence quote, so sources_exist and quote_verbatim pass by construction; the T11 review and the verifier are their real checks.
+- The brief lists the code claims by key, type and text (never the filing quote); the model's inferences may name e1, e2 and m1 as premises.
+- A claim code cannot write is left out with its reason in Report.omitted (path_fact no_evidence, price_metric not_ready or unavailable); the report screen shows one neutral line per omission (docs/UI.md) and the run still succeeds.
+- After the report, only symbols a model metric names beyond the first read are read again; their rows join the first read, and if that read fails, metrics naming them stay unverified. One market_data Source for every metric.
+- A draft premise is any string up to 64 characters: a real run put source ids in premises and the schema threw the whole report away, code claims included. checkDraft ignores a fact's premises, removes an inference with an unknown premise and drops one with none known; the premises_supported step records unknownPremise counts. The brief says premises name claim keys, never source ids.
+- `npm run seed` backfills Claim.origin (model) and Report.omitted ([]) through backfillReportCore. On Atlas it set 83 claims and 22 reports, then 6 claims and 2 reports more that a session on older code wrote during the proof.
+- ResearchRecording.ids.path records the path's edge and filing ids; research:dev merges every reaction read into the recording.
+- Proof on Atlas, persona A, TSMC card: three real Investigate runs in a row, each with the 10-K fact and the metric supported (the first series had failed on run 3 with source ids in premises, which led to the premise change). A fourth run through `npm run research:dev -- --record --force` is recorded (7 of 7 claims supported) and replayed in replay.integration.test.ts with the edge, the 10-K and a filing chunk under the recorded ids. Report and run screens checked at 1440px and 1279px.
+- The reviewer found one blocker (customer_of rendered as "buys from") and two majors (a second market read that could discard or contradict the first), all fixed, and nothing more on the premise and recording changes.
+- 940 tests green, 1 skipped, on T20 alone; 1,003 green, 1 skipped after merging main with T16 part 1.
 
 T16 part 1 measures the pipeline (docs/EVALS.md; SPEC.md decision log, T16):
 - Eval set in data/evals:
@@ -315,14 +331,16 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. Check that CI passes on Ubuntu and Windows for PR 21 "T16: evals part 1 and structural relevance bands", then merge it. Keep LIVE_INGEST false on both machines until T18 or T19.
-2. On each machine, once:
+1. Check that CI passes on Ubuntu and Windows for PR 23 "T20: deterministic report core", then merge it. Keep LIVE_INGEST false on both machines until T18 or T19.
+2. Any database a session on older code writes to needs `npm run seed` again after this merge, or its claims and reports fail the strict schema (origin, omitted). Atlas is repaired as of 30 Sep 2026.
+3. On each machine, once:
    - `npm run record:bars -- --event 38062166 --symbols TSM,NVDA` fills the gitignored bar cache for the demo card and the local SPIKE.md test.
    - The api loads the local embedding model at startup (about 90 MB into .cache/models, downloaded once); `npm run embed:events` embeds events stored before. `npm run eval` needs the same cache for its retrieval part.
-   - `npm run seed` creates sources_text only where fewer than 3 search indexes exist; Atlas already has it.
-3. Pick the next task from BACKLOG.md:
+4. Pick the next task from BACKLOG.md:
+   - T22, a database per session: in T20 a parallel session's reset of the demo event on the shared Atlas database removed persona A's card mid-proof and wrote documents in the old schema.
    - T16 part 2 (notes under T16):
      - the verifier catch rate on the T14 planted fixture;
+     - claims reported by origin, and how often the model restates the code metric (notes from T20);
      - retrieval on the hybrid search;
      - injection on research;
      - the research budgets (32,000 and 16,000), the gate and FLAG_THRESHOLD;
@@ -330,9 +348,8 @@ Seed quotes and Source.text use the same normalization, and the T08 and T14 quot
      - 3 to 5 items with passing mentions to measure tagged-only start nodes;
      - the feed order (recency, or band then relevance), a GET /feed contract change;
      - the README numbers.
-   - T20, the deterministic report core, so point 5 of the MVP definition of done holds in every run.
    - T19, live ingestion hardening, before LIVE_INGEST runs all day.
-4. On the Windows laptop:
+5. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
    - The first npm run test downloads mongod 8.0.32, about 100 MB. The eval integration test starts mongod twice more.
@@ -351,6 +368,7 @@ The UI language is settled by docs/UI.md: English interface, with Hebrew summari
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 30 Sep 2026, macOS (Mac mini), T20: code writes the path's 10-K fact (e1, e2) and the price metric (m1) in every report from shared templates, before the model's first turn, listed in the brief; Claim.origin and Report.omitted with a seed backfill and a neutral report line per omission; FACT_VERB so customer_of passes no_advice; one reaction read for the path, missing symbols merged or left unverified; draft premises relaxed after a real run lost its report to source ids in premises, with unknownPremise counts in the run; three real Investigate runs in a row with both code claims supported, a fourth recorded and replayed; Atlas repaired after a parallel session's reset; T22 added and a T16 note; reviewer's blocker and majors fixed; merged main after T16 part 1; 1,003 tests green, 1 skipped; T20 done.
 - 30 Sep 2026, macOS (Mac mini), T16 part 1: T16 split in two; eval set of 30 recorded Alpaca items with 90 labels reviewed by the user (labeling CLI that hides the proposal; two rushed labelings reset), 5 synthetic poisoned items and 11 judged retrieval queries; npm run eval replays everything in a fresh kesher_eval on a local mongod from recordings and writes docs/EVALS.md, CI runs the same; recorders keep latency, record refusals and write formatted JSON; results under the decided bands: relevance 78 of 90, injection 2 of 5 (1 of 5 with the screen), screen 2 of 5 flagged and 0 false flags, tagged-only start nodes equal on clean items, retrieval precision at 3 70% and recall 46%; display bands decided and applied (high only for a direct holding, medium above 0); part 2 notes on materiality, passing mentions and feed order; T21 marked done from PR 19; reviewer ran on every api, shared and merge commit; merged main after T13 part 2, T14 and T21; 968 tests green; PR 21 open; T16 stays [~].
 - 29 Sep 2026, macOS (Mac mini), T13 part 2: agent tool sets with the verifier empty; get_my_portfolio, get_company_relationships, search_filings, get_financial_facts from recorded SEC XBRL, hybrid search_news with the sources_text index and rank fusion; event embeddings at extraction with a backfill; 8 KB tool output cap; filing quotes checked against the text tools returned; budgets 32,000 and 16,000; sample_mflix dropped on Atlas to free the third search index; seven real runs proved the 10-K fact and the price metric in separate reports (T20 makes them code claims); merged main after T10 and T14 with T14's market_data writer kept; T20 and T21 added; 902 tests green, 1 skipped; T13 done.
 - 29 Sep 2026, macOS (Mac mini), T14: deterministic checks sources_exist, quote_verbatim, numbers_match against the price reaction code reads at the event time (with the rounding rule for text), no_advice and premises_supported with cycles; a tool-less verifier on Groq with its own 6,000 token cap that sees claims and sources only, and a priceCause classification that code uses to remove any claim tying the event to a price move as a cause (principle 7, inferences included); research token adds get_price_reaction, metrics carry figures and cite a market_data Source; planted fixture caught 17 of 17 with the real verifier; report shows supported claims only, skipped runs labeled, /runs opens the newest run not skipped; seed backfill; reviewer found no blockers, its major point fixed; merged main after T10 and T11; 832 tests green, 5 skipped; T14 done.
