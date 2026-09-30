@@ -208,10 +208,11 @@ describe('Research report screen', () => {
   });
 
   it('never shows the removed block for a report with no removed claims', async () => {
-    // As T08 stores them: facts unverified until T14, an inference waiting on them.
-    const claims = DEMO_CLAIMS.filter((claim) => claim.status !== 'removed').map((claim) =>
-      claim.type === 'inference' ? claim : { ...claim, status: 'unverified' as const },
-    );
+    // As when the verifier call failed: nothing removed, nothing supported.
+    const claims = DEMO_CLAIMS.filter((claim) => claim.status !== 'removed').map((claim) => ({
+      ...claim,
+      status: 'unverified' as const,
+    }));
     const { deps } = fakeDeps(() => Promise.resolve({ ...DEMO_REPORT_DETAIL, claims }));
     renderAt(reportPath(DEMO_REPORT._id), deps);
     await screen.findByRole('heading', { level: 1, name: 'Research report' });
@@ -221,11 +222,15 @@ describe('Research report screen', () => {
     const chips = screen.getByRole('list', { name: 'Report summary' });
     expect(within(chips).getByText('0 removed')).toBeTruthy();
     const bar = screen.getByRole('img', {
-      name: '0 claims supported, 4 not checked yet, 0 removed',
+      name: '0 claims supported, 4 not verified, 0 removed',
     });
     expect(Array.from(bar.children).some((s) => s.className.includes('bg-down'))).toBe(false);
-    const hidden = screen.getByRole('list', { name: 'Claims not shown yet' });
-    expect(hidden.textContent).toBe('1 inference waits for verification.');
+    // Only supported claims are shown; the rest get a neutral line.
+    expect(within(screen.getByRole('list', { name: 'Claims' })).queryAllByRole('listitem')).toEqual(
+      [],
+    );
+    const hidden = screen.getByRole('list', { name: 'Claims not shown' });
+    expect(hidden.textContent).toBe('4 claims were not verified, so they are not shown.');
     for (const color of ['text-down', 'bg-down-tint'])
       expect(hidden.className).not.toContain(color);
   });

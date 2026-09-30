@@ -228,6 +228,7 @@ describe('AgentRun', () => {
     tokenBudget: 6000,
     steps: [step],
     tokensUsed: 0,
+    verification: null,
     costUsd: 0,
     status: 'running',
     failureReason: null,
@@ -296,14 +297,44 @@ describe('Claim', () => {
   it('lets a metric cite market data without a quote', () => {
     const marketData = { sourceId: id(8), quote: null };
     expect(
-      Claim.safeParse({ ...base, type: 'metric', sources: [marketData], premises: [] }).success,
+      Claim.safeParse({
+        ...base,
+        type: 'metric',
+        sources: [marketData],
+        premises: [],
+        figures: [{ symbol: 'NVDA', window: 'open_gap', pct: -1.07 }],
+      }).success,
     ).toBe(true);
+  });
+
+  it('keeps figures to price moves of known symbols and windows, a full table at most', () => {
+    const metric = (figures: unknown[]) =>
+      Claim.safeParse({
+        ...base,
+        type: 'metric',
+        sources: [{ sourceId: id(8), quote: null }],
+        premises: [],
+        figures,
+      }).success;
+    const figure = { symbol: 'NVDA', window: 'open_gap', pct: -1.07 };
+    expect(metric([])).toBe(true);
+    expect(metric(Array<unknown>(12).fill(figure))).toBe(true);
+    expect(metric(Array<unknown>(13).fill(figure))).toBe(false);
+    expect(metric([{ ...figure, symbol: 'TSLA' }])).toBe(false);
+    expect(metric([{ ...figure, window: '1d' }])).toBe(false);
+    // Only a metric has figures.
+    expect(
+      Claim.safeParse({ ...base, type: 'fact', sources: [quoted], premises: [], figures: [figure] })
+        .success,
+    ).toBe(false);
   });
 
   it('accepts only the check names defined in shared', () => {
     const checks = [{ name: 'quote_verbatim', passed: true, detail: null }];
     const fact = { ...base, type: 'fact', sources: [quoted], premises: [] };
     expect(Claim.safeParse({ ...fact, checks }).success).toBe(true);
+    const advice = [{ name: 'no_advice', passed: false, detail: 'buy, sell or hold language' }];
+    expect(Claim.safeParse({ ...fact, checks: advice }).success).toBe(true);
     const unknown = [{ name: 'looks_right', passed: true, detail: null }];
     expect(Claim.safeParse({ ...fact, checks: unknown }).success).toBe(false);
   });

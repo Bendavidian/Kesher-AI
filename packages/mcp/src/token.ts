@@ -1,9 +1,17 @@
-import { AgentName, Id, MIN_SECRET_LENGTH, TOOL_NAMES, ToolName } from '@kesher/shared';
+import {
+  AGENT_TOOLS,
+  AgentName,
+  Id,
+  MIN_SECRET_LENGTH,
+  TOOL_NAMES,
+  ToolName,
+  toolsAllowed,
+} from '@kesher/shared';
 import { SignJWT, jwtVerify } from 'jose';
 import { z } from 'zod';
 
 // The tool names live in packages/shared, so the web can name a token's scope.
-export { TOOL_NAMES, ToolName };
+export { AGENT_TOOLS, TOOL_NAMES, ToolName };
 
 // Fixed by the contract; callers cannot choose a longer lifetime.
 export const RUN_TOKEN_TTL_SECONDS = 300;
@@ -20,14 +28,22 @@ export const RunTokenClaims = z
   })
   .refine((claims) => claims.exp - claims.iat === RUN_TOKEN_TTL_SECONDS, {
     error: 'a run token lives exactly 5 minutes',
+  })
+  .refine((claims) => toolsAllowed(claims.agent, claims.tools), {
+    error: "a run token lists only tools from its agent's set",
   });
 export type RunTokenClaims = z.infer<typeof RunTokenClaims>;
 
-const MintInput = z.strictObject({
-  userId: Id,
-  agent: AgentName,
-  tools: z.array(ToolName).min(1),
-});
+// An agent with an empty tool set, the verifier, never gets a token.
+const MintInput = z
+  .strictObject({
+    userId: Id,
+    agent: AgentName,
+    tools: z.array(ToolName).min(1),
+  })
+  .refine((input) => toolsAllowed(input.agent, input.tools), {
+    error: "a run token lists only tools from its agent's set",
+  });
 export type MintInput = z.infer<typeof MintInput>;
 
 // One message for every failure, so a caller learns nothing about why and the token is never echoed.

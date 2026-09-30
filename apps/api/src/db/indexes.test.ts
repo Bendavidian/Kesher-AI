@@ -30,11 +30,13 @@ describe('indexes', () => {
   });
 });
 
-describe('vector search indexes', () => {
+const vectorIndexes = () => SEARCH_INDEXES.filter((s) => s.index.type === 'vectorSearch');
+
+describe('search indexes', () => {
   it('index event and filing chunk embeddings at 384 dimensions, cosine', () => {
-    expect(SEARCH_INDEXES.map((s) => s.collection)).toEqual(['market_events', 'filing_chunks']);
-    for (const { index } of SEARCH_INDEXES) {
-      expect(index.type).toBe('vectorSearch');
+    expect(vectorIndexes().map((s) => s.collection)).toEqual(['market_events', 'filing_chunks']);
+    for (const { index } of vectorIndexes()) {
+      if (index.type !== 'vectorSearch') continue;
       expect(index.definition.fields).toContainEqual({
         type: 'vector',
         path: 'embedding',
@@ -46,10 +48,28 @@ describe('vector search indexes', () => {
 
   it('lets filing search filter by symbol', () => {
     const filings = SEARCH_INDEXES.find((s) => s.collection === 'filing_chunks');
-    expect(filings?.index.definition.fields).toContainEqual({ type: 'filter', path: 'symbol' });
+    expect(
+      filings?.index.type === 'vectorSearch' && filings.index.definition.fields,
+    ).toContainEqual({ type: 'filter', path: 'symbol' });
   });
 
-  it('uses 2 of the 3 search indexes of the Atlas free tier, leaving one for T13', () => {
-    expect(SEARCH_INDEXES).toHaveLength(2);
+  it('indexes the text of sources with the fields search_news filters on', () => {
+    const text = SEARCH_INDEXES.find((s) => s.index.name === 'sources_text');
+    expect(text?.collection).toBe('sources');
+    expect(text?.index.type).toBe('search');
+    expect(text?.index.type === 'search' && text.index.definition.mappings).toEqual({
+      dynamic: false,
+      fields: {
+        title: { type: 'string' },
+        text: { type: 'string' },
+        kind: { type: 'token' },
+        symbols: { type: 'token' },
+        publishedAt: { type: 'date' },
+      },
+    });
+  });
+
+  it('uses all 3 search indexes of the Atlas free tier and no more', () => {
+    expect(SEARCH_INDEXES).toHaveLength(3);
   });
 });

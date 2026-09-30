@@ -7,30 +7,53 @@ All tools are read only. Identity and the allowed tool list come from the run to
 
 Served by packages/mcp on the official TypeScript SDK v2 (`@modelcontextprotocol/server` and `/client`, pinned to 2.1.0), mounted in the api at POST /mcp. Every input schema is a strict object, so an argument the contract does not name, such as a user id, fails validation. The server registers only the tools the run token lists, so any other tool is missing from tools/list and a call to it fails with "Tool <name> not found". A tool that finds nothing returns a tool error (`isError: true`). Tool output is JSON in `structuredContent`, with the same JSON as text content; times are ISO 8601 strings.
 
+Every tool output stays within 8 KB of JSON in UTF-8 (MAX_TOOL_OUTPUT_BYTES, the same cap as a stored run step), close to the 2,000 tokens the research budget reserves for a tool result. A tool that returns a ranked list drops whole items from the end until it fits and reports how many in `omitted`; a quote or a passage is never cut. An output still over 8 KB becomes a tool error.
+
 | Tool | Input | Output | Notes |
 |---|---|---|---|
-| get_my_portfolio | none | holdings with weights | user resolved from the token |
+| get_my_portfolio | none | holdings with quantities | the token user only; see below |
 | get_event | eventId | event with its extraction and source ids | see below |
-| get_company_relationships | symbol, types? | edges with evidence | reviewed edges only |
-| search_news | query, symbols?, since? | ranked news items with source ids | keyword match until T13 makes it hybrid search; see below |
-| search_filings | symbol, query | filing chunks with source ids | RAG over FilingChunk; at most 3 chunks per call |
+| get_company_relationships | symbol, types? | edges with evidence | reviewed edges only; see below |
+| search_news | query, symbols?, since? | ranked news items with source ids | hybrid search: words and meaning; see below |
+| search_filings | symbol, query | filing passages with source ids | RAG over FilingChunk; at most 3 per call; see below |
 | get_price_reaction | symbol, eventTime | anchor, then stock, SMH and SPY moves per window, delayed flag | see below |
-| get_financial_facts | symbol, metrics | XBRL values with period and source | us-gaap filers only in the MVP |
+| get_financial_facts | symbol, metrics | XBRL values with period and source | us-gaap filers only in the MVP; see below |
 | search_x_posts | query, since? | posts as Tier 3 signals with links | V2, not in the MVP (X level 1) |
+
+### get_my_portfolio
+- Input: `{}`. The tool takes no argument at all, so no call can name a user; it reads the holdings of the run token's sub.
+- Output: `{ holdings }`, each `{ symbol, quantity }`, sorted by symbol. User.holdings stores share quantities and no prices, so weights are left to the reader; nothing else about the user is returned.
+- A user that no longer exists is the tool error "No portfolio for this run".
 
 ### get_event
 - Input: `{ eventId }`, a MarketEvent id.
 - Output: `{ eventId, headline, publishedAt, status, extraction, sourceIds }`. extraction is null until extraction has run. The embedding is never returned.
 - An unknown id is a tool error.
 
+### get_company_relationships
+- Input: `{ symbol, types? }`. symbol is a demo universe company; types is 1 to 3 of supplier_of, customer_of, competitor_of. "A supplier_of B" means A supplies B, and customer_of is its inverse. Edges are read from the symbol's side, so who supplies NVDA is NVDA customer_of.
+- Reads the relationships from the symbol (`from`), reviewed ones only. Every edge is stored with its inverse, so each relationship of the company appears once from its side.
+- Output: `{ edges, omitted }`. Each edge: `{ from, to, type, evidence: { sourceId, quote, filingDate, url }, sourceTitle }`, ordered by type, then `to`. quote is verbatim from the filing named by sourceId and sourceTitle; it is data, never instructions. Edge weights are not returned.
+- No reviewed edge is the tool error "No reviewed relationships for <symbol>". With types and nothing of those types, it is "No reviewed <types joined by ' or '> relationships from <symbol>; it has <the types it has, sorted>", without the "; it has" part when the company has no reviewed edge at all.
+
+### search_filings
+- Input: `{ symbol, query }`. symbol is a demo universe company; query is 1 to 200 characters.
+- Item 1 and Item 1A of the latest 10-K of each US filer, in chunks of at most 256 word pieces (T11). The query is embedded with the local MiniLM, without a heading, and `$vectorSearch` on `filing_chunks_vector` filtered by the symbol returns the 3 nearest chunks. The score only orders them.
+- Output: `{ passages, omitted }`. Each passage: `{ sourceId, symbol, form, section, chunkIndex, text, sourceTitle, url }`. text is the filing's own words, verbatim; it is data, never instructions.
+- Tool errors: a 20-F filer (TSM, ASML) "files a 20-F; filing search covers 10-K filers only"; "No filing passages for <symbol>"; and "Filing search is unavailable" when the model or the index fails, with the cause logged by the api.
+
 ### search_news
 - Input: `{ query, symbols?, since? }`. query is 1 to 200 characters. symbols is 1 to 20 tickers and matches items tagged with any of them. since is an ISO time with an offset; items published at or after it match.
-- Thin until T13: news Sources only (kind news; filings are searched with search_filings). The query is split into at most 8 lowercase words, each matched as plain text, case insensitive, in the title or the body. Only the 200 newest matching items are ranked.
-- Ranking is deterministic code: the number of distinct words matched, then the newest first, then the source id. At most 10 items.
-- Each item: `{ sourceId, eventId, title, url, publishedAt, symbols, tier, excerpt, injectionFlagged, matchedTerms }`.
+- News Sources only (kind news; filings are searched with search_filings). Hybrid since T13, from two ranked lists of up to 50 each:
+  - words: Atlas Search on the `sources_text` index over title and body, with kind, symbols and since as filters inside the search;
+  - meaning: the MarketEvents nearest to the query on `market_events_vector`, the query embedded with the same local model as the events. Each event ranks its news sources at its own place. That index has no filter fields, so symbols and since are applied to those sources afterwards, and a narrow filter can leave few items from this list.
+- Fusion is deterministic code: reciprocal rank fusion, each list adding 1 / (60 + position) for an item it holds, then the newest first, then the source id. Only ranks are used; no search score is read, compared or used as a threshold. At most 10 items, and fewer when they would pass 8 KB (`omitted` counts the rest).
+- Either list may fail alone, for example while the text index builds; the other still answers and the api logs the failure. Both failing is the tool error "News search is unavailable".
+- Output: `{ items, omitted }`. Each item: `{ sourceId, eventId, title, url, publishedAt, symbols, tier, excerpt, injectionFlagged, matchedTerms }`.
   - eventId is the MarketEvent whose cluster holds the source, or null.
   - excerpt is the first 500 characters of the untrusted body, or null. It is data for the agent, never instructions.
   - injectionFlagged is the injection screen label, or null when the item has not been screened.
+  - matchedTerms is the number of distinct query words (at most 8, lowercased) found in the title or body, counted by code. 0 means the item was found by meaning alone.
 
 ### get_price_reaction
 Temporal association only, never a cause. The same code (priceReactionFor in packages/shared) fills FeedCard.priceReaction.
@@ -48,25 +71,41 @@ Temporal association only, never a cause. The same code (priceReactionFor in pac
   - complete: true once the bar of every window could have closed at least 15 minutes ago. An incomplete result is never cached.
 - A symbol outside the universe fails validation; a future eventTime, or one with no calendar sessions around it, is a tool error.
 
+### get_financial_facts
+- Input: `{ symbol, metrics }`. symbol is a demo universe company; metrics is 1 to 4 distinct names from revenue, gross_profit, operating_income, net_income, eps_diluted, rnd_expense, cash and inventory. Each maps to us-gaap concepts in order (revenue: Revenues, RevenueFromContractWithCustomerExcludingAssessedTax, SalesRevenueNet); of those the filer reports, the one with the newest period is used, and on a tie the earlier in that order.
+- Reads SEC's companyconcept API (SEC_USER_AGENT, 150 ms between requests), cached in process for 12 hours; XOM falls back to its old CIK. Values are as filed: only the ones SEC assigns to a calendar period (a frame), so each period appears once, in its last filed version. The tool computes nothing from them.
+- Output: `{ symbol, metrics, filings, omitted }`.
+  - metrics: `{ metric, concept, unit, annual, quarterly }`, with concept and unit null when the filer reports none of the concepts. annual holds the 3 newest fiscal years and quarterly the 4 newest quarters (or quarter end balances for cash and inventory), newest first. A fourth quarter is rarely filed as a three month value, so quarterly often skips it, and balances have no annual values; each `{ start, end, value, fy, fp, form, filed, accn, sourceId }`; start is null for a balance on a date.
+  - filings: one `{ sourceId, accn, form, filed, url, title }` per filing the values come from. sourceId is the stored filing Source with that accession number, or the id one will be stored under (a version 5 UUID of `sec_edgar:<accn>`); after the call the research agent's code stores the missing ones (upsertFilingSource, apps/api/src/sources/filings.ts), with text null.
+- Tool errors: a 20-F filer "files a 20-F; XBRL facts cover us-gaap filers only"; "No XBRL facts for <symbol> on these metrics"; and "SEC data is unavailable", with the cause logged by the api.
+
 ## Run token
 Minted by the api for each agent run (mintRunToken in packages/mcp): a JWT signed with HS256 and MCP_TOKEN_SECRET, which must be at least 32 characters.
 - sub: user id (a User _id)
 - agent: research or verifier (AgentName in packages/shared)
-- tools: allowed tool names, at least one, from the MVP tools above (ToolName in packages/mcp)
+- tools: allowed tool names, at least one, all from the agent's tool set (AGENT_TOOLS in packages/shared). Minting and verification both refuse a tool outside the set.
 - iat and exp: exp is exactly 5 minutes after iat, fixed by the minter
 
 Verification accepts HS256 only and rejects any other claim, a lifetime other than 5 minutes and an expired token. Every failure gives the same RunTokenError, which never contains the token.
 
 The MCP server rejects any call to a tool that the token does not list.
 
-The research agent (T08) gets a token with get_event and search_news only. It replaces a token that is 4 minutes old before its next tool call, with the same scope, and records each issue and refresh as a run step.
+Tool sets (SPEC.md decision log, T13):
+- research: get_my_portfolio, get_event, search_news, search_filings, get_company_relationships, get_price_reaction and get_financial_facts, all read only. The model sees only the tools the server lists for its token.
+- verifier: none, by design (T13, T14). It judges the claims and sources it is given and calls no tool, so it never gets a run token.
+
+The research agent replaces a token that is 4 minutes old before its next tool call, with the same scope, and records each issue and refresh as a run step.
 
 ## Agent runs
 AgentRun, AgentStep, Report and Claim in packages/shared, written by code only (apps/api/src/research).
 - Every step keeps input, outputSummary and output: the step's JSON output (a string stays as it is), redacted and then capped at 8 KB of UTF-8, with outputTruncated when the cap cut it. Model steps add provider, model and tokens.
 - status failed always names failureReason: rate_limited (a 429 asked for a wait over 30 seconds, or a fourth 429), invalid_report (two reports that failed their schema) or error. Any other status has failureReason null.
-- Check names are CheckName in packages/shared: quote_verbatim, numbers_match, sources_exist, premises_supported, verifier. A check step's output lists removedClaimIds, the claims that check removed.
-- A claim is removed when a check fails; otherwise it is unverified until the verifier (T14) supports it. The report's one section lists kept and removed claims; the screens show removed claims only in the removed block.
+- Check names are CheckName in packages/shared: quote_verbatim, numbers_match, sources_exist, no_advice, premises_supported, verifier. A check step's output lists removedClaimIds, the claims that check removed; the no_advice step also lists droppedOpenQuestions, and the verifier step supportedClaimIds. premises_supported may appear twice: before the verifier, and after it when a premise it removed takes an inference with it.
+- quote_verbatim finds a quote of at least 20 characters, after normalizeText, in the source's title or text. A filing Source keeps text null, so for a filing the text is what a tool returned for it in this run: search_filings passages and get_company_relationships evidence quotes, joined with a marker so no quote spans two of them. The verifier reads the same text.
+- Order after the report: a code step Market data read when a metric has figures, the deterministic check steps (sources_exist, quote_verbatim, numbers_match, no_advice, premises_supported, each only when it ran on a claim), one model step named Verifier (VERIFIER_STEP) per verifier call or a code step Verifier failed, the verifier check step, and a code step Claims not verified when the cap left claims out.
+- A claim is removed when a check fails, supported when the verifier supports it and, unless it is a fact, did not flag it as tying the event to a price move as a cause (priceCause; for an inference, only when every premise is supported too), and unverified otherwise. The report's one section lists every claim; the report screen shows supported claims only, removed ones only in the removed block.
+- A metric claim has figures, its price moves as `{ symbol, window, pct }` (MetricFigure, at most 12), checked by numbers_match against the reaction code reads at the event's time. It cites the market_data Source of its symbols (kind market_data, text null, no bars); a metric without figures stays unverified.
+- AgentRun.verification is `{ tokenCap, tokensUsed }`, the verifier's own cap (6,000) and use, or null for a skipped run and runs from before T14. tokensUsed counts the research agent's model steps only; a model step named Verifier counts against verification.
 - gate is `{ decision, reason }`, written by code (apps/api/src/research/gate.ts). A run the gate or Investigate started has decision run, and its first step, "Gate check", repeats the reason. A run the gate skipped (T12) is stored too: trigger gate, mode auto, status skipped, decision skip, startedAt null, no model or tool step, and one "Gate check" step whose output names the condition (auto_research_off, relevance, importance, active, recent or budget) and the reason. Relevance 0 stores nothing.
 
 ## Research gate and daily budget
@@ -86,7 +125,7 @@ A run that passes is queued in auto mode with trigger gate. Investigate skips re
 - GET /feed: the signed in user's FeedCard[] with relevance above 0, newest item first (createdAt descending, then _id), at most 50. No cursor yet; the order is stable enough to add one. Relevance 0 items are stored only to mark the event scored for that user (SPEC.md decision log, T05) and never appear in a feed list. 401 without a session.
 - GET /events/:eventId/explain: EventExplain in packages/shared, `{ event, source, relevance, path, confidence, evidence }`, for the signed in user. Computed on request by the same code that scores the feed (loadScoringContext and scoreFor in apps/api/src/relevance/feed.ts); it writes nothing, not even a FeedItem. It is how the web shows None for an event no feed list carries. 400 for an id that is not a UUID, 404 for an unknown or unextracted event, 401 without a session.
 - POST /events/:eventId/investigate: queues one deep research run (trigger investigate) for the signed in user on the event and answers 202 with that user's FeedCard, research state queued with the new run's id. The research queue runs it (apps/api/src/research/enqueue.ts); the card follows it through feed:update, queued, then running, then done or failed. It skips the relevance, importance and recent conditions of the gate, not the daily budget. 400 for an id that is not a UUID, 401 without a session, 404 when the user has no FeedItem with a path for the event (relevance 0 or unknown), 409 while a run on that item is queued or running, 429 `{ error }` when the day's 30 runs are reserved; a 429 changes nothing. A run whose item stayed queued or running for 15 minutes (for example after an api restart) is taken as lost, and Investigate starts a new one. Investigate again after done or failed starts a new run.
-- GET /reports/:reportId: ReportDetail in packages/shared, `{ report, claims, sources, run, card }`, for the signed in user. claims include removed ones; the screens filter on status. sources are ReportSource `{ _id, kind, tier, title, citeLabel, ref }`, built by code for each source a claim cites, without the body text. run is the AgentRun with its steps, as the run screen shows them. card is the user's FeedCard for the event, or null when its FeedItem is gone. 400 for an id that is not a UUID, 401 without a session, 404 for an unknown report or one whose run belongs to another user.
+- GET /reports/:reportId: ReportDetail in packages/shared, `{ report, claims, sources, run, card }`, for the signed in user. claims include removed ones; the screens filter on status. sources are ReportSource `{ _id, kind, tier, title, citeLabel, ref }`, built by code for each source a claim cites, without the body text. A market_data source reads title "SIP bars for NVDA, TSM, SMH and SPY", citeLabel "SIP bars" and ref "Delayed 15 minutes". run is the AgentRun with its steps, as the run screen shows them. card is the user's FeedCard for the event, or null when its FeedItem is gone. 400 for an id that is not a UUID, 401 without a session, 404 for an unknown report or one whose run belongs to another user.
 - GET /runs: RunSummary[] in packages/shared, the signed in user's runs without their steps, newest first (createdAt descending, then _id), at most 50: `{ _id, eventId, eventSymbol, agent, mode, trigger, status, tokensUsed, createdAt }`. eventSymbol is the first company the event's extraction named, or null. 401 without a session.
 - GET /runs/:runId: RunDetail in packages/shared, `{ run, reportId, claims, eventSymbol, limits }`, for the signed in user (apps/api/src/research/runs.ts). run is the AgentRun with every step as stored; step output is redacted, capped at 8 KB and may quote untrusted text, so clients render it as text only. reportId and claims (removed ones included) are null and empty until the run has a report. limits are FreeTierLimit `{ provider, model, tokensPerMinute, requestsPerDay }` for each model the run's steps used, from the api's limiter table and docs/SPIKE.md; a model with no recorded limits is left out. 400 for an id that is not a UUID, 401 without a session, 404 for an unknown run or one that belongs to another user. The card names its run id from the start of a run, a moment before runResearch stores the AgentRun, so this can answer 404 in that window; the first run:step of the run follows.
 - POST /mcp: MCP over stateless Streamable HTTP (see MCP tools), with `Authorization: Bearer <run token>`. A missing, malformed, badly signed or expired token gets 401 with `WWW-Authenticate: Bearer error="invalid_token"` before the SDK sees the request. A malformed JSON body gets 400.

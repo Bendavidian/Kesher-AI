@@ -9,7 +9,7 @@ import {
   type Source,
 } from '@kesher/shared';
 import { io as connect, type Socket } from 'socket.io-client';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { collection } from '../db/collections';
 import { toIncomingItem } from '../ingest/alpaca';
 import { processItem } from '../ingest/process';
@@ -17,7 +17,14 @@ import { loadRecording } from '../ingest/recordings';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import { loadModelRecording } from '../llm/recordings';
 import { runSeed } from '../seed/seed';
-import { recordedModels, signIn, startApi, TEST_MCP_SECRET, type TestApi } from '../test/api';
+import {
+  flushPushes,
+  recordedModels,
+  signIn,
+  startApi,
+  TEST_MCP_SECRET,
+  type TestApi,
+} from '../test/api';
 import { mockModel, resolveMocks, type ModelReply } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import { autoResearch } from './auto';
@@ -89,6 +96,7 @@ describe('automatic research through the gate, on mongod', () => {
                 text: 'TSMC paused some production after the earthquake.',
                 sources: [{ sourceId: demo._id, quote: demo.text!.slice(0, 80) }],
                 premises: [],
+                figures: [],
               },
             ],
             openQuestions: [],
@@ -108,7 +116,12 @@ describe('automatic research through the gate, on mongod', () => {
         return call === 0 ? hold : undefined;
       },
     );
-    const groq = mockModel(MODELS.researchFallback.model, [new Error('Groq is not used')]);
+    // Groq answers only the verifier, which supports the one claim.
+    const groq = mockModel(MODELS.extraction.model, [
+      JSON.stringify({
+        verdicts: [{ claim: 'k1', verdict: 'supported', priceCause: false, reason: 'stated' }],
+      }),
+    ]);
     models = createModelClient({
       resolve: resolveMocks({ [gemini.modelId]: gemini, [groq.modelId]: groq }),
     });
@@ -159,6 +172,13 @@ describe('automatic research through the gate, on mongod', () => {
     }
   });
 
+  // Every test ends with the queue empty and A's pushes received, so no run or push of one test
+  // lands in the next after its reset.
+  afterEach(async () => {
+    await api.idle();
+    await flushPushes(api, socket, await userId('A'));
+  });
+
   afterAll(async () => {
     socket?.close();
     await api?.close();
@@ -196,7 +216,7 @@ describe('automatic research through the gate, on mongod', () => {
       trigger: 'gate',
       status: 'succeeded',
       stepBudget: 6,
-      tokenBudget: 12_000,
+      tokenBudget: 16_000,
     });
     expect(runA!.gate.decision).toBe('run');
     const [runB] = await runsOf('B');
@@ -276,6 +296,8 @@ describe('automatic research through the gate, on mongod', () => {
   it('attaches the report of an earlier run when the newest recent run failed', async () => {
     await replay();
     const first = await settled('A');
+    // B's run goes after A's in the queue; the second replay then finds it recent too.
+    await settled('B');
     const [done] = await runsOf('A');
     await collection(mongo.db, 'agent_runs').insertOne(
       AgentRun.parse({
@@ -314,6 +336,7 @@ describe('automatic research through the gate, on mongod', () => {
       expect((await settled('A')).research.state).toBe('done');
       expect(await budgetRuns()).toBe(1);
     } finally {
+      await off.idle();
       await off.close();
     }
   });

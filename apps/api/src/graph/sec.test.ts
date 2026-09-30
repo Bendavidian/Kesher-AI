@@ -2,7 +2,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { filingHtml, findAnnual, latestAnnual, type Fetcher } from './sec';
+import type { Fetcher } from '../sec/fetch';
+import { filingHtml, findAnnual, latestAnnual } from './sec';
 
 const submissions = (rows: { form: string; accession: string }[]) =>
   JSON.stringify({

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { SignJWT, UnsecuredJWT, decodeJwt } from 'jose';
 import { describe, expect, it } from 'vitest';
 import {
+  AGENT_TOOLS,
   RUN_TOKEN_TTL_SECONDS,
   RunTokenError,
   authorize,
@@ -116,10 +117,36 @@ describe('run token', () => {
   it('mints each tool once', async () => {
     const token = await mintRunToken(
       SECRET,
-      { userId, agent: 'verifier', tools: ['get_event', 'get_event'] },
+      { userId, agent: 'research', tools: ['get_event', 'get_event'] },
       at,
     );
     expect(decodeJwt(token).tools).toEqual(['get_event']);
+  });
+});
+
+describe('agent tool sets', () => {
+  it('gives the research agent every MVP tool and the verifier none', () => {
+    expect([...AGENT_TOOLS.research].sort()).toEqual([
+      'get_company_relationships',
+      'get_event',
+      'get_financial_facts',
+      'get_my_portfolio',
+      'get_price_reaction',
+      'search_filings',
+      'search_news',
+    ]);
+    expect(AGENT_TOOLS.verifier).toEqual([]);
+  });
+
+  it('never mints a token for the verifier, which has no tools', async () => {
+    await expect(
+      mintRunToken(SECRET, { userId, agent: 'verifier', tools: ['get_event'] }, at),
+    ).rejects.toThrow(/agent's set/);
+  });
+
+  it("rejects a signed token that lists a tool outside its agent's set", async () => {
+    const token = await signRaw({ sub: userId, agent: 'verifier', tools: ['get_event'] });
+    await expect(verifyRunToken(SECRET, token, at)).rejects.toThrow(RunTokenError);
   });
 });
 

@@ -4,7 +4,7 @@ import { describeError, redactor } from '../config/redact';
 import { connect, DB_NAME } from '../db/client';
 import { countingClock } from '../extract/recordModels';
 import { loadCandidates, loadReviews } from '../graph/review';
-import { localEmbedder, modelCached } from '../graph/embed';
+import { localEmbedder, modelCached } from '../embed/local';
 import { createModelClient, resolveFromKeys } from '../llm/client';
 import type { ModelRecording } from '../llm/recordings';
 import { startTestMongo } from '../test/mongo';

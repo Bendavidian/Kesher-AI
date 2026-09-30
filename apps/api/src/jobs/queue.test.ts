@@ -49,4 +49,24 @@ describe('createQueue', () => {
     });
     expect(done).toBe(true);
   });
+
+  it('resolves idle once every running and waiting job is done, and at once when empty', async () => {
+    const queue = createQueue();
+    await queue.idle();
+    const log: string[] = [];
+    void queue.push(async () => {
+      await tick();
+      log.push('a');
+    });
+    void queue.push(async () => {
+      await tick();
+      throw new Error('the job broke');
+    });
+    void queue.push(async () => {
+      await tick();
+      log.push('c');
+    });
+    await queue.idle();
+    expect(log).toEqual(['a', 'c']);
+  });
 });

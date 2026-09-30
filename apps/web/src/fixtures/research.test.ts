@@ -37,12 +37,14 @@ describe('research fixtures', () => {
       'google:gemini-3.5-flash-lite',
       'groq:openai/gpt-oss-120b',
     ]);
-    const total = models.reduce((sum, step) => sum + step.tokens.total, 0);
-    expect(DEMO_RUN.tokensUsed).toBe(total);
+    // The research tokens; the verifier's count against its own cap.
+    const [research, verifier] = models;
+    expect(DEMO_RUN.tokensUsed).toBe(research?.tokens.total);
+    expect(DEMO_RUN.verification).toEqual({ tokenCap: 6_000, tokensUsed: verifier?.tokens.total });
     for (const step of models) {
       expect(step.tokens.input + step.tokens.output).toBe(step.tokens.total);
     }
-    expect(DEMO_RUN.tokenBudget).toBe(6_000);
+    expect(DEMO_RUN.tokenBudget).toBe(20_000);
     expect(DEMO_RUN.costUsd).toBe(0);
   });
 

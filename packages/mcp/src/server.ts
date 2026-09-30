@@ -1,7 +1,9 @@
 import { McpServer, type CallToolResult } from '@modelcontextprotocol/server';
 import type { z } from 'zod';
 import { authorize, type RunTokenClaims } from './token';
-import { TOOLS, type ToolDefinition, type ToolDeps } from './tools';
+import { MAX_TOOL_OUTPUT_BYTES, outputBytes } from './fit';
+import { TOOLS } from './registry';
+import type { ToolDefinition, ToolDeps } from './tools';
 
 export const SERVER_INFO = { name: 'kesher', version: '0.1.0' } as const;
 
@@ -26,6 +28,10 @@ function register(server: McpServer, tool: AnyTool, deps: ToolDeps, claims: RunT
       // The SDK has already parsed the arguments with the tool's own input schema.
       const outcome = await tool.run(input, deps, { claims });
       if (!outcome.ok) return errorResult(outcome.error);
+      // Each tool fits its own output; this only stops a tool that failed to.
+      if (outputBytes(outcome.output) > MAX_TOOL_OUTPUT_BYTES) {
+        return errorResult(`The ${tool.name} output is over 8 KB`);
+      }
       return {
         content: [{ type: 'text', text: JSON.stringify(outcome.output) }],
         structuredContent: outcome.output as Record<string, unknown>,

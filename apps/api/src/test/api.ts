@@ -7,9 +7,12 @@ import {
   type PersonaKey,
   type RunEnded,
   type RunStepPushed,
+  SOCKET_EVENTS,
 } from '@kesher/shared';
 import type { Db } from 'mongodb';
+import type { Socket } from 'socket.io-client';
 import { createApi } from '../app';
+import { memorySearch } from './search';
 import { SESSION_COOKIE } from '../auth/session';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import type { ProcessDeps } from '../ingest/process';
@@ -42,6 +45,8 @@ export interface TestApi {
   realtime: Realtime;
   // What server.ts hands the live ingester: the pushes, then the gate when research is on.
   afterScoring: ProcessDeps['onScored'];
+  // Resolves once every research job queued so far has run, with its last push sent.
+  idle(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -66,7 +71,7 @@ export async function startApi(
   } = {},
 ): Promise<TestApi> {
   let url = '';
-  const { app, afterScoring } = createApi({
+  const { app, afterScoring, idle } = createApi({
     db,
     devRoutes,
     auth: {
@@ -82,6 +87,7 @@ export async function startApi(
     ...(research
       ? {
           mcp: { secret: TEST_MCP_SECRET },
+          search: memorySearch(db),
           research: {
             mcpUrl: () => `${url}/mcp`,
             redact: (text: string) => text.split(TEST_MCP_SECRET).join('[REDACTED]'),
@@ -107,6 +113,7 @@ export async function startApi(
     url,
     realtime,
     afterScoring,
+    idle,
     // Closing Socket.IO closes the HTTP server too.
     close: () => realtime.close(),
   };
@@ -127,4 +134,22 @@ export async function signIn(url: string, key: PersonaKey): Promise<string> {
     .find((pair) => pair.startsWith(`${SESSION_COOKIE}=`));
   if (!cookie) throw new Error('no session cookie');
   return cookie;
+}
+
+// The runId of the marker flushPushes sends; no stored run has it.
+const FLUSH_RUN_ID = '00000000-0000-4000-8000-00000000f105';
+
+// Resolves once the socket has received every push the api sent its user before the call.
+// Socket.IO keeps the order of one connection, so a marker run:end sent now arrives last.
+export async function flushPushes(api: TestApi, socket: Socket, userId: string): Promise<void> {
+  const arrived = new Promise<void>((resolve) => {
+    const onEnd = (ended: { runId?: unknown }) => {
+      if (ended.runId !== FLUSH_RUN_ID) return;
+      socket.off(SOCKET_EVENTS.runEnd, onEnd);
+      resolve();
+    };
+    socket.on(SOCKET_EVENTS.runEnd, onEnd);
+  });
+  api.realtime.publishRunEnd(userId, { runId: FLUSH_RUN_ID, status: 'failed' });
+  await arrived;
 }

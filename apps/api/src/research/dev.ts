@@ -3,17 +3,27 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
-import { AgentRun, Claim, Report } from '@kesher/shared';
+import { AgentRun, Claim, Report, type PriceReaction } from '@kesher/shared';
 import { z } from 'zod';
 import { createApp } from '../app';
-import { loadEnv, loadMcpEnv, loadModelKeys } from '../config/env';
+import { loadAlpacaKeys, loadEnv, loadMcpEnv, loadModelKeys, loadSecEnv } from '../config/env';
 import { describeError, redactor } from '../config/redact';
 import { collection } from '../db/collections';
 import { DB_NAME, connect } from '../db/client';
+import { lazyLocalEmbedder } from '../embed/local';
 import { createModelClient, resolveFromKeys } from '../llm/client';
+import { createMarketData } from '../market/data';
+import { createPriceReactions } from '../market/reactions';
+import { secFetcher, type Fetcher } from '../sec/fetch';
+import { createCompanyConcepts, secConcepts } from '../sec/xbrl';
 import { DEMO_SOURCE_ID, DEMO_SOURCE_PROVIDER, PERSONAS } from '../seed/config';
 import { runResearch } from './agent';
-import { ResearchRecording, researchRecordingPath, type RecordedTurn } from './recordings';
+import {
+  ResearchRecording,
+  researchRecordingPath,
+  type RecordedTurn,
+  type RecordedVerifierCall,
+} from './recordings';
 
 // npm run research:dev -- [--mode deep|auto] [--record] [--force]
 // Development only: runs the research agent once for persona A on the demo event against Atlas,
@@ -49,7 +59,16 @@ if (env.NODE_ENV === 'production') {
 }
 const { MCP_TOKEN_SECRET } = loadMcpEnv();
 const keys = loadModelKeys();
-const redact = redactor(env.MONGODB_URI, [MCP_TOKEN_SECRET, keys.groq ?? '', keys.google ?? '']);
+const alpacaKeys = loadAlpacaKeys();
+const redact = redactor(env.MONGODB_URI, [
+  MCP_TOKEN_SECRET,
+  keys.groq ?? '',
+  keys.google ?? '',
+  alpacaKeys?.keyId ?? '',
+  alpacaKeys?.secretKey ?? '',
+]);
+// The bar cache first, then Alpaca for what it lacks, as in the api.
+const priceReactions = createPriceReactions(createMarketData({ keys: () => alpacaKeys }));
 
 const recordingPath = researchRecordingPath(DEMO_SOURCE_ID);
 if (record && existsSync(recordingPath) && !force) {
@@ -65,11 +84,19 @@ const client = await connect(env.MONGODB_URI).catch((error: unknown) => {
   process.exit(1);
 });
 const db = client.db(DB_NAME);
+// One fetcher, so requests stay 150 ms apart.
+let sec: Fetcher | undefined;
 const server = createApp({
   db,
   devRoutes: false,
   mcp: { secret: MCP_TOKEN_SECRET },
+  priceReactions,
   logError: (error) => console.error(redact(describeError(error))),
+  // The same local embedding model and SEC access as the api, so every tool works here.
+  embedder: lazyLocalEmbedder(),
+  companyConcept: createCompanyConcepts(
+    secConcepts(() => (sec ??= secFetcher(loadSecEnv().SEC_USER_AGENT))),
+  ),
 }).listen(0, '127.0.0.1');
 
 try {
@@ -88,9 +115,23 @@ try {
   }
 
   const turns: RecordedTurn[] = [];
+  const verifierCalls: RecordedVerifierCall[] = [];
+  // The reaction numbers_match reads, kept for the recording.
+  let checkedReaction: PriceReaction | null = null;
   const models = createModelClient({ resolve: resolveFromKeys(keys) });
   const outcome = await runResearch(
-    { db, models, mcp: { url, secret: MCP_TOKEN_SECRET }, redact, onTurn: (t) => turns.push(t) },
+    {
+      db,
+      models,
+      mcp: { url, secret: MCP_TOKEN_SECRET },
+      redact,
+      priceReactions: async (subjects, headline) => {
+        checkedReaction = await priceReactions(subjects, headline);
+        return checkedReaction;
+      },
+      onTurn: (t) => turns.push(t),
+      onVerifierCall: (call) => verifierCalls.push(call),
+    },
     {
       userId: user._id,
       eventId: event._id,
@@ -105,6 +146,9 @@ try {
   const print = (line: string) => console.log(redact(line));
   print(`Run ${run._id}: ${run.status}${run.failureReason ? ` (${run.failureReason})` : ''}`);
   print(`Mode ${run.mode}, ${run.tokensUsed} of ${run.tokenBudget} tokens`);
+  if (run.verification) {
+    print(`Verifier ${run.verification.tokensUsed} of ${run.verification.tokenCap} tokens`);
+  }
   print('');
   print('Steps:');
   for (const step of run.steps) {
@@ -150,10 +194,14 @@ try {
         model: run.steps.find((s) => s.kind === 'model')?.model,
         ids: { eventId: event._id, sourceIds: event.sourceIds },
         turns,
+        verifier: verifierCalls,
+        reaction: checkedReaction,
       });
       await mkdir(dirname(recordingPath), { recursive: true });
       await writeFile(recordingPath, `${JSON.stringify(recording, null, 2)}\n`);
-      print(`\nRecorded ${turns.length} model turns to ${recordingPath}`);
+      print(
+        `\nRecorded ${turns.length} model turns and ${verifierCalls.length} verifier calls to ${recordingPath}`,
+      );
     }
   }
 } catch (error) {

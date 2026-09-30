@@ -8,6 +8,8 @@ export type Job = () => Promise<void>;
 export interface JobQueue {
   // Resolves once this job has run. A job that throws is logged and never stops the queue.
   push(job: Job): Promise<void>;
+  // Resolves once every job pushed so far has run. For tests.
+  idle(): Promise<void>;
 }
 
 export function createQueue({
@@ -22,5 +24,6 @@ export function createQueue({
       tail = run;
       return run;
     },
+    idle: () => tail,
   };
 }

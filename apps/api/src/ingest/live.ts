@@ -15,6 +15,8 @@ import { externalIdOf, recordLive, type LiveItem } from './recordings';
 export interface LiveIngestDeps {
   db: Db;
   models: () => ModelClient;
+  // The local embedding model, for each event's vector at extraction, as on replay.
+  embedder?: ProcessDeps['embedder'];
   onScored?: ProcessDeps['onScored'];
   log?: (message: string) => void;
   now?: () => Date;
@@ -40,6 +42,7 @@ export interface LiveIngest {
 export function startLiveIngest({
   db,
   models,
+  embedder,
   onScored,
   log = console.log,
   now = () => new Date(),
@@ -48,7 +51,14 @@ export function startLiveIngest({
   queue: queueOptions,
 }: LiveIngestDeps): LiveIngest {
   const queue: IngestQueue = createIngestQueue({ log, ...queueOptions });
-  const deps: ProcessDeps = { mode: 'live', models, log, now, ...(onScored ? { onScored } : {}) };
+  const deps: ProcessDeps = {
+    mode: 'live',
+    models,
+    log,
+    now,
+    ...(embedder ? { embedder } : {}),
+    ...(onScored ? { onScored } : {}),
+  };
 
   let stopped = false;
 

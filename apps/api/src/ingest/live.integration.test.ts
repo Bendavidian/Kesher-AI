@@ -8,7 +8,7 @@ import {
   type AlpacaNewsItem,
 } from '@kesher/shared';
 import { io as connect, type Socket } from 'socket.io-client';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { collection } from '../db/collections';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import { loadModelRecording, type ModelRecording } from '../llm/recordings';
@@ -99,6 +99,11 @@ describe('live ingestion end to end, on mongod', () => {
 
   beforeEach(() => {
     cards = [];
+  });
+
+  // The runs the gate starts fail in the background; none may still be going in the next test.
+  afterEach(async () => {
+    await api.idle();
   });
 
   afterAll(async () => {

@@ -69,6 +69,8 @@ export async function autoResearch(
         tokenBudget: TOKEN_BUDGET.auto,
         steps: [gateStep],
         tokensUsed: 0,
+        // A skipped run never verifies.
+        verification: null,
         costUsd: 0,
         status: 'skipped',
         failureReason: null,

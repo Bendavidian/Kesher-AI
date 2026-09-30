@@ -168,7 +168,7 @@ Real items only. Tokens and model latency come from the recordings (latency with
 | Screen calls             | 30  | 1      | 1     | 30     |
 | Screen latency, ms       | 29  | 205    | 233   | 6,017  |
 | Extraction latency, ms   | 29  | 687    | 2,242 | 26,084 |
-| Pipeline code, ms        | 30  | 3      | 6     | 124    |
+| Pipeline code, ms        | 30  | 4      | 6     | 143    |
 
 ## Edge extractor (T11)
 

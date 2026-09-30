@@ -59,8 +59,9 @@ const embeddingField = {
   similarity: 'cosine',
 } as const;
 
-// Atlas only. The free tier allows 3 search indexes; the third is the T13 text index.
-// Vector scores only rank results and never act as a threshold (principle 3).
+// Atlas only. The free tier allows 3 search indexes, and these are all three: event vectors and
+// filing chunk vectors, and the text index behind search_news (SPEC.md decision log, T13).
+// Scores only rank results and never act as a threshold (principle 3).
 export const SEARCH_INDEXES = [
   {
     collection: 'market_events',
@@ -76,6 +77,25 @@ export const SEARCH_INDEXES = [
       name: 'filing_chunks_vector',
       type: 'vectorSearch',
       definition: { fields: [embeddingField, { type: 'filter', path: 'symbol' }] },
+    },
+  },
+  {
+    collection: 'sources',
+    index: {
+      name: 'sources_text',
+      type: 'search',
+      definition: {
+        mappings: {
+          dynamic: false,
+          fields: {
+            title: { type: 'string' },
+            text: { type: 'string' },
+            kind: { type: 'token' },
+            symbols: { type: 'token' },
+            publishedAt: { type: 'date' },
+          },
+        },
+      },
     },
   },
 ] as const satisfies readonly { collection: CollectionName; index: SearchIndexDescription }[];
@@ -109,7 +129,7 @@ export interface SearchIndexResult {
   status: string;
 }
 
-// Creates each vector index that is missing by name, without waiting for it to become
+// Creates each search index that is missing by name, without waiting for it to become
 // queryable. Needs Atlas: plain mongod has no search index commands.
 export async function ensureSearchIndexes(db: Db): Promise<SearchIndexResult[]> {
   const results: SearchIndexResult[] = [];

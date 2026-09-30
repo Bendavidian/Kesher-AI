@@ -2,7 +2,7 @@ import { loadEnv } from '../config/env';
 import { describeError, redactor } from '../config/redact';
 import { connect, DB_NAME } from '../db/client';
 import { writeJson } from '../graph/json';
-import { localEmbedder, modelCached } from '../graph/embed';
+import { localEmbedder, modelCached } from '../embed/local';
 import { printable, type Prompt } from './prompt';
 import {
   JUDGE_POOL,

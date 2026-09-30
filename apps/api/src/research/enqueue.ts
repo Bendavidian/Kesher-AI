@@ -160,8 +160,13 @@ export async function enqueueResearch(
     await settle(research);
   };
 
-  const done = publish(item)
-    .then(() => queue.push(run))
+  // The job enters the queue now, in enqueue order, and runs once the queued push is out.
+  const published = publish(item);
+  const done = queue
+    .push(async () => {
+      await published;
+      await run();
+    })
     .catch((error: unknown) => {
       logError(new Error(`research run ${runId} did not settle`, { cause: error }));
     });

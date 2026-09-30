@@ -1,9 +1,49 @@
 # State
 
-Updated: 29 Sep 2026, T10 done, merged with main after T11 and T12
+Updated: 29 Sep 2026, T13 done (part 2), merged with main after T10 and T14
 
 ## Where we are
-T00 to T12 are done; T09 completed the walking skeleton. T10, live ingestion, is merged with main after T11 and T12. It is proven end to end on Atlas by a live EDGAR 8-K and for the Alpaca stream by fake WebSocket tests; a live Benzinga item is to be observed in the T18 rehearsal. T13 part 1, the price reaction, is done too; T13 stays [~] until part 2, which T11 now unblocks (BACKLOG.md T13, SPEC.md decision log T13). T11 was built in parallel with T09, T12 and T13 part 1 and merged with main after all three.
+T00 to T14 are done; T09 completed the walking skeleton. T13 part 2, the rest of the MCP tool set, is done and merged with main after T10 and T14. T14, full verification, is merged with main after T10 and T11. T10, live ingestion, is merged with main after T11 and T12. It is proven end to end on Atlas by a live EDGAR 8-K and for the Alpaca stream by fake WebSocket tests; a live Benzinga item is to be observed in the T18 rehearsal.
+
+T13 part 2 completed the MCP tool set (SPEC.md decision log, T13 part 2):
+- Tool sets: AGENT_TOOLS in packages/shared. research has all seven MVP tools (get_my_portfolio, get_event, search_news, search_filings, get_company_relationships, get_price_reaction, get_financial_facts); verifier has none by design. mintRunToken and verifyRunToken refuse a tool outside the agent's set, so the verifier never gets a token.
+- New tools in packages/mcp (registry.ts lists what the server implements):
+  - get_my_portfolio: the token user's holdings as `{ symbol, quantity }`, no argument at all. Holdings store no prices, so INTERFACES now says quantities, not weights.
+  - get_company_relationships: reviewed edges from the symbol with their verbatim filing quote, ordered by type then counterpart. Edges are read from the symbol's side (who supplies NVDA is NVDA customer_of); an empty filtered answer names the types the company has.
+  - search_filings: $vectorSearch on filing_chunks_vector limited to one 10-K filer, at most 3 passages with their filing Source; 20-F filers get a tool error.
+  - get_financial_facts: SEC companyconcept values for a short list of metrics mapped to us-gaap concepts, the 3 newest years and 4 newest quarters by XBRL frame, each citing the filing Source of its accession, which the agent's code stores when missing (upsertFilingSource, apps/api/src/sources/filings.ts). Cached in process for 12 hours; `npm run record:xbrl` commits the answers (recordings/sec-xbrl/NVDA), and tests never call SEC.
+  - search_news is hybrid: a word list from the new Atlas Search index sources_text (the third and last search index) and a meaning list from the nearest event vectors, fused by code with reciprocal rank fusion on ranks only. Either list may fail alone. matchedTerms is 0 for an item found by meaning alone.
+- The searches sit behind a SearchBackend in the MCP deps: Atlas in apps/api/src/search/atlas.ts, an in memory stand in (test/search.ts) for tests, since plain mongod has no search stages.
+- Every tool output stays within 8 KB (fitItems drops whole items and reports omitted; the server turns an oversized output into a tool error).
+- Event embeddings: the local MiniLM moved to apps/api/src/embed. processItem embeds each event from its headline and body after extraction and fails open; replay and live ingestion both pass the api's one lazy embedder, which starts loading at startup. `npm run embed:events` backfills (2 events on Atlas).
+- Filing quotes: a filing Source keeps text null, so the agent gives it the search_filings passages and evidence quotes returned for it in the run as its text (withPassages, joined with a marker). quote_verbatim and T14's verifier both read that text.
+- secFetcher moved to apps/api/src/sec/fetch.ts for the api and the graph job, with SecHttpError carrying the status.
+- Research budgets rose to 32,000 tokens deep and 16,000 auto: the first real deep run stopped after two tool turns at 20,000. Gemini's free tier limits requests, not daily tokens.
+- Merge with T14: one market_data Source writer, T14's upsertMarketSource. T13 had built its own (a Source per symbols and anchor named by get_price_reaction, with text a metric could quote); it covered nothing numbers_match misses and was removed, with the sourceId and text it added to get_price_reaction. The prompt keeps T13's steps and filing quote rule and T14's metric figures.
+- On Atlas:
+  - The M0 limit of 3 search indexes was held by a `default` index in the Atlas sample data; with the user's approval sample_mflix was dropped (141.9 MB, nothing else touched), and seed created sources_text, now READY.
+  - Seven real research runs on the TSMC card for persona A (before the merge with T14). Run 2 kept a fact quoting the NVIDIA 10-K ("We utilize foundries, such as Taiwan Semiconductor Manufacturing Company Limited, or TSMC, …") with quote_verbatim passed; runs 3 to 6 kept a price metric next to SMH and SPY; run 4 used six tools, 29k of 32k tokens, with every claim passing. No single report had both, because flash-lite picks different claims each run; T20 makes both code claims in every report. The report screen showed the filing and market data sources at 1440px and 1279px.
+- The reviewer ran on every api, mcp and shared commit and on the merge; no blockers, its points fixed or noted.
+- 902 tests green, 1 skipped (the real bars test without the local cache).
+
+T14 completed verification (SPEC.md Claims and verification, decision log T14):
+- Deterministic checks in code, in this order (apps/api/src/research/checks.ts):
+  - sources_exist and quote_verbatim as in T08.
+  - numbers_match: a metric lists its price moves as figures `{ symbol, window, pct }` (MetricFigure in shared, at most 12). Code reads the price reaction itself at the event's publishedAt through the api's createPriceReactions, never at a time the model chose, and each figure must equal it to 2 decimals. A percentage in the text matches a figure when the figure, rounded half away from zero to the decimals the text shows, equals it; an unsigned number is positive. A metric without figures (a financial fact) or without readable market data stays unverified.
+  - no_advice: a fixed word list (buy, sell, hold and forms, analyst ratings; holders, holdings and sell-off pass). A claim with one is removed, an open question with one is dropped and listed in the step.
+  - premises_supported, which now also removes inferences in a premise cycle or built on one.
+- The verifier (verifier.ts): one generateSingle call per batch on Groq openai/gpt-oss-120b, Gemini per call on a 429, no tools and no run token. Code passes each claim with the text of its cited sources (whole, or passages around its quotes), a metric's moves as code computed them next to SMH and SPY, and an inference's premises, all as quoted data with every angle bracket escaped. It never sees the research agent's messages.
+  - It answers supported or unsupported, a reason, and priceCause: whether the claim ties the event to a price move as a cause, hedged or not. Code applies it (applyVerdicts): supported sets supported, unsupported removes, and a claim flagged priceCause is removed unless it is a supported fact (principle 7; the rubric alone let a hedged inference through). No verdict (a failed call, the cap reached) leaves the claim unverified; a failed call never fails the run.
+  - Its own cap, 6,000 tokens per run and at most 4,000 per call (AgentRun.verification `{ tokenCap, tokensUsed }`); tokensUsed counts the research agent only. An inference is supported only when the verifier supports it and every premise is supported; premises_supported runs again after the verifier.
+- Run steps: Market data read, the check steps with removedClaimIds, a model step named Verifier (VERIFIER_STEP in shared) per call or Verifier failed, the verifier check, Claims not verified when the cap left some out.
+- The research token lists get_price_reaction too. A metric cites a market_data Source that code writes, one per event and set of symbols, with no bars and no text; the report names it "SIP bars for NVDA, TSM, SMH and SPY", delayed 15 minutes. Gemini rejects the request when the draft's nested figures array has maxItems, so the draft has none and figures is required, like premises.
+- Planted errors: apps/api/src/research/planted.ts, 20 claims over the demo item and its committed reaction, 17 planted errors (one per deterministic check and six for the verifier, among them a hedged causal inference) and an advice question. `npm run verify:dev -- --record` ran the real verifier: 17 of 17 caught, every clean claim supported, twice in a row before recording. planted.test.ts replays recordings/verifier/planted.json.
+- research:dev reads market data like the api and records the verifier's answers and the reaction it checked. The demo recording was made again: a fact and a metric supported, and a hedged causal inference removed by the price cause rule.
+- Web: the report lists supported claims only; the rest get a neutral line ("N claims were not verified, so they are not shown") and a gray segment, never red. Removal reasons for no_advice and the verifier, a metric's evidence line states its anchor from the card's price reaction, and the removed block links to the check that removed the first removed claim. The run screen shows verifier tokens against their cap and both budgets in the footer; a skipped run reads "Skipped by the research gate" with its reason, and /runs opens the newest run that was not skipped.
+- `npm run seed` backfills AgentRun.verification null and metric figures []; it set 11 runs on Atlas. Any other database needs it once, or run reads fail on the strict schema.
+- On Atlas, persona A through research:dev: 8 claims supported (2 facts, 6 metrics matching exactly), verifier 1.9k of 6k tokens; the report and run screens checked at 1440px and 1279px, with a skipped run from T12.
+- The reviewer found no blockers. Its major point, nested tags rebuilding a prompt tag, was fixed by escaping; its nits were applied or noted.
+- Merged main after T10 and T11; 832 tests green, 5 skipped (the local bar cache and T11's embedding model).
 
 T10 adds live ingestion and recording (apps/api/src/ingest):
 - Runs in the api process only where LIVE_INGEST is true. With it on, the api does not start without the Alpaca keys and SEC_USER_AGENT (parseLiveEnv in config/env.ts).
@@ -245,20 +285,24 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. Check that CI passes on Ubuntu and Windows for the PR "T10: live ingestion and recording", then merge it. Keep LIVE_INGEST false on both machines until T18 or T19; with it and AUTO_RESEARCH on, a live card that passes the gate starts a real Gemini run from the shared budget (20 automatic runs a day).
-2. On each machine, once: `npm run record:bars -- --event 38062166 --symbols TSM,NVDA`. It fills the gitignored bar cache so the demo card and the local SPIKE.md test read no Alpaca at runtime. Without it, the api asks Alpaca when the keys are set, and the local test skips. On a machine that runs `npm run graph:chunks` or the api's search_filings later, the embedding model downloads once to .cache/models.
-3. Phase 2 continues. Pick the next task from BACKLOG.md:
-   - T13 part 2 is unblocked: search_filings on filing_chunks and get_company_relationships on the reviewed edges (notes under T11 and T13 in BACKLOG.md).
-   - T14 adds the verifier; its steps and removals appear in the run screen with no screen change, since checks turn red from removedClaimIds. A metric claim can check its numbers against the same PriceReaction, and a filing quote must be checked against FilingChunk text (notes under T11).
-   - T19, live ingestion hardening, before LIVE_INGEST runs all day. Its pieces are a REST gap fill after a reconnect, a daily cap on live extraction, a stall check on the socket, a cap on the ingest queue, and backoff on EDGAR 429 or 403.
+1. Check that CI passes on Ubuntu and Windows for the PR "T13: full MCP tool set", then merge it. Keep LIVE_INGEST false on both machines until T18 or T19.
+2. On each machine, once:
+   - `npm run record:bars -- --event 38062166 --symbols TSM,NVDA` fills the gitignored bar cache for the demo card and the local SPIKE.md test.
+   - The api now loads the local embedding model at startup (about 90 MB into .cache/models, downloaded once); `npm run embed:events` embeds events stored before.
+   - `npm run seed` creates sources_text only where fewer than 3 search indexes exist; Atlas already has it.
+3. Pick the next task from BACKLOG.md:
+   - T20, the deterministic report core, so point 5 of the MVP definition of done holds in every run.
+   - T21, the flaky "with AUTO_RESEARCH off" test.
+   - T16 evals: add a retrieval eval on the hybrid search_news and search_filings, and tune the budgets of 32,000 and 16,000 (notes under T13 and T16).
+   - T19, live ingestion hardening, before LIVE_INGEST runs all day.
 4. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
    - The first npm run test downloads mongod 8.0.32, about 100 MB.
-   - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay, Investigate and research:dev, MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start.
-   - Run `npm run seed` once if that machine uses its own database, so older Sources get publisher and older FeedItems get research.reportId.
+   - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay, Investigate and research:dev, MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start; SEC_USER_AGENT for get_financial_facts.
+   - Run `npm run seed` once if that machine uses its own database, so older documents are backfilled; its search indexes need Atlas.
    - Both machines share one daily research budget on Atlas (30 runs, automatic runs stop at 20). Set AUTO_RESEARCH=false in a machine's .env if it should not start automatic runs.
-   - Keep LIVE_INGEST=false there: the free Alpaca plan allows one live WebSocket. The recordings collection is created when the api starts.
+   - Keep LIVE_INGEST=false there: the free Alpaca plan allows one live WebSocket.
 
 Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. LIVE_INGEST is false on both machines except while proving T10; with it true the api also needs the Alpaca keys and SEC_USER_AGENT. AUTO_RESEARCH is optional (on when unset).
 
@@ -268,6 +312,8 @@ The UI language is settled by docs/UI.md: English interface, with Hebrew summari
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 29 Sep 2026, macOS (Mac mini), T13 part 2: agent tool sets with the verifier empty; get_my_portfolio, get_company_relationships, search_filings, get_financial_facts from recorded SEC XBRL, hybrid search_news with the sources_text index and rank fusion; event embeddings at extraction with a backfill; 8 KB tool output cap; filing quotes checked against the text tools returned; budgets 32,000 and 16,000; sample_mflix dropped on Atlas to free the third search index; seven real runs proved the 10-K fact and the price metric in separate reports (T20 makes them code claims); merged main after T10 and T14 with T14's market_data writer kept; T20 and T21 added; 902 tests green, 1 skipped; T13 done.
+- 29 Sep 2026, macOS (Mac mini), T14: deterministic checks sources_exist, quote_verbatim, numbers_match against the price reaction code reads at the event time (with the rounding rule for text), no_advice and premises_supported with cycles; a tool-less verifier on Groq with its own 6,000 token cap that sees claims and sources only, and a priceCause classification that code uses to remove any claim tying the event to a price move as a cause (principle 7, inferences included); research token adds get_price_reaction, metrics carry figures and cite a market_data Source; planted fixture caught 17 of 17 with the real verifier; report shows supported claims only, skipped runs labeled, /runs opens the newest run not skipped; seed backfill; reviewer found no blockers, its major point fixed; merged main after T10 and T11; 832 tests green, 5 skipped; T14 done.
 - 29 Sep 2026, macOS (Mac mini), T10: Alpaca news stream and EDGAR poller behind LIVE_INGEST, an ingest queue one item at a time with 429 retries, live recordings in a recordings collection without article bodies, replay and reset by Alpaca id or accession from file or collection, recording:export, live items through the same after scoring hook as replay (merged main after T12); on Atlas a real AMD 8-K reached persona A's feed and replayed from the collection, no Benzinga item passed the pre filter while live was on; reviewer found no blockers; T19 added; merged main after T11, 762 tests green, 4 skipped; T10 done (a live Benzinga item goes to the T18 rehearsal).
 - 29 Sep 2026, macOS (Mac mini), T11: graph build job under apps/api/src/graph: 10-K and 20-F sections from EDGAR, candidate sentences classified by Groq into roles that code turns into edges, recorded and replayed, Finnhub peers and profiles recorded, a review CLI, an apply that writes accepted edges with inverses and removes only rejected ones; the user reviewed all 28 proposed relationships, so Atlas holds 28 distinct reviewed relationships (6 seeded, 22 from T11); 2,010 heading-aware filing chunks embedded locally, the NVDA foundry checks pass; demo scores unchanged; reviewer blockers fixed; merged main after T09, T12 and T13 part 1; 720 tests green; T11 done.
 - 29 Sep 2026, macOS (Mac mini), T12: research gate after scoring (relevance 0.6, importance 4, active, recent run in 24 hours with the report attached), skipped runs stored with their reason, daily budget of 30 runs with 20 for automatic runs in research_budget, one FIFO research queue for the gate and Investigate (202 queued, 429 once spent), AUTO_RESEARCH flag on by default; on Atlas B got a real auto run and a second Replay attached both reports with no model call; reviewer found no blockers; merged main with T09 and T13 part 1; 627 tests green, 1 skipped; T12 done.

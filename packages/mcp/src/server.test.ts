@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createKesherServer } from './server';
-import { mintRunToken, verifyRunToken, type ToolName } from './token';
+import { AGENT_TOOLS, mintRunToken, verifyRunToken, type ToolName } from './token';
 import { priceReactionJson, type ToolDeps } from './tools';
 import { REACTION } from './testing';
 
@@ -55,9 +55,11 @@ describe('createKesherServer', () => {
     expect(JSON.stringify(result.content)).toContain(`No event with id ${eventId}`);
   });
 
-  it('serves no tool that the server has not implemented', async () => {
-    const future = await connect(['get_financial_facts']);
-    expect((await future.listTools()).tools).toEqual([]);
+  it("serves every tool of the research agent's set", async () => {
+    const all = await connect([...AGENT_TOOLS.research]);
+    expect((await all.listTools()).tools.map((tool) => tool.name).sort()).toEqual(
+      [...AGENT_TOOLS.research].sort(),
+    );
   });
 
   it('serves get_price_reaction to a token that lists it, as structured content', async () => {
@@ -71,6 +73,34 @@ describe('createKesherServer', () => {
     });
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent).toEqual(priceReactionJson(REACTION));
+  });
+
+  it('answers a tool error instead of an output over 8 KB', async () => {
+    const eventId = randomUUID();
+    const huge = {
+      _id: eventId,
+      headline: 'x'.repeat(9_000),
+      publishedAt: new Date('2024-04-03T03:57:09Z'),
+      status: 'confirmed',
+      extraction: null,
+      sourceIds: [randomUUID()],
+    };
+    const token = await mintRunToken(SECRET, {
+      userId: randomUUID(),
+      agent: 'research',
+      tools: ['get_event'],
+    });
+    const server = createKesherServer(
+      { ...deps, events: { findOne: () => Promise.resolve(huge) } } as unknown as ToolDeps,
+      await verifyRunToken(SECRET, token),
+    );
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverSide);
+    client = new Client({ name: 'test', version: '0.0.0' });
+    await client.connect(clientSide);
+    const result = await client.callTool({ name: 'get_event', arguments: { eventId } });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain('The get_event output is over 8 KB');
   });
 
   it('marks every tool read only', async () => {

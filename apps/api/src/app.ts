@@ -1,6 +1,8 @@
+import type { CompanyConceptSource, SearchBackend } from '@kesher/mcp';
 import { HealthResponse } from '@kesher/shared';
 import express, { type ErrorRequestHandler, type Express } from 'express';
 import type { Db } from 'mongodb';
+import type { LazyEmbedder } from './embed/event';
 import type { ProcessDeps } from './ingest/process';
 import { createQueue } from './jobs/queue';
 import { autoResearch } from './research/auto';
@@ -12,6 +14,7 @@ import { devRouter } from './routes/dev';
 import { feedRouter } from './routes/feed';
 import { mcpRouter } from './routes/mcp';
 import { researchRouter } from './routes/research';
+import { atlasSearch } from './search/atlas';
 
 export interface AppDeps {
   db: Db;
@@ -29,6 +32,9 @@ export interface AppDeps {
   log?: (message: string) => void;
   // The model client, built on first use. Without it every model call fails naming its key.
   models?: () => ModelClient;
+  // The local embedding model, loaded on first use, for event vectors at extraction. Without it
+  // replayed events keep embedding null until npm run embed:events.
+  embedder?: LazyEmbedder;
   // Mounts Investigate, GET /reports/:reportId and the run routes when set, with mcp and auth,
   // and runs the research gate after each scoring run. mcpUrl is the api's own POST /mcp, read
   // when a run starts; redact is applied to every run step. autoResearch is AUTO_RESEARCH, on
@@ -43,6 +49,12 @@ export interface AppDeps {
   // The price reaction over the api's market data (createPriceReactions), for get_price_reaction
   // and FeedCard.priceReaction. Without it cards carry null and the tool answers unavailable.
   priceReactions?: PriceReactions;
+  // The searches behind search_filings and search_news. Atlas over db and the embedder when
+  // unset; tests pass an in memory backend, since plain mongod has no search stages.
+  search?: SearchBackend;
+  // SEC XBRL values for get_financial_facts (sec/xbrl.ts). Without it the tool answers that SEC
+  // data is unavailable.
+  companyConcept?: CompanyConceptSource;
 }
 
 // The Express app, and what runs after each scoring run: the Socket.IO pushes, then the research
@@ -51,6 +63,8 @@ export interface AppDeps {
 export interface Api {
   app: Express;
   afterScoring: ProcessDeps['onScored'];
+  // Resolves once every research job queued so far has run. For tests.
+  idle: () => Promise<void>;
 }
 
 const logMessage = (error: unknown) =>
@@ -71,11 +85,14 @@ export function createApi({
   logError = logMessage,
   log = console.log,
   models = noKeys,
+  embedder,
   research,
   onResearch,
   onRunStep,
   onRunEnd,
   priceReactions,
+  search,
+  companyConcept,
 }: AppDeps): Api {
   const app = express();
   app.disable('x-powered-by');
@@ -87,8 +104,19 @@ export function createApi({
   // After a scoring run: the cards go out first, then the gate decides on research, so a card
   // never waits for it (SPEC.md Pipeline).
   let afterScoring = onScored;
+  // One queue for automatic runs and Investigate: one research run at a time.
+  const queue = createQueue({ logError });
 
-  if (mcp) app.use(mcpRouter(db, mcp.secret, logError, priceReactions));
+  if (mcp) {
+    app.use(
+      mcpRouter(db, mcp.secret, {
+        onError: logError,
+        search: search ?? atlasSearch(db, embedder),
+        ...(priceReactions ? { priceReaction: priceReactions } : {}),
+        ...(companyConcept ? { companyConcept } : {}),
+      }),
+    );
+  }
   if (auth) {
     app.use(authRouter(db, auth));
     // Every card the api sends carries the same price reaction.
@@ -106,8 +134,9 @@ export function createApi({
           },
         },
         redact: research.redact,
-        // One queue for automatic runs and Investigate: one research run at a time.
-        queue: createQueue({ logError }),
+        // numbers_match reads the same price reaction the cards and get_price_reaction use.
+        ...(priceReactions ? { priceReactions } : {}),
+        queue,
         logError,
         ...(onResearch ? { onResearch } : {}),
         ...(onRunStep ? { onStep: onRunStep } : {}),
@@ -126,7 +155,7 @@ export function createApi({
       };
     }
   }
-  if (devRoutes) app.use(devRouter(db, models, log, afterScoring));
+  if (devRoutes) app.use(devRouter(db, models, log, afterScoring, embedder));
 
   // Answers without internals; driver errors can carry connection details.
   const onError: ErrorRequestHandler = (error, _req, res, next) => {
@@ -139,5 +168,5 @@ export function createApi({
   };
   app.use(onError);
 
-  return { app, afterScoring };
+  return { app, afterScoring, idle: () => queue.idle() };
 }

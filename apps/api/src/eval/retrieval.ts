@@ -4,7 +4,7 @@ import { NonBlank, UniverseSymbol } from '@kesher/shared';
 import type { Db } from 'mongodb';
 import { z } from 'zod';
 import { collection } from '../db/collections';
-import type { Embedder } from '../graph/embed';
+import type { Embedder } from '../embed/local';
 import { EVAL_DIR } from './dataset';
 import { precisionAtK, recallAtK, recallCeiling } from './metrics';
 

@@ -8,15 +8,19 @@ import {
   loadLiveEnv,
   loadMcpEnv,
   loadModelKeys,
+  loadSecEnv,
 } from './config/env';
 import { describeError, redactor } from './config/redact';
 import { DB_NAME, connect } from './db/client';
 import { ensureCollections, ensureIndexes } from './db/indexes';
+import { lazyLocalEmbedder } from './embed/local';
 import { startLiveIngest, type LiveIngest } from './ingest/live';
 import { createModelClient, resolveFromKeys, type ModelClient } from './llm/client';
 import { createMarketData } from './market/data';
 import { createPriceReactions } from './market/reactions';
 import { createRealtime } from './realtime/socket';
+import { secFetcher, type Fetcher } from './sec/fetch';
+import { createCompanyConcepts, secConcepts } from './sec/xbrl';
 
 const port = z.coerce.number().int().min(1).max(65535).default(3001).parse(process.env.PORT);
 const env = loadEnv();
@@ -53,6 +57,18 @@ const models = () => (modelClient ??= createModelClient({ resolve: resolveFromKe
 // lack. The api starts without Alpaca keys; then only uncached market data is unavailable.
 const priceReactions = createPriceReactions(createMarketData({ keys: () => alpacaKeys }));
 const logError = (error: unknown) => console.error(redact(describeError(error)));
+// The local model (about 90 MB in .cache/models, downloaded once). Loading starts now, so a
+// first download never runs inside a request; a failed load is retried on the next use.
+const embedder = lazyLocalEmbedder();
+embedder().catch((error: unknown) => {
+  console.error(redact(`Embedding model not loaded: ${describeError(error)}`));
+});
+// SEC XBRL values for get_financial_facts, asked on first use. SEC_USER_AGENT is read then, so
+// the api starts without it and only that tool is unavailable.
+let sec: Fetcher | undefined;
+const companyConcept = createCompanyConcepts(
+  secConcepts(() => (sec ??= secFetcher(loadSecEnv().SEC_USER_AGENT))),
+);
 
 const devRoutes = env.NODE_ENV !== 'production';
 const { app, afterScoring } = createApi({
@@ -69,6 +85,7 @@ const { app, afterScoring } = createApi({
   logError,
   log: (message) => console.log(redact(message)),
   models,
+  embedder,
   // Investigate reaches the api's own POST /mcp as a real MCP client.
   research: {
     mcpUrl: () => `http://127.0.0.1:${port}/mcp`,
@@ -79,6 +96,7 @@ const { app, afterScoring } = createApi({
   onRunStep: (userId, pushed) => realtime.publishRunStep(userId, pushed),
   onRunEnd: (userId, ended) => realtime.publishRunEnd(userId, ended),
   priceReactions,
+  companyConcept,
 });
 const server = createServer(app);
 const realtime = createRealtime(server, {
@@ -97,6 +115,7 @@ server.listen(port, () => {
     liveIngest = startLiveIngest({
       db,
       models,
+      embedder,
       // The same hook as replay: the pushes, then the research gate.
       ...(afterScoring ? { onScored: afterScoring } : {}),
       log: (message) => console.log(redact(message)),
