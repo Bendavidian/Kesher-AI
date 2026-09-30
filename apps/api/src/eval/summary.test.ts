@@ -177,18 +177,28 @@ describe('bandWith', () => {
   const [today, from04, highAt1] = BAND_SETS;
 
   it('keeps 0 at none and both thresholds inclusive', () => {
-    for (const set of BAND_SETS) expect(bandWith(set, 0)).toBe('none');
-    expect(bandWith(from04!, 0.8)).toBe('high');
-    expect(bandWith(from04!, 0.4)).toBe('medium');
-    expect(bandWith(from04!, 0.399)).toBe('none');
-    expect(bandWith(highAt1!, 0.8)).toBe('medium');
-    expect(bandWith(highAt1!, 1)).toBe('high');
-    expect(bandWith(today!, 0.001)).toBe('medium');
+    for (const set of BAND_SETS) expect(bandWith(set, 0, 5)).toBe('none');
+    expect(bandWith(from04!, 0.8, null)).toBe('high');
+    expect(bandWith(from04!, 0.4, null)).toBe('medium');
+    expect(bandWith(from04!, 0.399, null)).toBe('none');
+    expect(bandWith(highAt1!, 0.8, null)).toBe('medium');
+    expect(bandWith(highAt1!, 1, null)).toBe('high');
+    expect(bandWith(today!, 0.001, null)).toBe('medium');
+  });
+
+  it('calls a supply hop high only with importance 4 or more in the last set', () => {
+    const withImportance = BAND_SETS[4]!;
+    expect(bandWith(withImportance, 1, 1)).toBe('high');
+    expect(bandWith(withImportance, 0.8, 4)).toBe('high');
+    expect(bandWith(withImportance, 0.8, 3)).toBe('medium');
+    expect(bandWith(withImportance, 0.8, null)).toBe('medium');
+    expect(bandWith(withImportance, 0.6, 5)).toBe('medium');
+    expect(bandWith(withImportance, 0.336, 5)).toBe('none');
   });
 
   it('gives relevanceBand for the set named today', () => {
     for (let score = 0; score <= 1; score += 0.001) {
-      expect(bandWith(today!, score)).toBe(relevanceBand(score));
+      expect(bandWith(today!, score, null)).toBe(relevanceBand(score));
     }
   });
 });

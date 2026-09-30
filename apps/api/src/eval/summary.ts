@@ -22,12 +22,15 @@ import { PATH_KINDS, type EvalRun, type ItemRun, type PathKind } from './runner'
 
 // Candidate display bands, measured against the reviewed labels as proposals only. The first is
 // today's relevanceBand; medium from 0.4 is the mapping the proposed labels were written with
-// (docs/research/eval-candidates.md); high at 1 keeps high for a holding itself.
+// (docs/research/eval-candidates.md); high at 1 keeps high for a holding itself. A set with
+// highWith also calls a score high from that score when the extracted importance reaches the
+// given class, the way the research gate reads importance.
 export interface BandSet {
   name: string;
   highFrom: number;
   // Scores at or above this, and above 0, are medium.
   mediumFrom: number;
+  highWith?: { relevanceFrom: number; importanceFrom: number };
 }
 
 export const BAND_SETS: readonly BandSet[] = [
@@ -43,11 +46,27 @@ export const BAND_SETS: readonly BandSet[] = [
   },
   { name: 'high at 1, medium above 0', highFrom: 1, mediumFrom: 0 },
   { name: 'high at 1, medium from 0.4', highFrom: 1, mediumFrom: 0.4 },
+  {
+    name: `high at 1, or from ${RELEVANCE_HIGH} with importance ${GATE_MIN_IMPORTANCE} or more, medium from 0.4`,
+    highFrom: 1,
+    mediumFrom: 0.4,
+    highWith: { relevanceFrom: RELEVANCE_HIGH, importanceFrom: GATE_MIN_IMPORTANCE },
+  },
 ];
 
-export function bandWith(set: BandSet, relevance: number): Level {
+// importance is the extraction's class, null when there is none.
+export function bandWith(set: BandSet, relevance: number, importance: number | null): Level {
   if (relevance <= 0) return 'none';
   if (relevance >= set.highFrom) return 'high';
+  const { highWith } = set;
+  if (
+    highWith &&
+    importance !== null &&
+    relevance >= highWith.relevanceFrom &&
+    importance >= highWith.importanceFrom
+  ) {
+    return 'high';
+  }
   return relevance >= set.mediumFrom ? 'medium' : 'none';
 }
 
@@ -311,7 +330,12 @@ export function summarizeRun(
         real.flatMap((r) => {
           const label = labelOf.get(key(r.item.id, persona));
           return label?.status === 'reviewed'
-            ? [{ label: label.level, predicted: bandWith(set, r.relevance[persona]) }]
+            ? [
+                {
+                  label: label.level,
+                  predicted: bandWith(set, r.relevance[persona], r.extraction?.importance ?? null),
+                },
+              ]
             : [];
         });
       return {
