@@ -1,4 +1,4 @@
-import { DEMO_PERSONAS, DEMO_SOURCE_ID, EventExplain, FeedCard } from '@kesher/shared';
+import { DEMO_PERSONAS, DEMO_SOURCE_ID, EventExplain, FeedCard, HiddenFeed } from '@kesher/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { COLLECTION_NAMES, collection } from '../db/collections';
@@ -20,7 +20,7 @@ const revive = (text: string) =>
       : value,
   ) as unknown;
 
-describe('GET /feed and GET /events/:eventId/explain, on mongod', () => {
+describe('GET /feed, GET /feed/hidden and GET /events/:eventId/explain, on mongod', () => {
   let mongo: TestMongo;
   let api: TestApi;
   let eventId: string;
@@ -32,6 +32,8 @@ describe('GET /feed and GET /events/:eventId/explain, on mongod', () => {
     fetch(`${api.url}${path}`, cookie ? { headers: { cookie } } : undefined);
   const feed = async (cookie: string, query = '') =>
     z.array(FeedCard).parse(revive(await (await get(`/feed${query}`, cookie)).text()));
+  const hidden = async (cookie: string, query = '') =>
+    HiddenFeed.parse(revive(await (await get(`/feed/hidden${query}`, cookie)).text()));
   const explain = async (cookie: string, id = eventId) =>
     EventExplain.parse(revive(await (await get(`/events/${id}/explain`, cookie)).text()));
 
@@ -116,6 +118,79 @@ describe('GET /feed and GET /events/:eventId/explain, on mongod', () => {
         await collection(mongo.db, 'feed_items').deleteOne({ _id: ids.item });
         await collection(mongo.db, 'market_events').deleteOne({ _id: ids.event });
         await collection(mongo.db, 'sources').deleteOne({ _id: ids.source });
+      }
+    });
+  });
+
+  describe('GET /feed/hidden', () => {
+    it('answers 401 without a session', async () => {
+      expect((await get('/feed/hidden')).status).toBe(401);
+    });
+
+    it('gives C the demo event as its stored relevance 0 item, and A and B nothing', async () => {
+      const c = await hidden(cookies.C);
+      expect(c.total).toBe(1);
+      expect(c.recent).toHaveLength(1);
+      expect(c.recent[0]).toMatchObject({ relevance: 0, path: null, evidence: [] });
+      expect(c.recent[0]!.event._id).toBe(eventId);
+      expect(c.recent[0]!.source.externalId).toBe(DEMO_SOURCE_ID);
+      expect(await hidden(cookies.A)).toEqual({ recent: [], total: 0 });
+      expect(await hidden(cookies.B)).toEqual({ recent: [], total: 0 });
+    });
+
+    it('ignores a user named in the query', async () => {
+      const c = await userId(2);
+      expect(await hidden(cookies.A, `?userId=${c}`)).toEqual({ recent: [], total: 0 });
+    });
+
+    it('lists the three most recent arrivals first and counts them all', async () => {
+      const cUser = await userId(2);
+      const stored = (await collection(mongo.db, 'feed_items').findOne({ userId: cUser }))!;
+      const source = (await collection(mongo.db, 'sources').findOne({
+        externalId: DEMO_SOURCE_ID,
+      }))!;
+      const event = (await collection(mongo.db, 'market_events').findOne({ _id: eventId }))!;
+      // Four more hidden events for C. Their order of arrival is the reverse of their event time,
+      // so the list can only be in arrival order.
+      const extra = [1, 2, 3, 4].map((n) => ({
+        source: `44444444-4444-4444-8444-44444444444${n}`,
+        event: `55555555-5555-4555-8555-55555555555${n}`,
+        item: `66666666-6666-4666-8666-66666666666${n}`,
+        arrived: new Date(now.getTime() + n * 60_000),
+        published: new Date(event.publishedAt.getTime() - n * 86_400_000),
+      }));
+      for (const e of extra) {
+        await collection(mongo.db, 'sources').insertOne({
+          ...source,
+          _id: e.source,
+          externalId: `1${e.event.slice(-1)}`,
+        });
+        await collection(mongo.db, 'market_events').insertOne({
+          ...event,
+          _id: e.event,
+          sourceIds: [e.source],
+          publishedAt: e.published,
+        });
+        await collection(mongo.db, 'feed_items').insertOne({
+          ...stored,
+          _id: e.item,
+          eventId: e.event,
+          createdAt: e.arrived,
+        });
+      }
+      try {
+        const c = await hidden(cookies.C);
+        expect(c.total).toBe(5);
+        expect(c.recent.map((explain) => explain.event._id)).toEqual(
+          [extra[3], extra[2], extra[1]].map((e) => e!.event),
+        );
+        // Still out of every FeedCard list.
+        expect(await feed(cookies.C)).toEqual([]);
+      } finally {
+        const ids = (key: 'source' | 'event' | 'item') => ({ $in: extra.map((e) => e[key]) });
+        await collection(mongo.db, 'feed_items').deleteMany({ _id: ids('item') });
+        await collection(mongo.db, 'market_events').deleteMany({ _id: ids('event') });
+        await collection(mongo.db, 'sources').deleteMany({ _id: ids('source') });
       }
     });
   });

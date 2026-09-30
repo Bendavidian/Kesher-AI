@@ -96,3 +96,24 @@ export const EventExplain = z
     path: ['path'],
   });
 export type EventExplain = z.infer<typeof EventExplain>;
+
+// How many hidden items GET /feed/hidden carries (SPEC.md decision log, T23).
+export const HIDDEN_RECENT = 3;
+
+// GET /feed/hidden (docs/INTERFACES.md): the signed in user's most recent relevance 0 items, newest
+// arrival first, as explanations (never FeedCards), and how many relevance 0 items the user has in
+// all, so the web can show "Hidden for you" with a count of the rest.
+export const HiddenFeed = z
+  .strictObject({
+    recent: z
+      .array(
+        EventExplain.refine((explain) => explain.relevance === 0, 'only relevance 0 is hidden'),
+      )
+      .max(HIDDEN_RECENT),
+    total: z.number().int().nonnegative(),
+  })
+  .refine((hidden) => hidden.recent.length <= hidden.total, {
+    error: 'the total counts the recent items too',
+    path: ['total'],
+  });
+export type HiddenFeed = z.infer<typeof HiddenFeed>;
