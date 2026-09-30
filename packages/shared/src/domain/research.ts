@@ -58,6 +58,10 @@ export type AgentStep = z.infer<typeof AgentStep>;
 // not the research budget.
 export const VERIFIER_STEP = 'Verifier';
 
+// The name of the code step that lists the claims code writes before the model's turns
+// (SPEC.md decision log, T20).
+export const CODE_CLAIMS_STEP = 'Code claims';
+
 // The agents that run with a run token (docs/INTERFACES.md).
 export const AgentName = z.enum(['research', 'verifier']);
 export type AgentName = z.infer<typeof AgentName>;
@@ -146,11 +150,26 @@ export const ResearchBudgetDay = z.strictObject({
 });
 export type ResearchBudgetDay = z.infer<typeof ResearchBudgetDay>;
 
+// A claim code would have written and left out, with the reason (SPEC.md decision log, T20).
+// path_fact: a hop whose reviewed evidence or filing could not be read (no_evidence).
+// price_metric: a move it needs is not ready yet (not_ready), or the market data could not be
+// read (unavailable). The report screen shows one neutral line for each.
+export const CodeClaimOmission = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('path_fact'), reason: z.literal('no_evidence') }),
+  z.strictObject({
+    kind: z.literal('price_metric'),
+    reason: z.enum(['not_ready', 'unavailable']),
+  }),
+]);
+export type CodeClaimOmission = z.infer<typeof CodeClaimOmission>;
+
 export const Report = z.strictObject({
   _id: Id,
   runId: Id,
   sections: z.array(z.strictObject({ title: NonBlank, claimIds: z.array(Id) })),
   openQuestions: z.array(NonBlank),
+  // At most one per hop and one price metric.
+  omitted: z.array(CodeClaimOmission).max(3),
   createdAt: z.date(),
 });
 export type Report = z.infer<typeof Report>;
@@ -192,9 +211,15 @@ export const MAX_METRIC_FIGURES = 3 * PRICE_WINDOWS.length;
 const QuotedSource = z.strictObject({ sourceId: Id, quote: NonBlank });
 const CitedSource = z.strictObject({ sourceId: Id, quote: NonBlank.nullable() });
 
+// Who wrote the claim: code from the path's evidence and the price reaction, or the research
+// model. Both go through the same checks and the verifier; the evals can report them apart.
+export const ClaimOrigin = z.enum(['code', 'model']);
+export type ClaimOrigin = z.infer<typeof ClaimOrigin>;
+
 const claimFields = {
   _id: Id,
   reportId: Id,
+  origin: ClaimOrigin,
   text: NonBlank,
   status: ClaimStatus,
   checks: z.array(CheckResult),

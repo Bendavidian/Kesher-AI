@@ -1,4 +1,4 @@
-import type { Claim } from '@kesher/shared';
+import type { Claim, Report } from '@kesher/shared';
 import { describe, expect, it } from 'vitest';
 import { DEMO_CLAIMS, DEMO_REPORT, DEMO_REPORT_SOURCES, DEMO_RUN } from '../fixtures/research';
 import { buildReportView } from './report';
@@ -27,6 +27,41 @@ describe('buildReportView', () => {
     expect(result.removedReasons).toEqual(["Its quote wasn't found in the cited source"]);
     expect(result.hiddenNotes).toEqual([]);
     expect(JSON.stringify(result)).not.toContain(removed.text);
+  });
+
+  it('adds one neutral line for each claim code left out, after the hidden claims', () => {
+    const omitted: Report['omitted'] = [
+      { kind: 'path_fact', reason: 'no_evidence' },
+      { kind: 'price_metric', reason: 'not_ready' },
+    ];
+    const unverified = DEMO_CLAIMS.map((claim) =>
+      claim._id === paused._id ? { ...claim, status: 'unverified' as const } : claim,
+    );
+    const result = buildReportView(
+      { ...DEMO_REPORT, omitted },
+      unverified,
+      DEMO_RUN,
+      DEMO_REPORT_SOURCES,
+    );
+    expect(result.hiddenNotes).toEqual([
+      '1 claim was not verified, so it is not shown',
+      "The filing quote for a link on your path couldn't be read, so it is not shown",
+      "The price reaction wasn't available yet, so no price metric is shown",
+    ]);
+    // Left out is not removed: no red segment and no removed count.
+    expect(result.counts.removed).toBe(1);
+  });
+
+  it('says so when the market data could not be read', () => {
+    const result = buildReportView(
+      { ...DEMO_REPORT, omitted: [{ kind: 'price_metric', reason: 'unavailable' }] },
+      DEMO_CLAIMS,
+      DEMO_RUN,
+      DEMO_REPORT_SOURCES,
+    );
+    expect(result.hiddenNotes).toEqual([
+      "The market data couldn't be read, so no price metric is shown",
+    ]);
   });
 
   it('hides a claim whose cited source cannot be shown, without calling it removed', () => {

@@ -27,6 +27,7 @@ import type { PriceReactions } from '../market/reactions';
 import { memorySearch } from '../test/search';
 import { runResearch, type ResearchRequest } from './agent';
 import { RESEARCH_TOOLS, TOKEN_REFRESH_AFTER_MS } from './mcp';
+import { PRICE_CAUSE_REASON } from './verifier';
 
 const SECRET = 'research-secret-that-is-long-enough';
 
@@ -333,6 +334,8 @@ describe('runResearch', () => {
       'code:Gate check',
       'code:Provider picked',
       'code:Run token issued',
+      'code:Market data read',
+      'code:Code claims',
       'model:Research turn 1',
       'tool:get_event',
       'model:Research turn 2',
@@ -369,7 +372,7 @@ describe('runResearch', () => {
       ],
       ttlSeconds: 300,
     });
-    const search = stored.steps[6];
+    const search = stored.steps[8];
     expect(search?.input).toEqual({ query: 'TSMC earthquake', symbols: ['TSM'] });
     expect(JSON.parse(search?.output ?? '')).toMatchObject({
       items: [{ sourceId: demo._id, eventId: event._id }],
@@ -380,11 +383,17 @@ describe('runResearch', () => {
     );
     expect(saved._id).toBe(outcome.reportId);
     expect(saved.openQuestions).toEqual(['How long will the pause last?']);
+    // This path's edge is not stored and no market data is configured, so code wrote nothing.
+    expect(saved.omitted).toEqual([
+      { kind: 'path_fact', reason: 'no_evidence' },
+      { kind: 'price_metric', reason: 'unavailable' },
+    ]);
     const claims = (
       await collection(mongo.db, 'claims').find({ reportId: saved._id }).toArray()
     ).map((c) => Claim.parse(c));
     const byText = new Map(claims.map((c) => [c.text, c]));
     expect(saved.sections).toEqual([{ title: 'Claims', claimIds: claims.map((c) => c._id) }]);
+    expect(claims.every((c) => c.origin === 'model')).toBe(true);
     expect(byText.get('TSMC evacuated some fabs after the earthquake.')?.status).toBe('supported');
     expect(byText.get('All TSMC fabs were destroyed.')?.status).toBe('removed');
     expect(byText.get('NVIDIA supply may be affected if the pause lasts.')?.status).toBe(
@@ -417,8 +426,9 @@ describe('runResearch', () => {
 
     await run();
 
-    // Gate, provider and token before turn 1; then a model step and a tool step per turn.
-    expect(seen).toEqual([3, 5, 7]);
+    // Gate, provider, token, market data and code claims before turn 1; then a model step and a
+    // tool step per turn.
+    expect(seen).toEqual([5, 7, 9]);
     expect(runId).not.toBe('');
   });
 
@@ -456,8 +466,8 @@ describe('runResearch', () => {
     expect(groq.doGenerateCalls).toHaveLength(1);
     expect(gemini.doGenerateCalls).toHaveLength(4);
     const names = stored.steps.map((s) => s.name);
-    expect(names.slice(3, 6)).toEqual(['Research turn 1', 'get_event', 'Rate limit wait']);
-    expect(stored.steps[5]?.input).toEqual({
+    expect(names.slice(5, 8)).toEqual(['Research turn 1', 'get_event', 'Rate limit wait']);
+    expect(stored.steps[7]?.input).toEqual({
       provider: 'google',
       model: 'gemini-3.5-flash-lite',
       attempt: 1,
@@ -772,19 +782,23 @@ describe('runResearch', () => {
         },
       ],
     };
+    // k1 is code's price metric, k2 the model's; the wrong one never reaches the verifier.
     const { groq, run } = setup([getEvent, metrics], {
       priceReactions,
-      verifier: [verdicts(['k1', 'supported'])],
+      verifier: [verdicts(['k1', 'supported'], ['k2', 'supported'])],
     });
 
     const outcome = await run();
 
-    // Code reads the reaction at the event's own time, for the figures' symbols.
-    expect(asked).toEqual([[['NVDA', 'SMH', 'SPY', 'TSM'], event.publishedAt]]);
+    // Code reads the reaction once, at the event's own time, for the path's event company and
+    // holding; the model's figures name no other symbol, so it is not read again.
+    expect(asked).toEqual([[['TSM', 'NVDA'], event.publishedAt]]);
     const claims = await collection(mongo.db, 'claims')
       .find({ reportId: outcome.reportId! })
       .toArray();
-    const [kept, wrong] = claims;
+    const [code, kept, wrong] = claims;
+    expect(code).toMatchObject({ origin: 'code', type: 'metric', status: 'supported' });
+    expect(code?.sources).toEqual(kept?.sources);
     expect(kept).toMatchObject({ type: 'metric', status: 'supported' });
     expect(wrong?.status).toBe('removed');
     expect(wrong?.checks).toContainEqual({
@@ -798,8 +812,8 @@ describe('runResearch', () => {
     );
     expect(market).toMatchObject({
       kind: 'market_data',
-      externalId: `sip-bars:${event._id}:NVDA,TSM,SMH,SPY`,
-      symbols: ['NVDA', 'TSM', 'SMH', 'SPY'],
+      externalId: `sip-bars:${event._id}:TSM,NVDA,SMH,SPY`,
+      symbols: ['TSM', 'NVDA', 'SMH', 'SPY'],
       text: null,
     });
     const report = await collection(mongo.db, 'reports').findOne({ _id: outcome.reportId! });
@@ -858,5 +872,401 @@ describe('runResearch', () => {
       .toArray();
     expect(claims.map((c) => c.status)).toEqual(['unverified']);
     expect(groq.doGenerateCalls).toHaveLength(0);
+  });
+
+  // The deterministic report core (T20): code writes the path's 10-K fact and the price metric in
+  // every report, whatever the model writes.
+  describe('code claims', () => {
+    // A second persona whose path runs through a stored, reviewed TSM supplier_of NVDA edge.
+    const personaA: User = { ...user, _id: randomUUID(), email: 'persona.a2@kesher.example' };
+    const supplierEdgeId = randomUUID();
+    const pathItem: FeedItem = {
+      ...feedItem,
+      _id: randomUUID(),
+      userId: personaA._id,
+      path: {
+        eventCompany: 'TSM',
+        holding: 'NVDA',
+        hops: [
+          {
+            from: 'TSM',
+            to: 'NVDA',
+            type: 'supplier_of',
+            weight: 0.8,
+            relationshipId: supplierEdgeId,
+          },
+        ],
+      },
+    };
+
+    beforeAll(async () => {
+      await collection(mongo.db, 'users').insertOne(personaA);
+      await collection(mongo.db, 'companies').insertOne({
+        _id: randomUUID(),
+        symbol: 'NVDA',
+        primaryListing: 'NVDA',
+        name: 'NVIDIA Corporation',
+        cik: '0001045810',
+        filerType: '10-K',
+        sector: 'semiconductors',
+        themes: ['ai_accelerators'],
+        createdAt: new Date('2026-09-28T00:00:00Z'),
+      });
+      await collection(mongo.db, 'relationships').insertOne({
+        _id: supplierEdgeId,
+        from: 'TSM',
+        to: 'NVDA',
+        type: 'supplier_of',
+        weight: 0.8,
+        evidence: {
+          sourceId: nvidia10k._id,
+          quote: TSMC_QUOTE,
+          filingDate: '2026-02-25',
+          url: nvidia10k.url,
+          reviewed: true,
+        },
+        createdAt: new Date('2026-09-29T00:00:00Z'),
+      });
+      await collection(mongo.db, 'feed_items').insertOne(pathItem);
+    });
+
+    // A model that writes no fact and no metric: one inference on the code claims, and a question.
+    const inferenceOnly = (
+      premises: string[],
+      text = 'NVIDIA may see wafer supply questions while TSMC recovers.',
+    ): ModelReply => ({
+      toolCalls: [
+        {
+          toolName: 'submit_report',
+          input: {
+            claims: [
+              {
+                key: 'c1',
+                type: 'inference',
+                text,
+                sources: [],
+                premises,
+                figures: [],
+              },
+            ],
+            openQuestions: ['How long will the recovery take?'],
+          },
+        },
+      ],
+    });
+
+    const claimsOf = async (reportId: string | null) =>
+      (await collection(mongo.db, 'claims').find({ reportId: reportId! }).toArray()).map((c) =>
+        Claim.parse(c),
+      );
+
+    it('yields the 10-K fact and the price metric, supported, when the model writes neither', async () => {
+      const { gemini, groq, run } = setup([getEvent, inferenceOnly(['e1', 'm1'])], {
+        priceReactions: () => Promise.resolve(reaction),
+        verifier: [verdicts(['k1', 'supported'], ['k2', 'supported'], ['k3', 'supported'])],
+      });
+
+      const outcome = await run({ userId: personaA._id });
+
+      expect(outcome.status).toBe('succeeded');
+      const [fact, metric, inference] = await claimsOf(outcome.reportId);
+      expect(fact).toMatchObject({
+        origin: 'code',
+        type: 'fact',
+        text: "TSMC supplies NVIDIA, according to NVIDIA's 10-K.",
+        status: 'supported',
+        sources: [{ sourceId: nvidia10k._id, quote: TSMC_QUOTE }],
+      });
+      for (const name of ['sources_exist', 'quote_verbatim', 'verifier'] as const) {
+        expect(fact?.checks).toContainEqual({ name, passed: true, detail: null });
+      }
+      expect(metric).toMatchObject({
+        origin: 'code',
+        type: 'metric',
+        text: 'TSM opened −1.16% below its previous close and NVDA opened −1.07% below its previous close; SMH −1.00%, SPY −0.22%.',
+        status: 'supported',
+      });
+      expect(metric?.checks).toContainEqual({ name: 'numbers_match', passed: true, detail: null });
+      const market = await collection(mongo.db, 'sources').findOne({
+        _id: metric?.sources.at(-1)?.sourceId,
+      });
+      expect(market?.kind).toBe('market_data');
+      expect(inference).toMatchObject({
+        origin: 'model',
+        status: 'supported',
+        premises: [fact?._id, metric?._id],
+      });
+
+      const saved = Report.parse(
+        await collection(mongo.db, 'reports').findOne({ _id: outcome.reportId! }),
+      );
+      expect(saved.omitted).toEqual([]);
+      expect(saved.sections[0]?.claimIds).toEqual([fact?._id, metric?._id, inference?._id]);
+
+      // The brief lists what code wrote, by key, and never the filing's own words.
+      const brief = JSON.stringify(gemini.doGenerateCalls[0]?.prompt);
+      expect(brief).toContain("- e1 (fact): TSMC supplies NVIDIA, according to NVIDIA's 10-K.");
+      expect(brief).toContain('- m1 (metric): TSM opened −1.16%');
+      expect(brief).not.toContain('We utilize foundries');
+      // The verifier judged all three in one call, the 10-K quote among its sources.
+      expect(groq.doGenerateCalls).toHaveLength(1);
+      expect(JSON.stringify(groq.doGenerateCalls[0]?.prompt)).toContain('We utilize foundries');
+
+      const stored = await loadRun(outcome.runId);
+      const names = stored.steps.map((s) => s.name);
+      expect(names.slice(3, 5)).toEqual(['Market data read', 'Code claims']);
+      expect(names.filter((n) => n === 'Market data read')).toHaveLength(1);
+      expect(JSON.parse(stored.steps[4]?.output ?? '')).toMatchObject({
+        claims: [
+          { key: 'e1', type: 'fact', sourceIds: [nvidia10k._id] },
+          { key: 'm1', type: 'metric' },
+        ],
+        omitted: [],
+      });
+    });
+
+    it('leaves the metric out with its reason while the reaction is pending, and still succeeds', async () => {
+      const pending: PriceReaction = {
+        ...reaction,
+        complete: false,
+        rows: reaction.rows.map((row) =>
+          row.symbol === 'NVDA' ? { ...row, moves: [{ pct: null, barTime: null }] } : row,
+        ),
+      };
+      const { gemini, run } = setup([getEvent, inferenceOnly(['e1'])], {
+        priceReactions: () => Promise.resolve(pending),
+        verifier: [verdicts(['k1', 'supported'], ['k2', 'supported'])],
+      });
+
+      const outcome = await run({ userId: personaA._id });
+
+      expect(outcome.status).toBe('succeeded');
+      const claims = await claimsOf(outcome.reportId);
+      expect(claims.map((c) => [c.origin, c.type, c.status])).toEqual([
+        ['code', 'fact', 'supported'],
+        ['model', 'inference', 'supported'],
+      ]);
+      const saved = await collection(mongo.db, 'reports').findOne({ _id: outcome.reportId! });
+      expect(saved?.omitted).toEqual([{ kind: 'price_metric', reason: 'not_ready' }]);
+      expect(JSON.stringify(gemini.doGenerateCalls[0]?.prompt)).toContain(
+        'The price reaction is not available yet, so code wrote no price metric.',
+      );
+    });
+
+    it('leaves the metric out as unavailable when the market data cannot be read', async () => {
+      const { run } = setup([getEvent, inferenceOnly(['e1'])], {
+        priceReactions: () => Promise.reject(new Error('Alpaca is down')),
+        verifier: [verdicts(['k1', 'supported'], ['k2', 'supported'])],
+      });
+
+      const outcome = await run({ userId: personaA._id });
+
+      expect(outcome.status).toBe('succeeded');
+      const saved = await collection(mongo.db, 'reports').findOne({ _id: outcome.reportId! });
+      expect(saved?.omitted).toEqual([{ kind: 'price_metric', reason: 'unavailable' }]);
+      expect((await claimsOf(outcome.reportId)).map((c) => c.type)).toEqual(['fact', 'inference']);
+    });
+
+    // A model metric on a symbol off the path: AMD, read on its own after the report.
+    const amdMetric: ModelReply = {
+      toolCalls: [
+        {
+          toolName: 'submit_report',
+          input: {
+            claims: [
+              {
+                key: 'c1',
+                type: 'metric',
+                text: 'AMD opened −2.50% below its previous close.',
+                sources: [],
+                premises: [],
+                figures: [{ symbol: 'AMD', window: 'open_gap', pct: -2.5 }],
+              },
+            ],
+            openQuestions: [],
+          },
+        },
+      ],
+    };
+    const amdReaction: PriceReaction = {
+      ...reaction,
+      rows: [
+        {
+          ...reaction.rows[0]!,
+          symbol: 'AMD',
+          moves: [{ pct: -2.5, barTime: t('2024-04-03T13:30:00Z') }],
+        },
+        ...reaction.rows.filter((row) => row.symbol === 'SMH' || row.symbol === 'SPY'),
+      ],
+    };
+
+    it('reads a symbol only a model metric names on its own, and checks every metric', async () => {
+      const asked: (readonly string[])[] = [];
+      const { run } = setup([getEvent, amdMetric], {
+        priceReactions: (subjects) => {
+          asked.push(subjects);
+          return Promise.resolve(subjects.includes('AMD') ? amdReaction : reaction);
+        },
+        verifier: [verdicts(['k1', 'supported'], ['k2', 'supported'], ['k3', 'supported'])],
+      });
+
+      const outcome = await run({ userId: personaA._id });
+
+      expect(asked).toEqual([['TSM', 'NVDA'], ['AMD']]);
+      const claims = await claimsOf(outcome.reportId);
+      expect(claims.map((c) => [c.origin, c.type, c.status])).toEqual([
+        ['code', 'fact', 'supported'],
+        ['code', 'metric', 'supported'],
+        ['model', 'metric', 'supported'],
+      ]);
+      for (const metric of claims.filter((c) => c.type === 'metric')) {
+        expect(metric.checks).toContainEqual({ name: 'numbers_match', passed: true, detail: null });
+      }
+      const market = await collection(mongo.db, 'sources').findOne({
+        _id: claims[2]?.sources.at(-1)?.sourceId,
+      });
+      expect(market?.symbols).toEqual(['TSM', 'NVDA', 'AMD', 'SMH', 'SPY']);
+    });
+
+    it('leaves that metric unchecked when its symbol cannot be read, and keeps the code metric', async () => {
+      const { run } = setup([getEvent, amdMetric], {
+        priceReactions: (subjects) =>
+          subjects.includes('AMD')
+            ? Promise.reject(new Error('Alpaca is down'))
+            : Promise.resolve(reaction),
+        verifier: [verdicts(['k1', 'supported'], ['k2', 'supported'])],
+      });
+
+      const outcome = await run({ userId: personaA._id });
+
+      const [, codeMetric, modelMetric] = await claimsOf(outcome.reportId);
+      expect(codeMetric).toMatchObject({ origin: 'code', status: 'supported' });
+      expect(codeMetric?.checks).toContainEqual({
+        name: 'numbers_match',
+        passed: true,
+        detail: null,
+      });
+      expect(modelMetric).toMatchObject({ origin: 'model', status: 'unverified' });
+      expect(modelMetric?.checks.map((c) => c.name)).not.toContain('numbers_match');
+    });
+
+    it('keeps the report when the model puts source ids in premises, and says what it cost', async () => {
+      // As a real run did (T20): source ids in the premises of a fact and of two inferences.
+      const sourceIdPremises: ModelReply = {
+        toolCalls: [
+          {
+            toolName: 'submit_report',
+            input: {
+              claims: [
+                {
+                  key: 'c1',
+                  type: 'fact',
+                  text: 'TSMC evacuated some fabs after the earthquake.',
+                  sources: [
+                    {
+                      sourceId: demo._id,
+                      quote: 'evacuated some fabs after the strongest earthquake',
+                    },
+                  ],
+                  premises: [nvidia10k._id],
+                  figures: [],
+                },
+                {
+                  key: 'c2',
+                  type: 'inference',
+                  text: 'NVIDIA may see wafer supply questions while TSMC recovers.',
+                  sources: [],
+                  premises: ['e1', demo._id],
+                  figures: [],
+                },
+                {
+                  key: 'c3',
+                  type: 'inference',
+                  text: 'Other foundry customers may be affected.',
+                  sources: [],
+                  premises: [demo._id],
+                  figures: [],
+                },
+              ],
+              openQuestions: [],
+            },
+          },
+        ],
+      };
+      const { run } = setup([getEvent, sourceIdPremises], {
+        priceReactions: () => Promise.resolve(reaction),
+        verifier: [verdicts(['k1', 'supported'], ['k2', 'supported'], ['k3', 'supported'])],
+      });
+
+      const outcome = await run({ userId: personaA._id });
+
+      expect(outcome.status).toBe('succeeded');
+      const claims = await claimsOf(outcome.reportId);
+      expect(claims.map((c) => [c.origin, c.type, c.status])).toEqual([
+        ['code', 'fact', 'supported'],
+        ['code', 'metric', 'supported'],
+        ['model', 'fact', 'supported'],
+        ['model', 'inference', 'removed'],
+      ]);
+      const stored = await loadRun(outcome.runId);
+      const premises = stored.steps.find((s) => s.name === 'premises_supported');
+      expect(premises?.outputSummary).toBe(
+        '1 checked, 1 removed. Inferences naming a premise not in the report: 1 removed, 1 dropped.',
+      );
+      expect(JSON.parse(premises?.output ?? '')).toMatchObject({
+        unknownPremise: {
+          removed: 1,
+          dropped: 1,
+          removedClaimIds: [claims[3]?._id],
+          droppedKeys: ['c3'],
+        },
+      });
+    });
+
+    it('removes a hedged inference that ties the event to the code metric as a cause', async () => {
+      const causal = inferenceOnly(
+        ['e1', 'm1'],
+        'The earthquake could have contributed to the lower open in NVDA.',
+      );
+      const { run } = setup([getEvent, causal], {
+        priceReactions: () => Promise.resolve(reaction),
+        verifier: [
+          JSON.stringify({
+            verdicts: [
+              { claim: 'k1', verdict: 'supported', priceCause: false, reason: 'quoted' },
+              { claim: 'k2', verdict: 'supported', priceCause: false, reason: 'timing only' },
+              { claim: 'k3', verdict: 'supported', priceCause: true, reason: 'hedged cause' },
+            ],
+          }),
+        ],
+      });
+
+      const outcome = await run({ userId: personaA._id });
+
+      const [fact, metric, inference] = await claimsOf(outcome.reportId);
+      expect([fact?.status, metric?.status]).toEqual(['supported', 'supported']);
+      expect(inference?.status).toBe('removed');
+      expect(inference?.checks.filter((c) => !c.passed)).toEqual([
+        { name: 'verifier', passed: false, detail: PRICE_CAUSE_REASON },
+      ]);
+    });
+
+    it('removes an inference that names a code claim the report does not have', async () => {
+      // This path has one hop, so there is an e1 and no e2.
+      const { run } = setup([getEvent, inferenceOnly(['e1', 'e2'])], {
+        priceReactions: () => Promise.resolve(reaction),
+        verifier: [verdicts(['k1', 'supported'], ['k2', 'supported'])],
+      });
+
+      const outcome = await run({ userId: personaA._id });
+
+      const inference = (await claimsOf(outcome.reportId)).find((c) => c.origin === 'model');
+      expect(inference?.status).toBe('removed');
+      expect(inference?.checks).toContainEqual({
+        name: 'premises_supported',
+        passed: false,
+        detail: 'premise e2 is not in the report',
+      });
+    });
   });
 });

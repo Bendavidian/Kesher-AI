@@ -76,7 +76,7 @@ The signature component.
   - A segmented bar with one green segment per supported claim and one red per removed claim.
   - A legend for claim types.
 - **Claims table:** number, type chip (Fact supplier blue, Metric code teal, Inference model amber), claim with its evidence line, status.
-- **After the table:** open questions, then the removed claim block in down tint with a link to the check in the agent run.
+- **After the table:** neutral lines in text-3 for claims not shown (not verified, or hidden with a claim they build on) and for each claim code writes in every report but left out of this one: "The price reaction wasn't available yet, so no price metric is shown", "The market data couldn't be read, so no price metric is shown", "The filing quote for a link on your path couldn't be read, so it is not shown". Never red: nothing was removed. Then open questions, then the removed claim block in down tint with a link to the check in the agent run.
 - **Side panel:** your connection (mini path and relevance), then sources with tier chips and ids.
 
 ## Agent run screen

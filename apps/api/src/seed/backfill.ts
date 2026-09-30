@@ -52,3 +52,17 @@ export async function backfillVerification(db: Db): Promise<{ runs: number; clai
     .updateMany({ type: 'metric', figures: { $exists: false } }, { $set: { figures: [] } });
   return { runs: runs.modifiedCount, claims: claims.modifiedCount };
 }
+
+// Schema migration for T20, which added Claim.origin and Report.omitted. Every claim stored before
+// it came from the model, and code left nothing out of those reports, since it wrote nothing.
+// Only a missing field is written, so a rerun changes nothing. Returns the claims and the reports
+// it changed.
+export async function backfillReportCore(db: Db): Promise<{ claims: number; reports: number }> {
+  const claims = await db
+    .collection<{ _id: string }>('claims')
+    .updateMany({ origin: { $exists: false } }, { $set: { origin: 'model' } });
+  const reports = await db
+    .collection<{ _id: string }>('reports')
+    .updateMany({ omitted: { $exists: false } }, { $set: { omitted: [] } });
+  return { claims: claims.modifiedCount, reports: reports.modifiedCount };
+}

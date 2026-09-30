@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FeedItem, MarketEvent } from './event';
 import { FilingChunk } from './filing';
 import { IngestCounter } from './ingest';
-import { AgentRun, Claim, MAX_STEP_OUTPUT_BYTES, ResearchBudgetDay } from './research';
+import { AgentRun, Claim, MAX_STEP_OUTPUT_BYTES, Report, ResearchBudgetDay } from './research';
 import { Source } from './source';
 import { User } from './user';
 
@@ -274,6 +274,7 @@ describe('Claim', () => {
   const base = {
     _id: id(6),
     reportId: id(7),
+    origin: 'model',
     text: 'NVIDIA uses TSMC to produce its semiconductor wafers.',
     status: 'unverified',
     checks: [],
@@ -409,5 +410,57 @@ describe('ResearchBudgetDay', () => {
     );
     expect(ResearchBudgetDay.safeParse({ ...budget, runs: -1 }).success).toBe(false);
     expect(ResearchBudgetDay.safeParse({ ...budget, runs: 1.5 }).success).toBe(false);
+  });
+});
+
+describe('Claim origin and Report omitted (T20)', () => {
+  const fact = {
+    _id: id(6),
+    reportId: id(7),
+    origin: 'code',
+    type: 'fact',
+    text: "TSMC supplies NVIDIA, according to NVIDIA's 10-K.",
+    status: 'unverified',
+    checks: [],
+    createdAt: at,
+    sources: [{ sourceId: id(2), quote: 'We utilize foundries, such as TSMC' }],
+    premises: [],
+  };
+
+  it('requires every claim to say whether code or the model wrote it', () => {
+    expect(Claim.safeParse(fact).success).toBe(true);
+    expect(Claim.safeParse({ ...fact, origin: 'model' }).success).toBe(true);
+    expect(Claim.safeParse({ ...fact, origin: 'verifier' }).success).toBe(false);
+    const stored: Record<string, unknown> = { ...fact };
+    delete stored.origin;
+    expect(Claim.safeParse(stored).success).toBe(false);
+  });
+
+  const report = {
+    _id: id(7),
+    runId: id(8),
+    sections: [],
+    openQuestions: [],
+    omitted: [],
+    createdAt: at,
+  };
+
+  it('lists the code claims left out, each with a reason its kind allows', () => {
+    expect(Report.safeParse(report).success).toBe(true);
+    expect(
+      Report.safeParse({ ...report, omitted: [{ kind: 'price_metric', reason: 'not_ready' }] })
+        .success,
+    ).toBe(true);
+    expect(
+      Report.safeParse({ ...report, omitted: [{ kind: 'path_fact', reason: 'no_evidence' }] })
+        .success,
+    ).toBe(true);
+    expect(
+      Report.safeParse({ ...report, omitted: [{ kind: 'path_fact', reason: 'not_ready' }] })
+        .success,
+    ).toBe(false);
+    const older: Record<string, unknown> = { ...report };
+    delete older.omitted;
+    expect(Report.safeParse(older).success).toBe(false);
   });
 });
