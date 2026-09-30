@@ -1,5 +1,5 @@
 import type { CompanyConceptSource, SearchBackend } from '@kesher/mcp';
-import { HealthResponse } from '@kesher/shared';
+import { HealthResponse, type ToolName } from '@kesher/shared';
 import express, { type ErrorRequestHandler, type Express } from 'express';
 import type { Db } from 'mongodb';
 import type { LazyEmbedder } from './embed/event';
@@ -10,16 +10,24 @@ import type { InvestigateDeps } from './research/investigate';
 import type { PriceReactions } from './market/reactions';
 import { createModelClient, resolveFromKeys, type ModelClient } from './llm/client';
 import { authRouter, type AuthOptions } from './routes/auth';
+import { demoRouter, type DemoOptions } from './routes/demo';
 import { devRouter } from './routes/dev';
 import { feedRouter } from './routes/feed';
 import { mcpRouter } from './routes/mcp';
 import { researchRouter } from './routes/research';
 import { atlasSearch } from './search/atlas';
+import { serveWeb, type WebLocals } from './web/serve';
 
 export interface AppDeps {
   db: Db;
   // Mounts the development routes, such as POST /dev/replay. Off in production.
   devRoutes: boolean;
+  // Mounts POST /demo/replay when set, with auth: the reset and replay of the pinned demo item
+  // for a signed in user (DEMO_MODE, SPEC.md decision log T18). GET /health reports it.
+  demo?: DemoOptions;
+  // The web build to serve, with the api's routes under /api (production, SPEC.md decision log
+  // T18). Unset in development, where the Vite dev server proxies /api.
+  web?: string;
   // Mounts POST /mcp when set. The secret verifies run tokens (MCP_TOKEN_SECRET).
   mcp?: { secret: string };
   // Mounts sign in, GET /me, GET /feed and explain when set. The secret is JWT_SECRET.
@@ -40,7 +48,13 @@ export interface AppDeps {
   // when a run starts; redact is applied to every run step. autoResearch is AUTO_RESEARCH, on
   // unless set to false: off, the gate records a skip for every card and starts no run;
   // Investigate is unchanged.
-  research?: { mcpUrl: () => string; redact: (text: string) => string; autoResearch?: boolean };
+  // tools is the run's tool set (researchTools), every research tool when unset.
+  research?: {
+    mcpUrl: () => string;
+    redact: (text: string) => string;
+    autoResearch?: boolean;
+    tools?: readonly ToolName[];
+  };
   // Gets each FeedItem whose research state changed; the server passes the feed:update push.
   onResearch?: InvestigateDeps['onResearch'];
   // Get each stored run step and each run's end; the server passes run:step and run:end.
@@ -79,6 +93,8 @@ export function createApp(deps: AppDeps): Express {
 export function createApi({
   db,
   devRoutes,
+  demo,
+  web,
   mcp,
   auth,
   onScored,
@@ -96,9 +112,11 @@ export function createApi({
 }: AppDeps): Api {
   const app = express();
   app.disable('x-powered-by');
+  if (web) app.use(serveWeb(web));
 
+  const demoMode = Boolean(demo && auth);
   app.get('/health', (_req, res) => {
-    res.json(HealthResponse.parse({ status: 'ok' }));
+    res.json(HealthResponse.parse({ status: 'ok', demoMode }));
   });
 
   // After a scoring run: the cards go out first, then the gate decides on research, so a card
@@ -134,6 +152,7 @@ export function createApi({
           },
         },
         redact: research.redact,
+        ...(research.tools ? { tools: research.tools } : {}),
         // numbers_match reads the same price reaction the cards and get_price_reaction use.
         ...(priceReactions ? { priceReactions } : {}),
         queue,
@@ -155,7 +174,32 @@ export function createApi({
       };
     }
   }
+  if (demo && auth) {
+    app.use(
+      demoRouter(
+        db,
+        auth.secret,
+        {
+          models,
+          log,
+          ...(afterScoring ? { onScored: afterScoring } : {}),
+          ...(embedder ? { embedder } : {}),
+        },
+        demo,
+      ),
+    );
+  }
   if (devRoutes) app.use(devRouter(db, models, log, afterScoring, embedder));
+  // With the web served, an unknown path under /api answers JSON, never the app shell.
+  if (web) {
+    app.use((_req, res, next) => {
+      if (!(res.locals as WebLocals).api) {
+        next();
+        return;
+      }
+      res.status(404).json({ error: 'not found' });
+    });
+  }
 
   // Answers without internals; driver errors can carry connection details.
   const onError: ErrorRequestHandler = (error, _req, res, next) => {

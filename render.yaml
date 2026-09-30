@@ -1,0 +1,49 @@
+# Render Blueprint for the deployed demo (SPEC.md decision log, T18). Free plan, no card: 512 MB,
+# 0.1 CPU, and a spin down after 15 minutes without an inbound request, so an external cron pings
+# /health every 10 minutes. The instance is replay only: LIVE_INGEST stays false. The local
+# embedding model does not fit in 512 MB next to the api (about 615 MB at peak with it, measured),
+# so LOCAL_EMBEDDINGS is false: research runs without search_filings.
+# Deploys are manual. Secrets have sync: false: Render asks for them when the Blueprint is created,
+# and they live only in the service's environment, never in the repository.
+services:
+  - type: web
+    name: kesher
+    runtime: node
+    plan: free
+    # Keep the service near the Atlas cluster's region.
+    region: frankfurt
+    # Dev dependencies are needed for the Vite build.
+    buildCommand: npm ci --include=dev && npm run build
+    # One Node process: through npm start, npm and the tsx CLI would each add a process.
+    startCommand: node --import tsx apps/api/src/server.ts
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: '26'
+      - key: NODE_ENV
+        value: production
+      - key: LIVE_INGEST
+        value: 'false'
+      - key: DEMO_MODE
+        value: 'true'
+      - key: AUTO_RESEARCH
+        value: 'true'
+      - key: LOCAL_EMBEDDINGS
+        value: 'false'
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: MCP_TOKEN_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GOOGLE_GENERATIVE_AI_API_KEY
+        sync: false
+      - key: ALPACA_API_KEY_ID
+        sync: false
+      - key: ALPACA_API_SECRET_KEY
+        sync: false
+      - key: SEC_USER_AGENT
+        sync: false

@@ -31,6 +31,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      # The web build the deployed api serves (SPEC.md decision log, T18).
+      - run: npm run build
       # mongodb-memory-server downloads mongod on first use; the key follows MONGOD_VERSION
       # in apps/api/src/test/mongo.ts.
       - uses: actions/cache@v6

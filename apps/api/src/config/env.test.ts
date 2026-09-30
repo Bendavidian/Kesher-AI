@@ -18,6 +18,40 @@ describe('Env', () => {
       expect(Env.safeParse({ ...base, AUTO_RESEARCH: value }).success).toBe(false);
     }
   });
+
+  it('turns DEMO_MODE on when unset outside production, and off when unset in production', () => {
+    expect(Env.parse(base).DEMO_MODE).toBe(true);
+    expect(Env.parse({ ...base, NODE_ENV: 'development' }).DEMO_MODE).toBe(true);
+    expect(Env.parse({ ...base, NODE_ENV: 'test' }).DEMO_MODE).toBe(true);
+    expect(Env.parse({ ...base, NODE_ENV: 'production' }).DEMO_MODE).toBe(false);
+  });
+
+  it('reads DEMO_MODE true and false in any NODE_ENV', () => {
+    for (const NODE_ENV of ['development', 'production']) {
+      expect(Env.parse({ ...base, NODE_ENV, DEMO_MODE: 'true' }).DEMO_MODE).toBe(true);
+      expect(Env.parse({ ...base, NODE_ENV, DEMO_MODE: 'false' }).DEMO_MODE).toBe(false);
+    }
+  });
+
+  it('turns LOCAL_EMBEDDINGS on when unset, and reads true and false', () => {
+    expect(Env.parse(base).LOCAL_EMBEDDINGS).toBe(true);
+    expect(Env.parse({ ...base, LOCAL_EMBEDDINGS: 'true' }).LOCAL_EMBEDDINGS).toBe(true);
+    expect(Env.parse({ ...base, LOCAL_EMBEDDINGS: 'false' }).LOCAL_EMBEDDINGS).toBe(false);
+  });
+
+  it('rejects any other LOCAL_EMBEDDINGS value', () => {
+    for (const value of ['no', '0', 'FALSE', '']) {
+      expect(Env.safeParse({ ...base, LOCAL_EMBEDDINGS: value }).success).toBe(false);
+    }
+  });
+
+  it('rejects any other DEMO_MODE value, so a typo never opens the demo route', () => {
+    for (const value of ['yes', 'on', '1', 'TRUE', '']) {
+      const parsed = Env.safeParse({ ...base, NODE_ENV: 'production', DEMO_MODE: value });
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues[0]?.path).toEqual(['DEMO_MODE']);
+    }
+  });
 });
 
 const keys = {

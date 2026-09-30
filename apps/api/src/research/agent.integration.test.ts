@@ -10,6 +10,7 @@ import {
   type MarketEvent,
   type PriceReaction,
   type Source,
+  type ToolName,
   type User,
 } from '@kesher/shared';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -26,7 +27,7 @@ import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/
 import type { PriceReactions } from '../market/reactions';
 import { memorySearch } from '../test/search';
 import { runResearch, type ResearchRequest } from './agent';
-import { RESEARCH_TOOLS, TOKEN_REFRESH_AFTER_MS } from './mcp';
+import { RESEARCH_TOOLS, researchTools, TOKEN_REFRESH_AFTER_MS } from './mcp';
 import { PRICE_CAUSE_REASON } from './verifier';
 
 const SECRET = 'research-secret-that-is-long-enough';
@@ -283,6 +284,7 @@ describe('runResearch', () => {
       verifier?: ModelReply[];
       priceReactions?: PriceReactions;
       onVerifierCall?: () => void;
+      tools?: readonly ToolName[];
     } = {},
   ) {
     const gemini = mockModel(MODELS.research.model, replies, options.usage, options.onCall);
@@ -300,6 +302,7 @@ describe('runResearch', () => {
           redact: (text) => text.split(SECRET).join('[REDACTED]'),
           ...(options.now ? { now: options.now } : {}),
           ...(options.priceReactions ? { priceReactions: options.priceReactions } : {}),
+          ...(options.tools ? { tools: options.tools } : {}),
         },
         { ...request, ...overrides },
       );
@@ -449,6 +452,33 @@ describe('runResearch', () => {
     expect(second).toContain('<tool_output tool=\\"get_event\\">');
     // The untrusted headline first reaches the model inside get_event's quoted output.
     expect(JSON.stringify(gemini.doGenerateCalls[0]?.prompt)).not.toContain(demo.title);
+  });
+
+  it('without the local embeddings, leaves search_filings out of the token, the tools and the prompt', async () => {
+    const tools = researchTools({ filingSearch: false });
+    const { gemini, run } = setup([getEvent, searchNews, report], { tools });
+
+    const outcome = await run();
+
+    expect(outcome.status).toBe('succeeded');
+    const stored = await loadRun(outcome.runId);
+    expect(stored.steps.find((s) => s.name === 'Run token issued')?.input).toMatchObject({
+      tools: [
+        'get_my_portfolio',
+        'get_event',
+        'search_news',
+        'get_company_relationships',
+        'get_price_reaction',
+        'get_financial_facts',
+      ],
+    });
+    for (const call of gemini.doGenerateCalls) {
+      const names = call.tools?.map((t) => t.name) ?? [];
+      expect(names).not.toContain('search_filings');
+      expect(names.sort()).toEqual([...tools, 'submit_report'].sort());
+      expect(JSON.stringify(call.prompt)).not.toContain('search_filings');
+      expect(JSON.stringify(call.prompt)).toContain('get_company_relationships');
+    }
   });
 
   it('retries a 429 in the middle of the run on the same provider', async () => {

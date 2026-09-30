@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type { FeedPath } from '@kesher/shared';
+import { AGENT_TOOLS, type FeedPath } from '@kesher/shared';
 import { describe, expect, it } from 'vitest';
-import { buildBrief, quoteToolOutput, RESEARCH_SYSTEM } from './prompt';
+import { researchTools } from './mcp';
+import { buildBrief, quoteToolOutput, RESEARCH_SYSTEM, researchSystem } from './prompt';
 
 const path: FeedPath = {
   eventCompany: 'TSM',
@@ -100,5 +101,36 @@ describe('RESEARCH_SYSTEM', () => {
     expect(RESEARCH_SYSTEM).toMatch(/verbatim/i);
     expect(RESEARCH_SYSTEM).toMatch(/not advice|never recommend/i);
     expect(RESEARCH_SYSTEM).toMatch(/submit_report/);
+  });
+});
+
+describe('researchSystem', () => {
+  it('has the search_filings step when the run has the tool', () => {
+    expect(researchSystem(AGENT_TOOLS.research)).toBe(RESEARCH_SYSTEM);
+    expect(RESEARCH_SYSTEM).toContain(
+      "2. search_news for related coverage.\n3. When the investor holds another company linked to the event's company: search_filings in that holding's 10-K for what else it says about the event's company.\n4. Use get_price_reaction,",
+    );
+  });
+
+  it('leaves the step out and numbers on when the run does not have it', () => {
+    const system = researchSystem(researchTools({ filingSearch: false }));
+    expect(system).not.toContain('search_filings');
+    expect(system).toContain(
+      '2. search_news for related coverage.\n3. Use get_price_reaction, get_company_relationships,',
+    );
+    expect(system).not.toMatch(/\{filingStep\}|\{lastStep\}/);
+  });
+});
+
+describe('researchTools', () => {
+  it('is every research tool with the local embeddings, in order', () => {
+    expect(researchTools({ filingSearch: true })).toEqual([...AGENT_TOOLS.research]);
+  });
+
+  it('leaves out only search_filings without them', () => {
+    expect(researchTools({ filingSearch: false })).toEqual(
+      AGENT_TOOLS.research.filter((name) => name !== 'search_filings'),
+    );
+    expect(researchTools({ filingSearch: false })).toHaveLength(AGENT_TOOLS.research.length - 1);
   });
 });

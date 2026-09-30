@@ -1,5 +1,5 @@
 export { HealthResponse } from './health';
-export { ReplayResponse, ResetResponse } from './dev';
+export { DemoReplayResponse, ReplayResponse, ResetResponse } from './dev';
 export * from './auth';
 export * from './demo';
 export * from './realtime';

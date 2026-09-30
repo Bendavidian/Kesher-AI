@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ReplayResponse, ResetResponse } from './dev';
+import { DemoReplayResponse, ReplayResponse, ResetResponse } from './dev';
 
 describe('ReplayResponse', () => {
   const ids = {
@@ -41,5 +41,26 @@ describe('ResetResponse', () => {
     expect(ResetResponse.parse({ ...ids, deleted: 3 })).toEqual({ ...ids, deleted: 3 });
     expect(ResetResponse.safeParse({ ...ids, deleted: -1 }).success).toBe(false);
     expect(ResetResponse.safeParse({ ...ids, deleted: 1.5 }).success).toBe(false);
+  });
+});
+
+describe('DemoReplayResponse', () => {
+  const ids = {
+    sourceId: '00000000-0000-4000-8000-000000000001',
+    eventId: '00000000-0000-4000-8000-000000000002',
+  };
+  const replay = { outcome: 'processed', ...ids, sourceCreated: false, eventCreated: false };
+
+  it('carries the reset, or null when there was nothing to reset, and the replay', () => {
+    const reset = { ...ids, deleted: 3 };
+    expect(DemoReplayResponse.parse({ reset, replay })).toEqual({ reset, replay });
+    expect(DemoReplayResponse.parse({ reset: null, replay })).toEqual({ reset: null, replay });
+  });
+
+  it('rejects a missing replay and unknown keys', () => {
+    expect(DemoReplayResponse.safeParse({ reset: null }).success).toBe(false);
+    expect(
+      DemoReplayResponse.safeParse({ reset: null, replay, sourceId: '38062166' }).success,
+    ).toBe(false);
   });
 });

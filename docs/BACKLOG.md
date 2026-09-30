@@ -123,7 +123,7 @@ Notes from T04:
 Notes from T10 for later tasks:
 - T11: a live filing's Source has text null and a code written title (company, form, 8-K item labels), so extraction reads only that title. Once filing chunks exist, decide whether live filings get their text screened and extracted.
 - T16: live rows of ingest_counters now fill up where LIVE_INGEST is on; items that fail the Source schema are logged, not counted.
-- T18: the deployed instance needs LIVE_INGEST=true with the Alpaca keys and SEC_USER_AGENT, and both development machines false. Recordings go to the database there, so nothing on its disk needs to last.
+- T18: the deployed instance needs LIVE_INGEST=true with the Alpaca keys and SEC_USER_AGENT, and both development machines false. Recordings go to the database there, so nothing on its disk needs to last. Superseded in T18: the deployed instance is replay only (SPEC.md decision log, T18).
 
 ### [x] T11 Graph build job
 Finnhub peers and profiles. LLM extraction of supplier and customer edges from 10-K sections with verbatim quotes. A review CLI to accept or reject edges. The same sections chunked and embedded into FilingChunk.
@@ -204,10 +204,14 @@ Notes from part 1 for part 2 (docs/EVALS.md, Reading and proposals):
 - Test a materiality flag per reviewed edge, major or minor, set by the user in graph:review, as the explanation for B's misses on customer hops. The likely case is AMD supplier_of MSFT (Xbox), whose inverse sends every Microsoft headline to AMD holders at 0.8: four of B's pairs run through it, labeled high once, medium once and none twice. Measure agreement with a lower score for minor edges before any weight or schema change (Relationship would need the flag, and graph:review the question).
 - Model answers vary on the same text: the first recording of 9000000004 was a refusal that failed the schema, the second a suppression. Refusals are now recorded as failures and replayed as such.
 
-### [ ] T18 Deploy, README, demo
-Deployed web and api, a README with an architecture diagram and the eval numbers, and a rehearsed five minute demo from a recorded event. The deployed instance becomes the single live ingester (LIVE_INGEST on there, off on both development machines). Check that the local embedding model fits the host's memory. Decide the api production runtime: since T01 the api runs from TypeScript source through tsx and @kesher/shared exports its source, so deploy either keeps tsx or bundles the api.
+### [~] T18 Deploy, README, demo
+Deployed web and api, a README with an architecture diagram and the eval numbers, and a rehearsed five minute demo from a recorded event. Check that the local embedding model fits the host's memory. Decide the api production runtime: since T01 the api runs from TypeScript source through tsx and @kesher/shared exports its source, so deploy either keeps tsx or bundles the api.
 During the rehearsal, observe a live Benzinga item reaching the feed in US market hours (T10 proved the live path on Atlas with an EDGAR 8-K, and the Alpaca stream only with fake WebSocket tests).
 Done when: the demo runs end to end on the deployed app.
+Split in two parts under this id on 30 Sep 2026 (SPEC.md decision log, T18):
+- Part 1, now: the production runtime (tsx, one Node process), one origin with the api serving the web build, DEMO_MODE with POST /demo/replay for the pinned item only, a Render free Blueprint with a keep-alive ping, `npm run smoke` against a base URL, the deploy, and a README without eval numbers. The deployed instance is replay only (LIVE_INGEST=false), so T19 is not a prerequisite. The local embedding model did not fit Render's 512 MB (about 615 MB at peak), so the deployed instance runs with LOCAL_EMBEDDINGS=false and research there has no search_filings (SPEC.md decision log, T18).
+- Part 2, after T16 and T20: the eval numbers in the README, the rehearsal from docs/DEMO.md, and the live Benzinga item observed on one development machine with LIVE_INGEST on in US market hours.
+Done when for part 1: `npm run smoke` passes against the deployed URL, Investigate included, and the feed, report and run screens render there.
 
 ### [ ] T19 Live ingestion hardening
 Found in T10. Items published while the Alpaca stream was down are lost: after a reconnect, fetch the gap from the REST news endpoint by time and pass it through the same path (the pre filter and the duplicate check keep it idempotent). Groq allows 200,000 tokens a day, about 220 extractions at roughly 900 tokens each; past that, extraction falls back to Gemini, which research also uses. Add a daily cap or priority for live extraction, counted like the other drops, before LIVE_INGEST runs all day. The first start on an empty database also hands over the last 24 hours of universe filings at once.

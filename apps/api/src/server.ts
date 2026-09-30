@@ -19,8 +19,10 @@ import { createModelClient, resolveFromKeys, type ModelClient } from './llm/clie
 import { createMarketData } from './market/data';
 import { createPriceReactions } from './market/reactions';
 import { createRealtime } from './realtime/socket';
+import { researchTools } from './research/mcp';
 import { secFetcher, type Fetcher } from './sec/fetch';
 import { createCompanyConcepts, secConcepts } from './sec/xbrl';
+import { WEB_DIST_DIR } from './web/serve';
 
 const port = z.coerce.number().int().min(1).max(65535).default(3001).parse(process.env.PORT);
 const env = loadEnv();
@@ -58,9 +60,11 @@ const models = () => (modelClient ??= createModelClient({ resolve: resolveFromKe
 const priceReactions = createPriceReactions(createMarketData({ keys: () => alpacaKeys }));
 const logError = (error: unknown) => console.error(redact(describeError(error)));
 // The local model (about 90 MB in .cache/models, downloaded once). Loading starts now, so a
-// first download never runs inside a request; a failed load is retried on the next use.
-const embedder = lazyLocalEmbedder();
-embedder().catch((error: unknown) => {
+// first download never runs inside a request; a failed load is retried on the next use. With
+// LOCAL_EMBEDDINGS off it is never loaded: the 512 MB free host cannot hold it (SPEC.md decision
+// log, T18).
+const embedder = env.LOCAL_EMBEDDINGS ? lazyLocalEmbedder() : undefined;
+embedder?.().catch((error: unknown) => {
   console.error(redact(`Embedding model not loaded: ${describeError(error)}`));
 });
 // SEC XBRL values for get_financial_facts, asked on first use. SEC_USER_AGENT is read then, so
@@ -71,9 +75,14 @@ const companyConcept = createCompanyConcepts(
 );
 
 const devRoutes = env.NODE_ENV !== 'production';
+// In production the api serves the web build on the same origin (SPEC.md decision log, T18),
+// and refuses to start without it.
+const web = env.NODE_ENV === 'production' ? WEB_DIST_DIR : undefined;
 const { app, afterScoring } = createApi({
   db,
   devRoutes,
+  ...(env.DEMO_MODE ? { demo: {} } : {}),
+  ...(web ? { web } : {}),
   mcp: { secret: mcpEnv.MCP_TOKEN_SECRET },
   auth: {
     secret: authEnv.JWT_SECRET,
@@ -85,12 +94,13 @@ const { app, afterScoring } = createApi({
   logError,
   log: (message) => console.log(redact(message)),
   models,
-  embedder,
+  ...(embedder ? { embedder } : {}),
   // Investigate reaches the api's own POST /mcp as a real MCP client.
   research: {
     mcpUrl: () => `http://127.0.0.1:${port}/mcp`,
     redact,
     autoResearch: env.AUTO_RESEARCH,
+    tools: researchTools({ filingSearch: env.LOCAL_EMBEDDINGS }),
   },
   onResearch: (item) => realtime.publishItem(item),
   onRunStep: (userId, pushed) => realtime.publishRunStep(userId, pushed),
@@ -109,13 +119,13 @@ const realtime = createRealtime(server, {
 let liveIngest: LiveIngest | undefined;
 server.listen(port, () => {
   console.log(
-    `api listening on http://localhost:${port}, database ${DB_NAME}, mcp on /mcp, socket.io on /socket.io, dev routes ${devRoutes ? 'on' : 'off'}, live ingest ${live.enabled ? 'on' : 'off'}`,
+    `api listening on http://localhost:${port}, database ${DB_NAME}, mcp on /mcp, socket.io on /socket.io, dev routes ${devRoutes ? 'on' : 'off'}, demo mode ${env.DEMO_MODE ? 'on' : 'off'}, local embeddings ${env.LOCAL_EMBEDDINGS ? 'on' : 'off'}, web ${web ? 'served' : 'from the Vite dev server'}, live ingest ${live.enabled ? 'on' : 'off'}`,
   );
   if (live.enabled) {
     liveIngest = startLiveIngest({
       db,
       models,
-      embedder,
+      ...(embedder ? { embedder } : {}),
       // The same hook as replay: the pushes, then the research gate.
       ...(afterScoring ? { onScored: afterScoring } : {}),
       log: (message) => console.log(redact(message)),

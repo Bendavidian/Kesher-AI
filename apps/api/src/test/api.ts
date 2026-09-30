@@ -12,6 +12,7 @@ import {
 import type { Db } from 'mongodb';
 import type { Socket } from 'socket.io-client';
 import { createApi } from '../app';
+import type { DemoOptions } from '../routes/demo';
 import { memorySearch } from './search';
 import { SESSION_COOKIE } from '../auth/session';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
@@ -57,12 +58,18 @@ export async function startApi(
   {
     models = noModels,
     devRoutes = true,
+    demo,
+    web,
     research = false,
     autoResearch = true,
     priceReactions,
   }: {
     models?: () => ModelClient;
     devRoutes?: boolean;
+    // Mounts POST /demo/replay, as server.ts does with DEMO_MODE on.
+    demo?: DemoOptions;
+    // Serves this web build with the api under /api, as server.ts does in production.
+    web?: string;
     research?: boolean;
     // AUTO_RESEARCH, as server.ts passes it; on by default.
     autoResearch?: boolean;
@@ -74,6 +81,8 @@ export async function startApi(
   const { app, afterScoring, idle } = createApi({
     db,
     devRoutes,
+    ...(demo ? { demo } : {}),
+    ...(web ? { web } : {}),
     auth: {
       secret: TEST_JWT_SECRET,
       secureCookie: false,

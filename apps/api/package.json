@@ -20,6 +20,8 @@
     "graph:search": "tsx src/graph/search-cli.ts",
     "embed:events": "tsx src/embed/backfill-cli.ts",
     "record:xbrl": "tsx src/sec/record-xbrl.ts",
+    "start": "node --import tsx src/server.ts",
+    "smoke": "tsx src/deploy/smoke-cli.ts",
     "eval:label": "tsx src/eval/label-cli.ts",
     "eval": "tsx src/eval/eval-cli.ts"
   },
@@ -36,12 +38,12 @@
     "jose": "^6.2.12",
     "mongodb": "^7.6.0",
     "socket.io": "^4.8.4",
+    "tsx": "^4.23.15",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "mongodb-memory-server-core": "^11.3.0",
-    "socket.io-client": "^4.8.4",
-    "tsx": "^4.23.15"
+    "socket.io-client": "^4.8.4"
   }
 }

@@ -8,17 +8,34 @@ import type { ModelKeys } from '../llm/client';
 // The repo root .env, from apps/api/src/config.
 const ROOT_ENV_FILE = resolve(import.meta.dirname, '../../../../.env');
 
-export const Env = z.object({
-  MONGODB_URI: z.string().regex(/^mongodb(\+srv)?:\/\//),
-  // Development routes such as POST /dev/replay are mounted everywhere except production.
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  // Automatic research after scoring (the research gate). On unless set to false; any other value
-  // stops the api at startup, naming the key.
-  AUTO_RESEARCH: z
-    .enum(['true', 'false'])
-    .default('true')
-    .transform((value) => value === 'true'),
-});
+export const Env = z
+  .object({
+    MONGODB_URI: z.string().regex(/^mongodb(\+srv)?:\/\//),
+    // Development routes such as POST /dev/replay are mounted everywhere except production.
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    // Automatic research after scoring (the research gate). On unless set to false; any other
+    // value stops the api at startup, naming the key.
+    AUTO_RESEARCH: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    // POST /demo/replay, the reset and replay of the pinned demo item for a signed in user
+    // (SPEC.md decision log, T18). Unset, it is on outside production and off in production, so
+    // a deployed instance opts in; any other value stops the api at startup.
+    DEMO_MODE: z.enum(['true', 'false']).optional(),
+    // The local embedding model (about 300 MB of memory once loaded). Off on a host that cannot
+    // hold it, such as the 512 MB free instance: events stay unembedded, search_news keeps its
+    // word list, and research runs without search_filings (SPEC.md decision log, T18). On unless
+    // set to false; any other value stops the api at startup.
+    LOCAL_EMBEDDINGS: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+  })
+  .transform(({ DEMO_MODE, ...env }) => ({
+    ...env,
+    DEMO_MODE: DEMO_MODE === undefined ? env.NODE_ENV !== 'production' : DEMO_MODE === 'true',
+  }));
 export type Env = z.infer<typeof Env>;
 
 // The recorders need Alpaca. The api replays news from recordings and reads price data from the
