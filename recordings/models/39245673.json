@@ -1,0 +1,21 @@
+{
+  "externalId": "39245673",
+  "recordedAt": "2026-09-29T12:53:16.285Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Morgan Stanley Downgrades Advanced Micro Devices to Equal-Weight, Maintains Price Target to $176",
+    "chunks": ["0.0005105281597934663"],
+    "latencyMs": [205]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"AMD\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"other\",\n  \"importance\": 3,\n  \"themes\": []\n}",
+    "usage": {
+      "inputTokens": 649,
+      "outputTokens": 184,
+      "totalTokens": 833
+    },
+    "latencyMs": 596
+  }
+}

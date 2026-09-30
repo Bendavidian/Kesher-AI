@@ -1,0 +1,21 @@
+{
+  "externalId": "41663854",
+  "recordedAt": "2026-09-29T12:51:20.948Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Amazon Sees Q4 Net Sales $181.5B-$188.5B",
+    "chunks": ["0.00044203217839822173"],
+    "latencyMs": [211]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"AMZN\",\n      \"impact\": \"positive\"\n    }\n  ],\n  \"eventType\": \"guidance\",\n  \"importance\": 3,\n  \"themes\": [\"consumer_staples\"]\n}",
+    "usage": {
+      "inputTokens": 647,
+      "outputTokens": 154,
+      "totalTokens": 801
+    },
+    "latencyMs": 515
+  }
+}

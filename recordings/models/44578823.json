@@ -1,0 +1,21 @@
+{
+  "externalId": "44578823",
+  "recordedAt": "2026-09-29T12:54:15.757Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Reported Earlier, Johnson & Johnson Shifts Focus Back To Tort System, Will Litigate Talc Claims After Bankruptcy Court Denial",
+    "chunks": ["0.0006820230046287179"],
+    "latencyMs": [193]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"JNJ\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"legal\",\n  \"importance\": 4,\n  \"themes\": [\"pharma\"]\n}",
+    "usage": {
+      "inputTokens": 656,
+      "outputTokens": 165,
+      "totalTokens": 821
+    },
+    "latencyMs": 808
+  }
+}

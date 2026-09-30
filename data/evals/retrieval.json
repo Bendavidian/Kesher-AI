@@ -1,0 +1,338 @@
+{
+  "queries": [
+    {
+      "id": "q01",
+      "query": "foundry dependency",
+      "symbol": "NVDA",
+      "status": "reviewed",
+      "relevant": [
+        {
+          "key": "NVDA#71",
+          "excerpt": "We face risks which have adversely affected or could adversely affect our abilit"
+        },
+        {
+          "key": "NVDA#72",
+          "excerpt": "testing in the event of a loss, addition or change of a supplier; • lack of dire"
+        },
+        {
+          "key": "NVDA#25",
+          "excerpt": "Manufacturing We utilize a fabless and contracting manufacturing strategy, where"
+        },
+        {
+          "key": "NVDA#70",
+          "excerpt": "In general, our new products or previously sold products may be resold online or"
+        },
+        {
+          "key": "NVDA#58",
+          "excerpt": "Our target markets remain competitive, and competition may intensify with expand"
+        },
+        {
+          "key": "NVDA#50",
+          "excerpt": "Risks Related to Demand, Supply, and Manufacturing Long manufacturing lead times"
+        },
+        {
+          "key": "NVDA#61",
+          "excerpt": "If we underestimate demand, and our foundry partners and contract manufacturers "
+        },
+        {
+          "key": "NVDA#26",
+          "excerpt": "While currently our supply chain is mainly concentrated in Asia, we are expandin"
+        }
+      ],
+      "decidedAt": "2026-09-29T13:13:16.795Z"
+    },
+    {
+      "id": "q02",
+      "query": "TSMC foundry dependency",
+      "symbol": "NVDA",
+      "status": "reviewed",
+      "relevant": [
+        {
+          "key": "NVDA#26",
+          "excerpt": "While currently our supply chain is mainly concentrated in Asia, we are expandin"
+        },
+        {
+          "key": "NVDA#71",
+          "excerpt": "We face risks which have adversely affected or could adversely affect our abilit"
+        },
+        {
+          "key": "NVDA#72",
+          "excerpt": "testing in the event of a loss, addition or change of a supplier; • lack of dire"
+        },
+        {
+          "key": "NVDA#25",
+          "excerpt": "Manufacturing We utilize a fabless and contracting manufacturing strategy, where"
+        }
+      ],
+      "decidedAt": "2026-09-29T13:14:06.566Z"
+    },
+    {
+      "id": "q03",
+      "query": "export controls on sales of AI chips to China",
+      "symbol": "NVDA",
+      "status": "reviewed",
+      "relevant": [
+        {
+          "key": "NVDA#122",
+          "excerpt": "The licensing requirements have already and may in the future benefit certain of"
+        },
+        {
+          "key": "NVDA#113",
+          "excerpt": "Export controls and other restrictions targeting GPUs and semiconductors associa"
+        },
+        {
+          "key": "NVDA#33",
+          "excerpt": "Government Regulations Our worldwide business activities are subject to various "
+        },
+        {
+          "key": "NVDA#126",
+          "excerpt": "As a result, export controls have in the past and may in the future negatively i"
+        },
+        {
+          "key": "NVDA#39",
+          "excerpt": "The licensing requirements have already and may in the future benefit certain of"
+        },
+        {
+          "key": "NVDA#118",
+          "excerpt": "In February 2026, the USG granted a license that would allow us to ship small am"
+        },
+        {
+          "key": "NVDA#36",
+          "excerpt": "In the event that we are able to sell licensed products into the China market, w"
+        },
+        {
+          "key": "NVDA#125",
+          "excerpt": "Export controls restricting our ability to sell data center GPUs may also negati"
+        },
+        {
+          "key": "NVDA#119",
+          "excerpt": "Under the current rules and geopolitical landscape, we are unable to create and "
+        }
+      ],
+      "decidedAt": "2026-09-29T13:15:32.110Z"
+    },
+    {
+      "id": "q04",
+      "query": "export restrictions on data center GPUs to China",
+      "symbol": "AMD",
+      "status": "reviewed",
+      "relevant": [
+        {
+          "key": "AMD#149",
+          "excerpt": "Further, to the extent that the United States, China or other countries seek to "
+        },
+        {
+          "key": "AMD#144",
+          "excerpt": "These controls prevent us from shipping certain AMD Instinct™ integrated circuit"
+        },
+        {
+          "key": "AMD#143",
+          "excerpt": "Table of Conten t s Legal and Regulatory Risks Government actions and regulation"
+        },
+        {
+          "key": "AMD#145",
+          "excerpt": "As a result of the restriction, we incurred approximately $800 million in invent"
+        },
+        {
+          "key": "AMD#146",
+          "excerpt": "If any new export controls impact more of our products, we may be unable to sell"
+        },
+        {
+          "key": "AMD#150",
+          "excerpt": "If export controls targeting semiconductors associated with AI including GPUs an"
+        },
+        {
+          "key": "AMD#151",
+          "excerpt": "Export controls have and may continue to encourage customers in China and other "
+        }
+      ],
+      "decidedAt": "2026-09-29T13:16:12.339Z"
+    },
+    {
+      "id": "q05",
+      "query": "export regulations on semiconductor equipment sales to China",
+      "symbol": "LRCX",
+      "status": "reviewed",
+      "relevant": [
+        {
+          "key": "LRCX#132",
+          "excerpt": "In recent years, these actions have included an expansion of export license requ"
+        },
+        {
+          "key": "LRCX#131",
+          "excerpt": "Compliance obligations, as well as any failure to comply with current or future "
+        },
+        {
+          "key": "LRCX#44",
+          "excerpt": "If our competitors make acquisitions or enter into strategic relationships with "
+        },
+        {
+          "key": "LRCX#133",
+          "excerpt": "The U.S. Department of Commerce has also enacted rules that have expanded export"
+        },
+        {
+          "key": "LRCX#105",
+          "excerpt": "For example, our business requires steel and aluminum to manufacture our product"
+        },
+        {
+          "key": "LRCX#134",
+          "excerpt": "In addition, our customers (including, but not limited to, Chinese customers) ma"
+        },
+        {
+          "key": "LRCX#70",
+          "excerpt": "In addition, we face competition from companies that exist in a more favorable l"
+        },
+        {
+          "key": "LRCX#106",
+          "excerpt": "In addition, the U.S. government has an ongoing process of assessing technologie"
+        }
+      ],
+      "decidedAt": "2026-09-29T13:16:54.963Z"
+    },
+    {
+      "id": "q06",
+      "query": "largest customers and customer concentration",
+      "symbol": "AVGO",
+      "status": "reviewed",
+      "relevant": [
+        {
+          "key": "AVGO#21",
+          "excerpt": "Customers, Sales and Distribution We sell our products and solutions through our"
+        },
+        {
+          "key": "AVGO#55",
+          "excerpt": "We have historically depended on a small number of end customers, OEMs, their re"
+        },
+        {
+          "key": "AVGO#22",
+          "excerpt": "We have established strong relationships with leading OEM customers across multi"
+        },
+        {
+          "key": "AVGO#54",
+          "excerpt": "The semiconductor industry is highly cyclical and is subject to rapid price eros"
+        }
+      ],
+      "decidedAt": "2026-09-29T13:17:44.664Z"
+    },
+    {
+      "id": "q07",
+      "query": "data center capacity and power constraints for AI and cloud",
+      "symbol": "MSFT",
+      "status": "reviewed",
+      "relevant": [
+        {
+          "key": "MSFT#89",
+          "excerpt": "OPERATIONAL RISKS We may be unable to develop and expand adequate infrastructure"
+        },
+        {
+          "key": "MSFT#91",
+          "excerpt": "Our failure to navigate successfully any of these challenges may delay projects,"
+        },
+        {
+          "key": "MSFT#31",
+          "excerpt": "PART I Item 1 OPERATIONS We have a global operations service center covering the"
+        },
+        {
+          "key": "MSFT#94",
+          "excerpt": "In addition to datacenters we own or operate, we rely on third-party providers, "
+        },
+        {
+          "key": "MSFT#58",
+          "excerpt": "PART I Item 1A Demand for cloud-based and AI products and services is evolving a"
+        },
+        {
+          "key": "MSFT#59",
+          "excerpt": "In some cases, these parties are significant customers of Azure and other cloud "
+        }
+      ],
+      "decidedAt": "2026-09-29T13:18:31.646Z"
+    },
+    {
+      "id": "q08",
+      "query": "talc litigation and bankruptcy proceedings",
+      "symbol": "JNJ",
+      "status": "reviewed",
+      "relevant": [
+        {
+          "key": "JNJ#52",
+          "excerpt": "Litigation, in general, and securities, derivative action, class action and mult"
+        }
+      ],
+      "decidedAt": "2026-09-29T13:18:56.680Z"
+    },
+    {
+      "id": "q09",
+      "query": "bottling partners and the franchise system",
+      "symbol": "KO",
+      "status": "reviewed",
+      "relevant": [
+        {
+          "key": "KO#89",
+          "excerpt": "RISKS RELATED TO THE COCA-COLA SYSTEM We rely on our bottling partners for a sig"
+        },
+        {
+          "key": "KO#15",
+          "excerpt": "Distribution System We make our branded beverage products available to consumers"
+        },
+        {
+          "key": "KO#19",
+          "excerpt": "Bottler’s Agreements We have separate contracts, to which we generally refer as "
+        },
+        {
+          "key": "KO#28",
+          "excerpt": "Investments in Bottling Operations Most of our branded beverage products are pre"
+        },
+        {
+          "key": "KO#18",
+          "excerpt": "bottling and distribution operations in Armenia, Austria, Belarus, Bosnia and He"
+        },
+        {
+          "key": "KO#9",
+          "excerpt": "Our concentrate operations typically generate net operating revenues by selling "
+        },
+        {
+          "key": "KO#29",
+          "excerpt": "In addition, from time to time we make equity investments representing noncontro"
+        },
+        {
+          "key": "KO#1",
+          "excerpt": "General The Coca-Cola Company is a total beverage company, and beverage products"
+        }
+      ],
+      "decidedAt": "2026-09-29T13:19:25.330Z"
+    },
+    {
+      "id": "q10",
+      "query": "Pioneer Natural Resources acquisition and Permian Basin production",
+      "symbol": "XOM",
+      "status": "reviewed",
+      "relevant": [],
+      "decidedAt": "2026-09-29T13:19:54.610Z"
+    },
+    {
+      "id": "q11",
+      "query": "earthquakes in Taiwan disrupting semiconductor supply",
+      "symbol": null,
+      "status": "reviewed",
+      "relevant": [
+        {
+          "key": "AMD#190",
+          "excerpt": "Changes in the public perception of the U.S. government in the regions where we "
+        },
+        {
+          "key": "AVGO#74",
+          "excerpt": "Many of our facilities, and those of our CMs and suppliers, are concentrated in "
+        },
+        {
+          "key": "NVDA#88",
+          "excerpt": "Our corporate headquarters, a large portion of our current data center capacity,"
+        },
+        {
+          "key": "QCOM#169",
+          "excerpt": "Acts of war, terrorism, geopolitical conflicts, political instability or tension"
+        }
+      ],
+      "decidedAt": "2026-09-29T13:20:33.252Z"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:42:45.057Z",
+  "item": {
+    "id": 40152477,
+    "author": "Ananya Gairola",
+    "created_at": "2024-08-05T04:08:31Z",
+    "headline": "Nvidia Upcoming Chip Launch Faces Delay Due To Design Flaws — Setback Expected To Impact Meta, Microsoft And Google: Report (UPDATED)",
+    "images": [
+      {
+        "size": "large",
+        "url": "https://cdn.benzinga.com/files/imagecache/2048x1536xUP/images/story/2024/08/05/Azioni-Nvidia-sulla-cresta-dellonda--ma-.jpeg"
+      },
+      {
+        "size": "small",
+        "url": "https://cdn.benzinga.com/files/imagecache/1024x768xUP/images/story/2024/08/05/Azioni-Nvidia-sulla-cresta-dellonda--ma-.jpeg"
+      },
+      {
+        "size": "thumb",
+        "url": "https://cdn.benzinga.com/files/imagecache/250x187xUP/images/story/2024/08/05/Azioni-Nvidia-sulla-cresta-dellonda--ma-.jpeg"
+      }
+    ],
+    "source": "benzinga",
+    "summary": "Nvidia is facing production delays for its new AI chips due to design issues, potentially impacting major clients such as Meta Platforms Inc., Alphabet Inc.&#39;s Google, and Microsoft Corporation, with large shipments now expected in the first quarter of 2025.",
+    "symbols": ["GOOG", "GOOGL", "META", "MSFT", "NVDA"],
+    "updated_at": "2024-08-05T04:52:30Z",
+    "url": "https://www.benzinga.com/news/24/08/40152477/nvidia-upcoming-chip-launch-faces-delay-due-to-design-flaws-setback-expected-to-impact-meta-microsof"
+  }
+}

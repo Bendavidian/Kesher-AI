@@ -1,0 +1,29 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:42:46.433Z",
+  "item": {
+    "id": 39854612,
+    "author": "Benzinga Neuro",
+    "created_at": "2024-07-19T08:23:52Z",
+    "headline": "Windows PCs Crash Worldwide With Users Experiencing Blue Screen Of Death Issue, CrowdStrike Confirms Defect: 'Fix Has Been Deployed' (UPDATED)",
+    "images": [
+      {
+        "size": "large",
+        "url": "https://cdn.benzinga.com/files/imagecache/2048x1536xUP/images/story/2024/07/19/Windows-blue-screen-of-death.jpeg"
+      },
+      {
+        "size": "small",
+        "url": "https://cdn.benzinga.com/files/imagecache/1024x768xUP/images/story/2024/07/19/Windows-blue-screen-of-death.jpeg"
+      },
+      {
+        "size": "thumb",
+        "url": "https://cdn.benzinga.com/files/imagecache/250x187xUP/images/story/2024/07/19/Windows-blue-screen-of-death.jpeg"
+      }
+    ],
+    "source": "benzinga",
+    "summary": "A recent update to a service by cybersecurity firm Crowdstrike has been causing Microsoft Corp.&#39;s Windows PCs to crash, displaying the Blue Screen of Death and rendering them unable to reboot.",
+    "symbols": ["CRWD", "MSFT"],
+    "updated_at": "2024-07-19T10:59:47Z",
+    "url": "https://www.benzinga.com/markets/equities/24/07/39854612/windows-pcs-crash-worldwide-with-users-experiencing-blue-screen-of-death-issue-crowdstrike-updat"
+  }
+}

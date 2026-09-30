@@ -1,0 +1,21 @@
+{
+  "externalId": "40748050",
+  "recordedAt": "2026-09-29T12:52:20.649Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "ASML's Advanced Chip Tool Faces Dutch Export Restrictions Amid US Controls\n\nASML, in a separate statement, clarified that these new measures are a \"technical change\" and are not expected to impact its financial outlook for 2024 or its \"longer-term scenarios.\"",
+    "chunks": ["0.0005479705869220197"],
+    "latencyMs": [204]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"ASML\",\n      \"impact\": \"neutral\"\n    }\n  ],\n  \"eventType\": \"regulatory\",\n  \"importance\": 4,\n  \"themes\": [\n    \"semicap_equipment\",\n    \"regulation\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 680,
+      "outputTokens": 163,
+      "totalTokens": 843
+    },
+    "latencyMs": 625
+  }
+}

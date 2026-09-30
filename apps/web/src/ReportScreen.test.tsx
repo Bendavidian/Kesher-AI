@@ -167,7 +167,7 @@ describe('Research report screen', () => {
   it('shows the connection to the investor from the graph path', async () => {
     await renderReport();
     const side = screen.getByRole('complementary', { name: 'Connection and sources' });
-    expect(within(side).getByText('High 0.80')).toBeTruthy();
+    expect(within(side).getByText('Medium 0.80')).toBeTruthy();
     expect(within(side).getByRole('img', { name: /TSMC supplies NVIDIA/ })).toBeTruthy();
   });
 

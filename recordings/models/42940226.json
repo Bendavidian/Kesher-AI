@@ -1,0 +1,21 @@
+{
+  "externalId": "42940226",
+  "recordedAt": "2026-09-29T12:53:27.906Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Johnson & Johnson Has Agreed To Acquire Intra-cellular Therapies For $132.00 Per Share In Cash For A Total Equity Value Of Approximately $14.6B",
+    "chunks": ["0.00044329158845357597"],
+    "latencyMs": [194]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"JNJ\",\n      \"impact\": \"positive\"\n    }\n  ],\n  \"eventType\": \"m_and_a\",\n  \"importance\": 5,\n  \"themes\": [\n    \"pharma\",\n    \"healthcare\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 668,
+      "outputTokens": 131,
+      "totalTokens": 799
+    },
+    "latencyMs": 743
+  }
+}

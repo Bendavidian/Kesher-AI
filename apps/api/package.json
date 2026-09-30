@@ -19,7 +19,9 @@
     "graph:chunks": "tsx src/graph/build-chunks.ts",
     "graph:search": "tsx src/graph/search-cli.ts",
     "embed:events": "tsx src/embed/backfill-cli.ts",
-    "record:xbrl": "tsx src/sec/record-xbrl.ts"
+    "record:xbrl": "tsx src/sec/record-xbrl.ts",
+    "eval:label": "tsx src/eval/label-cli.ts",
+    "eval": "tsx src/eval/eval-cli.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.82",

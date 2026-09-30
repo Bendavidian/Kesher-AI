@@ -1,0 +1,16 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:42:57.454Z",
+  "item": {
+    "id": 42472206,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2024-12-12T21:15:32Z",
+    "headline": "Broadcom Q4 2024 Adj. EPS $1.42 Beats $1.38 Estimate, Sales $14.054B Miss $14.091B Estimate",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": ["AVGO"],
+    "updated_at": "2024-12-12T21:15:32Z",
+    "url": "https://www.benzinga.com/news/earnings/24/12/42472206/broadcom-q4-2024-adj-eps-1-42-beats-1-38-estimate-sales-14-054b-miss-14-091b-estimate"
+  }
+}

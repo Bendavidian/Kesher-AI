@@ -1,0 +1,21 @@
+{
+  "externalId": "43020311",
+  "recordedAt": "2026-09-29T12:52:15.503Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Taiwan Semiconductor Q4 GAAP EPS $2.24 Beats $2.16 Estimate, Sales $26.88B Beat $26.38B Estimate",
+    "chunks": ["0.0004465404781512916"],
+    "latencyMs": [197]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"TSM\",\n      \"impact\": \"positive\"\n    }\n  ],\n  \"eventType\": \"earnings\",\n  \"importance\": 4,\n  \"themes\": [\n    \"foundry\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 661,
+      "outputTokens": 138,
+      "totalTokens": 799
+    },
+    "latencyMs": 640
+  }
+}

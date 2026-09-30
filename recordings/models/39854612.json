@@ -1,0 +1,21 @@
+{
+  "externalId": "39854612",
+  "recordedAt": "2026-09-29T12:51:16.584Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Windows PCs Crash Worldwide With Users Experiencing Blue Screen Of Death Issue, CrowdStrike Confirms Defect: 'Fix Has Been Deployed' (UPDATED)\n\nA recent update to a service by cybersecurity firm Crowdstrike has been causing Microsoft Corp.'s Windows PCs to crash, displaying the Blue Screen of Death and rendering them unable to reboot.",
+    "chunks": ["0.0005288689280860126"],
+    "latencyMs": [216]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"MSFT\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"product\",\n  \"importance\": 4,\n  \"themes\": [\"pc\"]\n}",
+    "usage": {
+      "inputTokens": 697,
+      "outputTokens": 115,
+      "totalTokens": 812
+    },
+    "latencyMs": 663
+  }
+}
