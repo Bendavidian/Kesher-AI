@@ -1,10 +1,10 @@
-import { DEMO_PERSONAS, type PersonaKey, type PublicUser } from '@kesher/shared';
-import type { Persona } from './types';
+import { DEMO_PERSONAS, isGuest, type PublicUser } from '@kesher/shared';
+import type { Persona, ViewerKey } from './types';
 
 // The labels of the three seeded personas (SPEC.md, Demo universe and personas). Their holdings
 // come from the api after sign in; these are only the words the screens show.
 export interface PersonaLabels {
-  key: PersonaKey;
+  key: ViewerKey;
   displayName: string;
   switcherLabel: string;
   youLabel: string;
@@ -31,13 +31,27 @@ export const PERSONA_LABELS: PersonaLabels[] = [
   },
 ];
 
-export function labelsFor(key: PersonaKey): PersonaLabels {
-  return PERSONA_LABELS.find((labels) => labels.key === key)!;
+// The visitor's own holdings on the public instance (SPEC.md decision log, T24).
+export const GUEST_LABELS: PersonaLabels = {
+  key: 'guest',
+  displayName: 'Your portfolio',
+  switcherLabel: 'Your portfolio',
+  youLabel: 'Your portfolio',
+};
+
+// The switcher's options: the three personas, then the guest portfolio.
+export const SWITCHER_LABELS: PersonaLabels[] = [...PERSONA_LABELS, GUEST_LABELS];
+
+export function labelsFor(key: ViewerKey): PersonaLabels {
+  return SWITCHER_LABELS.find((labels) => labels.key === key)!;
 }
 
-// The persona behind a signed in user, by the seeded email; null for any other user.
+// The persona behind a signed in user, by the seeded email, or the guest portfolio for a guest;
+// null for any other user.
 export function personaFrom(user: PublicUser): Persona | null {
-  const key = DEMO_PERSONAS.find((persona) => persona.email === user.email)?.key;
+  const key = isGuest(user)
+    ? 'guest'
+    : DEMO_PERSONAS.find((persona) => persona.email === user.email)?.key;
   if (!key) return null;
   return {
     ...labelsFor(key),

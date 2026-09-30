@@ -1,14 +1,15 @@
 import type { PersonaLabels } from '../view/personas';
-import type { PersonaKey } from '../view/types';
+import type { ViewerKey } from '../view/types';
 
 interface Props {
   personas: readonly PersonaLabels[];
-  value: PersonaKey;
-  onChange: (key: PersonaKey) => void;
+  value: ViewerKey;
+  onChange: (key: ViewerKey) => void;
 }
 
 // A demo control over the seeded users, not authentication (docs/UI.md, Copy rules). Choosing a
-// persona signs in as that seeded user, so the api and the socket answer for it.
+// persona signs in as that seeded user, so the api and the socket answer for it. Your portfolio
+// opens the guest picker instead (T24).
 export function PersonaSwitcher({ personas, value, onChange }: Props) {
   return (
     <div className="flex items-center gap-2.5">

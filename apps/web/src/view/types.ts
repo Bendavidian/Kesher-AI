@@ -16,9 +16,19 @@ import type {
 
 export type { PersonaKey };
 
+// Whose feed the screen shows: a seeded persona, or the visitor's guest portfolio (T24).
+export type ViewerKey = PersonaKey | 'guest';
+
+// The chosen viewer. session counts guest sign ins and portfolio changes, so each one loads the
+// feed again; a persona keeps 0.
+export interface Viewer {
+  key: ViewerKey;
+  session: number;
+}
+
 // The signed in user from the api (PublicUser), plus the labels the switcher shows.
 export interface Persona extends Pick<PublicUser, '_id' | 'displayName' | 'holdings'> {
-  key: PersonaKey;
+  key: ViewerKey;
   switcherLabel: string;
   youLabel: string;
 }

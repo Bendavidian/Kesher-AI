@@ -47,7 +47,8 @@ Define these once in the Tailwind theme. Components never hardcode hex values.
 - Percentages always carry a sign and a true minus (+1.25%, −1.16%), in up or down color.
 
 ## Feed screen
-- **Top bar:** logo, tabs (Feed, Agent runs), search, replay status with a pulsing orange dot and the event time in ET, persona switcher.
+- **Top bar:** logo, tabs (Feed, Agent runs), search, replay status with a pulsing orange dot and the event time in ET, persona switcher. The switcher has a fourth option, Your portfolio (T24), which opens the guest picker; the Replay control is hidden for a guest.
+- **Guest picker (T24):** a dialog over the feed, panel style, titled Your portfolio. The 17 universe companies in four sector groups, each a 44px toggle with the ticker in mono and the short name; the picked ones in the you tint with an orange border. At most 6: once 6 are picked the rest are disabled. A count ("3 of 6 picked"), Cancel (secondary) and Show my feed, or Update my feed for a guest (primary orange). One meta line says the guest portfolio is deleted after 24 hours and Investigate runs once a day for it; an api error shows as one neutral line. The feed header of a guest repeats that line.
 - **Three panels:** feed list 360px, event detail fluid, scores and evidence 340px.
 - **Feed list:** rows with time label, relevance pill (High filled orange, Medium outlined, None gray), headline, and a mini connection path.
 - **Event detail:**
@@ -92,4 +93,4 @@ The signature component.
 ## Copy rules
 - Never "caused". Price moves are shown next to benchmarks as timing only.
 - No buy or sell language anywhere.
-- The persona switcher is a demo control over seeded users, not authentication.
+- The persona switcher is a demo control over seeded users, not authentication. Your portfolio is a temporary guest, never an account: no sign up, no password.

@@ -89,6 +89,11 @@ export function FeedList({
           <span className="text-xs font-bold text-you tabular-nums">{count}</span>
         </div>
         <p className="text-xs text-text-3">{subtitle}</p>
+        {persona.key === 'guest' && (
+          <p className="text-xs text-text-3">
+            Guest portfolio, deleted after 24 hours. One Investigate a day.
+          </p>
+        )}
       </div>
       <div className="flex justify-between border-b border-divider px-4 py-2 text-[11px] font-semibold text-text-3">
         <span>Event</span>
