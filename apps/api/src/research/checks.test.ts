@@ -720,3 +720,57 @@ describe('codeClaimsFrom', () => {
     ]);
   });
 });
+
+describe('premises that are not claim keys', () => {
+  const sourceId = randomUUID();
+
+  it('ignores them on a fact, and counts the inferences they cost', () => {
+    const checked = check([
+      fact({ premises: [sourceId] }),
+      {
+        key: 'c2',
+        type: 'inference',
+        text: 'NVIDIA supply may be affected.',
+        sources: [],
+        premises: ['c1', sourceId],
+        figures: [],
+      },
+      {
+        key: 'c3',
+        type: 'inference',
+        text: 'Other chipmakers may be affected.',
+        sources: [],
+        premises: [sourceId],
+        figures: [],
+      },
+    ]);
+
+    const [kept, removed] = checked.claims;
+    expect(kept).toMatchObject({ type: 'fact', status: 'unverified', premises: [] });
+    expect(removed?.status).toBe('removed');
+    expect(removed?.checks).toContainEqual({
+      name: 'premises_supported',
+      passed: false,
+      detail: `premise ${sourceId} is not in the report`,
+    });
+    expect(checked.dropped).toEqual([
+      { key: 'c3', reason: `none of its premises is in the report: ${sourceId}` },
+    ]);
+    expect(checked.unknownPremise).toEqual({ removed: [removed?._id], dropped: ['c3'] });
+  });
+
+  it('counts nothing when every premise is in the report', () => {
+    const checked = check([
+      fact(),
+      {
+        key: 'c2',
+        type: 'inference',
+        text: 'NVIDIA supply may be affected.',
+        sources: [],
+        premises: ['c1'],
+        figures: [],
+      },
+    ]);
+    expect(checked.unknownPremise).toEqual({ removed: [], dropped: [] });
+  });
+});

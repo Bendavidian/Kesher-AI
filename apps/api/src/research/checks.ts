@@ -56,6 +56,10 @@ export interface CheckedDraft {
   dropped: { key: string; reason: string }[];
   // For each check, the ids of the claims it removed.
   removedBy: Record<DeterministicCheck, string[]>;
+  // Inferences that named a premise not in the report: the ids of those premises_supported
+  // removed, and the draft keys of those dropped because none of their premises is in it. The
+  // run records both, so a report that shrinks for this is visible (SPEC.md decision log, T20).
+  unknownPremise: { removed: string[]; dropped: string[] };
   // The open questions kept, and those dropped for advice language.
   openQuestions: string[];
   droppedQuestions: string[];
@@ -247,6 +251,15 @@ export function checkDraft(
     });
     if (candidate.success) {
       built.set(draftClaim.key, candidate.data);
+    } else if (
+      draftClaim.type === 'inference' &&
+      unknownPremises.has(draftClaim.key) &&
+      known.length === 0
+    ) {
+      dropped.push({
+        key: draftClaim.key,
+        reason: `none of its premises is in the report: ${draftClaim.premises.join(', ')}`,
+      });
     } else {
       dropped.push({
         key: draftClaim.key,
@@ -331,6 +344,13 @@ export function checkDraft(
     claims,
     keys: new Map([...built.entries()].map(([key, claim]) => [claim._id, key])),
     dropped,
+    unknownPremise: {
+      removed: [...unknownPremises.keys()].flatMap((key) => {
+        const claim = built.get(key);
+        return claim ? [claim._id] : [];
+      }),
+      dropped: [...unknownPremises.keys()].filter((key) => !built.has(key)),
+    },
     removedBy,
     openQuestions,
     droppedQuestions,

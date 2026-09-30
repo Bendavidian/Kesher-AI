@@ -1146,6 +1146,79 @@ describe('runResearch', () => {
       expect(modelMetric?.checks.map((c) => c.name)).not.toContain('numbers_match');
     });
 
+    it('keeps the report when the model puts source ids in premises, and says what it cost', async () => {
+      // As a real run did (T20): source ids in the premises of a fact and of two inferences.
+      const sourceIdPremises: ModelReply = {
+        toolCalls: [
+          {
+            toolName: 'submit_report',
+            input: {
+              claims: [
+                {
+                  key: 'c1',
+                  type: 'fact',
+                  text: 'TSMC evacuated some fabs after the earthquake.',
+                  sources: [
+                    {
+                      sourceId: demo._id,
+                      quote: 'evacuated some fabs after the strongest earthquake',
+                    },
+                  ],
+                  premises: [nvidia10k._id],
+                  figures: [],
+                },
+                {
+                  key: 'c2',
+                  type: 'inference',
+                  text: 'NVIDIA may see wafer supply questions while TSMC recovers.',
+                  sources: [],
+                  premises: ['e1', demo._id],
+                  figures: [],
+                },
+                {
+                  key: 'c3',
+                  type: 'inference',
+                  text: 'Other foundry customers may be affected.',
+                  sources: [],
+                  premises: [demo._id],
+                  figures: [],
+                },
+              ],
+              openQuestions: [],
+            },
+          },
+        ],
+      };
+      const { run } = setup([getEvent, sourceIdPremises], {
+        priceReactions: () => Promise.resolve(reaction),
+        verifier: [verdicts(['k1', 'supported'], ['k2', 'supported'], ['k3', 'supported'])],
+      });
+
+      const outcome = await run({ userId: personaA._id });
+
+      expect(outcome.status).toBe('succeeded');
+      const claims = await claimsOf(outcome.reportId);
+      expect(claims.map((c) => [c.origin, c.type, c.status])).toEqual([
+        ['code', 'fact', 'supported'],
+        ['code', 'metric', 'supported'],
+        ['model', 'fact', 'supported'],
+        ['model', 'inference', 'removed'],
+      ]);
+      const stored = await loadRun(outcome.runId);
+      const premises = stored.steps.find((s) => s.name === 'premises_supported');
+      expect(premises?.outputSummary).toBe(
+        '1 checked, 1 removed. Inferences naming a premise not in the report: 1 removed, 1 dropped.',
+      );
+      expect(JSON.parse(premises?.output ?? '')).toMatchObject({
+        unknownPremise: {
+          removed: 1,
+          dropped: 1,
+          removedClaimIds: [claims[3]?._id],
+          droppedKeys: ['c3'],
+        },
+      });
+    });
+
     it('removes an inference that names a code claim the report does not have', async () => {
       // This path has one hop, so there is an e1 and no e2.
       const { run } = setup([getEvent, inferenceOnly(['e1', 'e2'])], {

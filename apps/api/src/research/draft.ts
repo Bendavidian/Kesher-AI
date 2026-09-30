@@ -7,9 +7,12 @@ import { z } from 'zod';
 export const MAX_DRAFT_CLAIMS = 12;
 
 const ClaimKey = z.string().regex(/^c\d{1,2}$/);
-// A premise may also name a claim code wrote (CODE_CLAIM_KEYS in shared), listed in the brief.
-// One pattern rather than a union, so both providers accept the schema.
-const PremiseKey = z.string().regex(/^(c\d{1,2}|e[12]|m1)$/);
+// A premise names one of the model's claims or a claim code wrote (CODE_CLAIM_KEYS in shared,
+// listed in the brief). Any short string passes the schema: a model that put source ids in its
+// premises lost the whole report, code claims included (SPEC.md decision log, T20). checkDraft
+// decides: a fact's premises are ignored, and an inference whose premise is not in the report is
+// removed by premises_supported.
+const PremiseKey = z.string().max(64);
 
 export const DraftClaim = z.strictObject({
   key: ClaimKey.describe('A local key for this claim: c1, c2 and so on'),
@@ -36,7 +39,7 @@ export const DraftClaim = z.strictObject({
     .array(PremiseKey)
     .max(5)
     .describe(
-      'For an inference: the keys of the claims it uses, yours or those the brief lists as written by code',
+      'For an inference: the keys of the claims it uses, yours (c1, c2 and so on) or those the brief lists as written by code (e1, e2, m1). Never a sourceId. Empty for other types.',
     ),
   figures: z
     .array(

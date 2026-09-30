@@ -40,6 +40,8 @@ describe('buildBrief', () => {
     expect(brief).toContain("- e1 (fact): TSMC supplies NVIDIA, according to NVIDIA's 10-K.");
     expect(brief).toContain('- m1 (metric): TSM opened −1.16% below its previous close');
     expect(RESEARCH_SYSTEM).toMatch(/Do not write them again/);
+    expect(brief).toContain('Premises must name claim keys');
+    expect(brief).toContain('never source ids');
   });
 
   it('says which code claim was left out, and never quotes the filing', () => {

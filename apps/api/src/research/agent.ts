@@ -302,6 +302,7 @@ export async function runResearch(
     startedAt: number,
     extra: Record<string, unknown>,
     only?: string[],
+    note?: string,
   ): Promise<void> {
     const ran = checked.claims.filter(
       (c) => (!only || only.includes(c._id)) && c.checks.some((check) => check.name === name),
@@ -311,10 +312,12 @@ export async function runResearch(
       kind: 'check',
       name,
       input: { claims: ran.length },
-      outputSummary:
+      outputSummary: [
         removed.length === 0
           ? `${ran.length} checked, none removed.`
           : `${ran.length} checked, ${removed.length} removed.`,
+        ...(note ? [note] : []),
+      ].join(' '),
       output: {
         removedClaimIds: removed,
         failures: ran.flatMap((c) =>
@@ -748,11 +751,36 @@ export async function runResearch(
       core.claims,
     );
     for (const name of DETERMINISTIC_CHECKS) {
-      await recordCheck(name, checked, checked.removedBy[name], checksStarted, {
-        ...(name === 'no_advice' && checked.droppedQuestions.length > 0
-          ? { droppedOpenQuestions: checked.droppedQuestions }
-          : {}),
-      });
+      // A premise the report does not have costs its inference, never the report; the step says
+      // how many, so a report that shrinks for it is visible.
+      const unknown = checked.unknownPremise;
+      const lostToUnknown =
+        name === 'premises_supported' && unknown.removed.length + unknown.dropped.length > 0;
+      await recordCheck(
+        name,
+        checked,
+        checked.removedBy[name],
+        checksStarted,
+        {
+          ...(name === 'no_advice' && checked.droppedQuestions.length > 0
+            ? { droppedOpenQuestions: checked.droppedQuestions }
+            : {}),
+          ...(lostToUnknown
+            ? {
+                unknownPremise: {
+                  removed: unknown.removed.length,
+                  dropped: unknown.dropped.length,
+                  removedClaimIds: unknown.removed,
+                  droppedKeys: unknown.dropped,
+                },
+              }
+            : {}),
+        },
+        undefined,
+        lostToUnknown
+          ? `Inferences naming a premise not in the report: ${unknown.removed.length} removed, ${unknown.dropped.length} dropped.`
+          : undefined,
+      );
     }
     if (checked.dropped.length > 0) {
       await record({
