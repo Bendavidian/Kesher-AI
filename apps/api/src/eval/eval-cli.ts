@@ -17,10 +17,12 @@ import {
   type EvalItem,
 } from './items';
 import { checkLabels, loadLabels } from './labels';
+import { checkMateriality, loadMateriality, MATERIALITY_PATH, reviewedEdges } from './materiality';
 import { EVALS_PATH, renderReport, writeReport } from './report';
 import { loadRetrievalQueries, runRetrieval, type RetrievalResult } from './retrieval';
 import { runEval } from './runner';
 import { edgeExtractor, summarizeRun } from './summary';
+import { plantedEval } from './verifier';
 
 // npm run eval [-- --record] [-- --no-write]
 // Replays the T16 eval set through the full pipeline in a fresh kesher_eval database on a local
@@ -36,10 +38,24 @@ const { values } = parseArgs({
 const record = values.record === true;
 const log = (message: string) => console.log(message);
 
-const [events, poisoned, labels] = await Promise.all([loadEvents(), loadPoisoned(), loadLabels()]);
+const [events, poisoned, labels, materiality, candidates, reviews] = await Promise.all([
+  loadEvents(),
+  loadPoisoned(),
+  loadLabels(),
+  loadMateriality(),
+  loadCandidates(),
+  loadReviews(),
+]);
 const problems = checkLabels(events, labels);
 if (problems.length > 0) {
   console.error(`data/evals/labels.json does not match the events:\n  ${problems.join('\n  ')}`);
+  process.exit(1);
+}
+const flagProblems = checkMateriality(materiality, reviewedEdges(candidates, reviews));
+if (flagProblems.length > 0) {
+  console.error(
+    `${MATERIALITY_PATH} does not match the reviewed edges:\n  ${flagProblems.join('\n  ')}`,
+  );
   process.exit(1);
 }
 
@@ -116,12 +132,8 @@ async function retrieval(): Promise<RetrievalResult> {
   }
 }
 
-const summary = summarizeRun(
-  run,
-  labels,
-  edgeExtractor(await loadCandidates(), await loadReviews()),
-);
-const report = renderReport(summary, await retrieval());
+const summary = summarizeRun(run, labels, edgeExtractor(candidates, reviews), materiality);
+const report = renderReport(summary, await retrieval(), await plantedEval());
 if (values['no-write'] === true) {
   console.log(report);
 } else {

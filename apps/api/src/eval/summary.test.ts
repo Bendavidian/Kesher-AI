@@ -1,4 +1,4 @@
-import { relevanceBand, type Extraction, type PersonaKey } from '@kesher/shared';
+import { relevanceBand, type Extraction, type PersonaKey, type Relationship } from '@kesher/shared';
 import { describe, expect, it } from 'vitest';
 import type { ModelRecording } from '../llm/recordings';
 import type { EvalItem } from './items';
@@ -43,6 +43,12 @@ const models = {
   },
 } satisfies ModelRecording;
 
+const holdings: EvalRun['holdings'] = {
+  A: ['NVDA', 'MSFT', 'AMZN'],
+  B: ['AMD', 'AVGO', 'TSM', 'ASML'],
+  C: ['KO', 'JNJ', 'XOM'],
+};
+
 const rel = (A: number, B: number, C: number): Record<PersonaKey, number> => ({ A, B, C });
 
 function itemRun(
@@ -65,6 +71,8 @@ function itemRun(
     extraction: extraction(extracted, 3),
     relevance,
     taggedOnly,
+    starts: [],
+    graph: [],
     paths: { A: null, B: null, C: null },
     pathKinds: { A: 'none', B: 'none', C: 'none' },
     models,
@@ -122,6 +130,7 @@ describe('summarizeRun, start node rules', () => {
   const run: EvalRun = {
     startedAt: now,
     relationships: 0,
+    holdings,
     items: [
       itemRun(one, ['MSFT'], rel(1, 0, 0), rel(1, 0.8, 0)),
       itemRun(two, ['KO'], rel(0, 0, 1), rel(0, 0, 1)),
@@ -239,6 +248,7 @@ describe('summarizeRun, labels by path and band sets', () => {
   const run: EvalRun = {
     startedAt: now,
     relationships: 0,
+    holdings,
     items: [
       {
         ...itemRun(one, ['TSM'], rel(0.8, 1, 0), rel(0.8, 1, 0)),
@@ -280,5 +290,123 @@ describe('summarizeRun, labels by path and band sets', () => {
     expect(highAt1!.total).toMatchObject({ agree: 4, total: 5 });
     expect(highAt1!.byPersona.A).toMatchObject({ agree: 1, total: 1 });
     expect(highAt1!.byPersona.B).toMatchObject({ agree: 1, total: 2 });
+  });
+});
+
+describe('summarizeRun, market wraps', () => {
+  // A wrap tagged NVDA and KO whose extraction names nobody: no card today, one per holder under
+  // tagged only.
+  const wrap: EvalItem = {
+    ...real(3, ['NVDA', 'KO']),
+    event: { ...(real(3, ['NVDA', 'KO']) as { event: object }).event, type: 'market_wrap' },
+  } as EvalItem;
+  const run: EvalRun = {
+    startedAt: now,
+    relationships: 0,
+    holdings,
+    items: [
+      itemRun(real(1, ['KO']), ['KO'], rel(0, 0, 1), rel(0, 0, 1)),
+      itemRun(wrap, [], rel(0, 0, 0), rel(1, 0.8, 1)),
+    ],
+  };
+  const labels = [
+    reviewed('1', 'A', 'none'),
+    reviewed('1', 'B', 'none'),
+    reviewed('1', 'C', 'high'),
+    reviewed('3', 'A', 'none'),
+    reviewed('3', 'B', 'none'),
+    { sourceId: '3', persona: 'C', level: 'none', status: 'proposed', reason: 'x' } as Label,
+  ];
+  const summary = summarizeRun(run, labels, edges);
+
+  it('keeps wraps out of the core numbers', () => {
+    expect(summary.realItems).toBe(1);
+    expect(summary.labels).toEqual({ reviewed: 3, proposed: 0 });
+    expect(summary.agreement.A.reviewed.total).toBe(1);
+    expect(summary.startNodes.differences).toEqual([]);
+  });
+
+  it('counts the cards each rule makes and those labeled none', () => {
+    expect(summary.wraps).toMatchObject({
+      items: 1,
+      labels: { reviewed: 2, proposed: 1 },
+      current: { cards: 0, cardsLabeledNone: 0, agreement: { agree: 2, total: 2 } },
+      taggedOnly: { cards: 3, cardsLabeledNone: 2, agreement: { agree: 0, total: 2 } },
+    });
+    expect(summary.wraps.rows.map((r) => [r.persona, r.label, r.current, r.taggedOnly])).toEqual([
+      ['A', 'none', 0, 1],
+      ['B', 'none', 0, 0.8],
+      ['C', null, 0, 1],
+    ]);
+    expect(summary.wraps.rows[0]).toMatchObject({ tagged: ['NVDA', 'KO'], extracted: [] });
+  });
+
+  it('renders the wrap section', () => {
+    const report = renderReport(summary, { status: 'skipped', reason: 'test' });
+    expect(report).toContain('| Tagged only | 3 | 2 | 0 of 2 (0%) |');
+  });
+});
+
+describe('summarizeRun, materiality', () => {
+  const edge = (from: string, type: Relationship['type'], to: string): Relationship => ({
+    _id: `${from}-${type}-${to}`,
+    from: from as Relationship['from'],
+    to: to as Relationship['to'],
+    type,
+    weight: 0.8,
+    evidence: {
+      sourceId: 's',
+      quote: 'q',
+      filingDate: '2026-01-01',
+      url: 'https://www.sec.gov/x',
+      reviewed: true,
+    },
+    createdAt: now,
+  });
+  // A Microsoft item reaches AMD holders through MSFT customer_of AMD, labeled none for B; an
+  // Intel item reaches ASML holders through INTC customer_of ASML, labeled high.
+  const msft = {
+    ...itemRun(real(1, ['MSFT']), ['MSFT'], rel(1, 0.8, 0), rel(1, 0.8, 0)),
+    starts: ['MSFT' as const],
+    graph: [edge('MSFT', 'customer_of', 'AMD')],
+  };
+  const intc = {
+    ...itemRun(real(2, ['INTC']), ['INTC'], rel(0, 0.8, 0), rel(0, 0.8, 0)),
+    starts: ['INTC' as const],
+    graph: [edge('INTC', 'customer_of', 'ASML')],
+  };
+  const run: EvalRun = { startedAt: now, relationships: 0, holdings, items: [msft, intc] };
+  const labels = [
+    reviewed('1', 'A', 'high'),
+    reviewed('1', 'B', 'none'),
+    reviewed('1', 'C', 'none'),
+    reviewed('2', 'A', 'none'),
+    reviewed('2', 'B', 'high'),
+    reviewed('2', 'C', 'none'),
+  ];
+  const flags = [
+    { edge: 'MSFT customer_of AMD', level: 'minor' as const, decidedAt: now.toISOString() },
+    { edge: 'INTC customer_of ASML', level: 'major' as const, decidedAt: now.toISOString() },
+  ];
+  const { materiality } = summarizeRun(run, labels, edges, flags);
+  const row = (factor: number, bands: string) =>
+    materiality.rows.find((r) => r.factor === factor && r.set.name.startsWith(bands))!;
+
+  it('scores the stored graph like the pipeline at factor 1', () => {
+    expect(materiality).toMatchObject({ flags: 2, minor: 1, mismatches: 0 });
+    expect(materiality.rows).toHaveLength(9);
+  });
+
+  it('changes no band under the decided set, whatever the factor', () => {
+    expect(row(0.25, 'decided').byPersona.B).toMatchObject({ agree: 0, total: 2 });
+    expect(row(0.25, 'decided').bFixed).toEqual([]);
+  });
+
+  it('fixes the minor edge labeled none below 0.4, keeping the major one high', () => {
+    expect(row(1, 'high from 0.8').bFixed).toEqual(['2/high']);
+    expect(row(0.5, 'high from 0.8').bFixed).toEqual(['2/high']);
+    expect(row(0.25, 'high from 0.8').bFixed).toEqual(['1/none', '2/high']);
+    expect(row(0.25, 'high from 0.8').byPersona.B).toMatchObject({ agree: 2, total: 2 });
+    expect(row(0.25, 'high from 0.8').bBroken).toEqual([]);
   });
 });

@@ -5,9 +5,11 @@ import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/
 import { loadEvents, loadPoisoned } from './dataset';
 import { loadEvalItems, loadModelsOf, type EvalItem } from './items';
 import { loadLabels } from './labels';
+import { loadMateriality } from './materiality';
 import { renderReport } from './report';
 import { runEval, type EvalRun } from './runner';
 import { edgeExtractor, summarizeRun } from './summary';
+import { plantedEval } from './verifier';
 
 // npm run eval as CI runs it: every committed recording replayed through the whole pipeline in a
 // fresh database, with no provider call.
@@ -52,8 +54,8 @@ describe('the eval replay on mongod', () => {
     await mongo?.stop();
   });
 
-  it('processes all 30 items and the 5 poisoned ones from recordings alone', () => {
-    expect(run.items.filter((r) => r.item.kind === 'real')).toHaveLength(30);
+  it('processes all 30 items, the 4 market wraps and the 5 poisoned ones from recordings alone', () => {
+    expect(run.items.filter((r) => r.item.kind === 'real')).toHaveLength(34);
     expect(run.items.filter((r) => r.item.kind === 'poisoned')).toHaveLength(5);
     // Only the recorded screen and extraction answers have mocks; any other call, the Gemini
     // fallback included, would fail the item.
@@ -88,6 +90,27 @@ describe('the eval replay on mongod', () => {
     expect(poisoned.relevance).toEqual(baseline.relevance);
   });
 
+  it('gives tagged only cards on market wraps whose extraction names no universe company', () => {
+    // A Fear and Greed wrap tagged GOOGL, KO and NVDA, and Walmart's trillion dollar day tagged
+    // AMZN, GOOGL and NVDA: the extraction names none of them, so today's rule makes no card.
+    for (const id of ['39898757', '50343948']) {
+      const wrap = run.items.find((r) => r.item.id === id)!;
+      expect(wrap.starts).toEqual([]);
+      expect(wrap.relevance).toEqual({ A: 0, B: 0, C: 0 });
+      expect(wrap.taggedOnly.A).toBe(1);
+    }
+  });
+
+  it('scores the stored graph of every item like the pipeline did', async () => {
+    const summary = summarizeRun(
+      run,
+      await loadLabels(),
+      edgeExtractor(await loadCandidates(), await loadReviews()),
+      await loadMateriality(),
+    );
+    expect(summary.materiality.mismatches).toBe(0);
+  });
+
   it('gives the same results on a second fresh run', async () => {
     await mongo.db.dropDatabase();
     const again = await runEval(mongo.db, items, recordings, { now });
@@ -101,8 +124,17 @@ describe('the eval replay on mongod', () => {
       labels,
       edgeExtractor(await loadCandidates(), await loadReviews()),
     );
-    const reviewed = labels.filter((l) => l.status === 'reviewed').length;
-    expect(summary.labels).toEqual({ reviewed, proposed: labels.length - reviewed });
+    const core = new Set(
+      run.items
+        .filter((r) => r.item.kind === 'real' && r.item.event.type !== 'market_wrap')
+        .map((r) => r.item.id),
+    );
+    const coreLabels = labels.filter((l) => core.has(l.sourceId));
+    const reviewed = coreLabels.filter((l) => l.status === 'reviewed').length;
+    expect(summary.realItems).toBe(30);
+    expect(summary.labels).toEqual({ reviewed, proposed: coreLabels.length - reviewed });
+    expect(summary.wraps.items).toBe(4);
+    expect(summary.wraps.rows).toHaveLength(12);
     const counted = (['A', 'B', 'C'] as const).reduce(
       (sum, p) => sum + summary.agreement[p].reviewed.total,
       0,
@@ -111,8 +143,15 @@ describe('the eval replay on mongod', () => {
     expect(summary.injection).toHaveLength(5);
     expect(summary.edges).toMatchObject({ relationships: 28, accepted: 22 });
 
-    const report = renderReport(summary, { status: 'skipped', reason: 'no Atlas in this test' });
+    const report = renderReport(
+      summary,
+      { status: 'skipped', reason: 'no Atlas in this test' },
+      await plantedEval(),
+    );
     for (const heading of [
+      '### Market wraps: passing mentions',
+      '### Materiality of edges',
+      '## Verifier',
       '## Relevance agreement',
       '## Injection',
       '## Injection screen',
