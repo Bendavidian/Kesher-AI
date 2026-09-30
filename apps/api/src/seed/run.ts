@@ -2,7 +2,12 @@ import { loadEnv } from '../config/env';
 import { describeError, redactor } from '../config/redact';
 import { DB_NAME, connect } from '../db/client';
 import { ensureSearchIndexes } from '../db/indexes';
-import { backfillPublishers, backfillResearchReports, backfillVerification } from './backfill';
+import {
+  backfillPublishers,
+  backfillReportCore,
+  backfillResearchReports,
+  backfillVerification,
+} from './backfill';
 import { runSeed } from './seed';
 
 // npm run seed: seeds Atlas, then creates the vector search indexes that are missing.
@@ -26,6 +31,10 @@ try {
   const verification = await backfillVerification(db);
   console.log(
     `Runs given verification null: ${verification.runs}; metric claims given figures: ${verification.claims}`,
+  );
+  const core = await backfillReportCore(db);
+  console.log(
+    `Claims given origin model: ${core.claims}; reports given omitted none: ${core.reports}`,
   );
   const searchIndexes = await ensureSearchIndexes(db);
   console.log('Search indexes:');

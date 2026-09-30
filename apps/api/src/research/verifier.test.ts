@@ -51,6 +51,7 @@ function fact(text = 'TSMC evacuated some fabs after the earthquake.'): Claim {
   return {
     _id: randomUUID(),
     reportId,
+    origin: 'model',
     type: 'fact',
     text,
     status: 'unverified',
@@ -65,6 +66,7 @@ function metric(checked = true): Claim {
   return {
     _id: randomUUID(),
     reportId,
+    origin: 'model',
     type: 'metric',
     text: 'TSM opened −1.16% below its previous close; SMH −1.00%, SPY −0.22%.',
     status: 'unverified',
@@ -80,6 +82,7 @@ function inference(premises: Claim[], text = 'NVIDIA supply may be affected.'): 
   return {
     _id: randomUUID(),
     reportId,
+    origin: 'model',
     type: 'inference',
     text,
     status: 'unverified',

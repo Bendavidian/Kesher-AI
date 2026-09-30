@@ -231,7 +231,9 @@ const REPORT_AT = at(7_770);
 const NVDA_FOUNDRY_QUOTE =
   'We utilize foundries, such as Taiwan Semiconductor Manufacturing Company Limited, or TSMC, and Samsung Electronics Co., Ltd., or Samsung, to produce our semiconductor wafers.';
 
-const claimBase = { reportId: REPORT_ID, createdAt: REPORT_AT } as const;
+// The 10-K fact and the open gap metric are the claims code writes in every report (T20).
+const claimBase = { reportId: REPORT_ID, origin: 'model', createdAt: REPORT_AT } as const;
+const codeClaim = { ...claimBase, origin: 'code' } as const;
 const passed = (name: CheckName) => ({ name, passed: true, detail: null });
 
 export const DEMO_CLAIMS: Claim[] = [
@@ -246,7 +248,7 @@ export const DEMO_CLAIMS: Claim[] = [
     checks: [passed('quote_verbatim'), passed('verifier')],
   },
   {
-    ...claimBase,
+    ...codeClaim,
     _id: CLAIM_ID.foundry,
     type: 'fact',
     text: 'NVIDIA relies on TSMC to produce its semiconductor wafers.',
@@ -266,7 +268,7 @@ export const DEMO_CLAIMS: Claim[] = [
     checks: [passed('premises_supported'), passed('verifier')],
   },
   {
-    ...claimBase,
+    ...codeClaim,
     _id: CLAIM_ID.openGap,
     type: 'metric',
     text: 'NVDA opened −1.07% below the previous close, close to SMH at −1.00%. SPY opened −0.22%.',
@@ -318,6 +320,7 @@ export const DEMO_REPORT: Report = {
     'How long could output at the affected fabs stay reduced?',
     'Has NVIDIA said anything about supply since the event?',
   ],
+  omitted: [],
   createdAt: REPORT_AT,
 };
 
