@@ -7,10 +7,11 @@ import { Source } from './domain/source';
 import { UniverseSymbol } from './domain/universe';
 import { PriceReaction } from './price';
 
-// Display bands for the code computed relevance, named like the SPEC.md eval labels. Placeholders
-// until T16 calibrates them: high from 0.8, medium above 0, none at 0. Bands only label a score;
-// they decide nothing.
-export const RELEVANCE_HIGH = 0.8;
+// Display bands for the code computed relevance, named like the SPEC.md eval labels (SPEC.md
+// decision log, T16): high only for a direct holding, medium for any other relevance above 0, none
+// at 0. Structural only: a supply hop at 0.8 is medium. Bands only label a score; the gate and the
+// feed read the score itself, so they decide nothing.
+export const RELEVANCE_HIGH = 1;
 
 export type RelevanceBand = 'high' | 'medium' | 'none';
 

@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { EventExplain, FeedCard, relevanceBand } from './feed';
 
 describe('relevanceBand', () => {
-  it('is none at 0, medium above 0 and high from 0.8', () => {
+  it('is none at 0, high only for a direct holding and medium for anything else', () => {
     expect(relevanceBand(0)).toBe('none');
     expect(relevanceBand(0.001)).toBe('medium');
-    expect(relevanceBand(0.448)).toBe('medium');
-    expect(relevanceBand(0.79)).toBe('medium');
-    expect(relevanceBand(0.8)).toBe('high');
+    expect(relevanceBand(0.336)).toBe('medium');
+    expect(relevanceBand(0.6)).toBe('medium');
+    // A supply hop: medium since T16, high under the T05 placeholders.
+    expect(relevanceBand(0.8)).toBe('medium');
     expect(relevanceBand(1)).toBe('high');
   });
 });
