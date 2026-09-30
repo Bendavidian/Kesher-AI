@@ -1,8 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import { Claim, type PriceReaction } from '@kesher/shared';
+import {
+  Claim,
+  pathFactText,
+  priceMetricFor,
+  SHORT_NAME,
+  type FeedEvidence,
+  type FeedPath,
+  type PriceReaction,
+  type UniverseSymbol,
+} from '@kesher/shared';
 import { describe, expect, it } from 'vitest';
 import { checkDraft, containsAdvice, percentMatches, type SeenSource } from './checks';
 import type { DraftClaim, ReportDraft } from './draft';
+import { codeClaimsFrom } from './core';
 import { withPassages } from './toolSources';
 
 const news: SeenSource = {
@@ -535,5 +545,178 @@ describe('no_advice', () => {
 
     expect(openQuestions).toEqual(['How long did the pause last?']);
     expect(droppedQuestions).toEqual(['Should investors buy TSM now?']);
+  });
+});
+
+// The deterministic report core (T20): code claims go through the same checks, first.
+describe('code claims', () => {
+  const pathItem: FeedPath = {
+    eventCompany: 'TSM',
+    holding: 'NVDA',
+    hops: [
+      {
+        from: 'TSM',
+        to: 'NVDA',
+        type: 'supplier_of',
+        weight: 0.8,
+        relationshipId: randomUUID(),
+      },
+    ],
+  };
+  const evidence: FeedEvidence = {
+    relationshipId: pathItem.hops[0]!.relationshipId,
+    from: 'TSM',
+    to: 'NVDA',
+    type: 'supplier_of',
+    quote: TSMC_QUOTE,
+    filingDate: '2026-02-25',
+    url: 'https://www.sec.gov/Archives/edgar/data/1045810/nvda-10k.htm',
+    reviewed: true,
+    filing: { sourceId: filing._id, symbol: 'NVDA', title: 'NVIDIA 10-K', form: '10-K', tier: 1 },
+  };
+
+  function checkWithCore(model: DraftClaim[]) {
+    const core = codeClaimsFrom(pathItem, [evidence], reaction);
+    const seen = new Map(
+      [news, withPassages(filing, core.passages.get(filing._id))].map((s) => [s._id, s]),
+    );
+    return checkDraft(
+      { claims: model, openQuestions: [] },
+      { seen, reportId, newId: randomUUID, now, reaction, marketSourceId },
+      core.claims,
+    );
+  }
+
+  it('checks code claims first, and marks each claim with who wrote it', () => {
+    const checked = checkWithCore([fact()]);
+
+    expect(checked.claims.map((c) => [c.origin, c.type, c.status])).toEqual([
+      ['code', 'fact', 'unverified'],
+      ['code', 'metric', 'unverified'],
+      ['model', 'fact', 'unverified'],
+    ]);
+    const [pathFact, metric] = checked.claims;
+    expect(pathFact?.checks.map((c) => [c.name, c.passed])).toEqual([
+      ['sources_exist', true],
+      ['quote_verbatim', true],
+      ['no_advice', true],
+    ]);
+    expect(metric?.checks.map((c) => [c.name, c.passed])).toEqual([
+      ['numbers_match', true],
+      ['no_advice', true],
+    ]);
+    expect(metric?.sources).toEqual([{ sourceId: marketSourceId, quote: null }]);
+    expect([...checked.keys.values()]).toEqual(['e1', 'm1', 'c1']);
+  });
+
+  it('lets a model inference stand on code claims by key', () => {
+    const checked = checkWithCore([
+      {
+        key: 'c1',
+        type: 'inference',
+        text: 'NVIDIA wafer supply may be exposed while TSMC recovers.',
+        sources: [],
+        premises: ['e1', 'm1'],
+        figures: [],
+      },
+    ]);
+
+    const [pathFact, metric, inference] = checked.claims;
+    expect(inference).toMatchObject({ origin: 'model', status: 'unverified' });
+    expect(inference?.premises).toEqual([pathFact?._id, metric?._id]);
+  });
+});
+
+describe('code claim templates and no_advice', () => {
+  it('never write buy, sell or hold language, for any edge type or company', () => {
+    const symbols = Object.keys(SHORT_NAME) as UniverseSymbol[];
+    for (const type of ['supplier_of', 'customer_of', 'competitor_of'] as const) {
+      for (const from of symbols) {
+        for (const to of symbols) {
+          const text = pathFactText({
+            from,
+            to,
+            type,
+            filing: { sourceId: filing._id, symbol: to, title: 'A filing', form: '10-K', tier: 1 },
+          });
+          expect(containsAdvice(text), text).toBeNull();
+        }
+      }
+    }
+    const metric = priceMetricFor(reaction, ['TSM', 'NVDA']);
+    expect(metric.ok && containsAdvice(metric.text)).toBeNull();
+  });
+
+  it('keeps the fact of a customer_of hop through every check', () => {
+    const hop = {
+      from: 'NVDA',
+      to: 'TSM',
+      type: 'customer_of',
+      weight: 0.8,
+      relationshipId: randomUUID(),
+    } as const;
+    const core = codeClaimsFrom(
+      { eventCompany: 'NVDA', holding: 'TSM', hops: [hop] },
+      [
+        {
+          relationshipId: hop.relationshipId,
+          from: 'NVDA',
+          to: 'TSM',
+          type: 'customer_of',
+          quote: TSMC_QUOTE,
+          filingDate: '2026-02-25',
+          url: 'https://www.sec.gov/Archives/edgar/data/1045810/nvda-10k.htm',
+          reviewed: true,
+          filing: {
+            sourceId: filing._id,
+            symbol: 'NVDA',
+            title: 'NVIDIA 10-K',
+            form: '10-K',
+            tier: 1,
+          },
+        },
+      ],
+      reaction,
+    );
+    const seen = new Map([[filing._id, withPassages(filing, core.passages.get(filing._id))]]);
+    const checked = checkDraft(
+      { claims: [], openQuestions: [] },
+      { seen, reportId, newId: randomUUID, now, reaction, marketSourceId },
+      core.claims,
+    );
+    expect(checked.claims[0]).toMatchObject({
+      origin: 'code',
+      text: "NVIDIA is a customer of TSMC, according to NVIDIA's 10-K.",
+      status: 'unverified',
+    });
+  });
+});
+
+describe('codeClaimsFrom', () => {
+  const hop = {
+    from: 'TSM',
+    to: 'NVDA',
+    type: 'supplier_of',
+    weight: 0.8,
+    relationshipId: randomUUID(),
+  } as const;
+
+  it('writes no fact for a direct holding, only the metric', () => {
+    const core = codeClaimsFrom({ eventCompany: 'TSM', holding: 'TSM', hops: [] }, [], reaction);
+    expect(core.claims.map((c) => c.key)).toEqual(['m1']);
+    expect(core.claims[0]?.text).toBe(
+      'TSM opened −1.16% below its previous close; SMH −1.00%, SPY −0.22%.',
+    );
+    expect(core.omitted).toEqual([]);
+  });
+
+  it('leaves out a hop without reviewed evidence, and a metric without market data', () => {
+    const core = codeClaimsFrom({ eventCompany: 'TSM', holding: 'NVDA', hops: [hop] }, [], null);
+    expect(core.claims).toEqual([]);
+    expect(core.passages.size).toBe(0);
+    expect(core.omitted).toEqual([
+      { kind: 'path_fact', reason: 'no_evidence' },
+      { kind: 'price_metric', reason: 'unavailable' },
+    ]);
   });
 });

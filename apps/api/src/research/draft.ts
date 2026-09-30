@@ -7,6 +7,9 @@ import { z } from 'zod';
 export const MAX_DRAFT_CLAIMS = 12;
 
 const ClaimKey = z.string().regex(/^c\d{1,2}$/);
+// A premise may also name a claim code wrote (CODE_CLAIM_KEYS in shared), listed in the brief.
+// One pattern rather than a union, so both providers accept the schema.
+const PremiseKey = z.string().regex(/^(c\d{1,2}|e[12]|m1)$/);
 
 export const DraftClaim = z.strictObject({
   key: ClaimKey.describe('A local key for this claim: c1, c2 and so on'),
@@ -29,7 +32,12 @@ export const DraftClaim = z.strictObject({
       }),
     )
     .max(5),
-  premises: z.array(ClaimKey).max(5).describe('For an inference: the keys of the claims it uses'),
+  premises: z
+    .array(PremiseKey)
+    .max(5)
+    .describe(
+      'For an inference: the keys of the claims it uses, yours or those the brief lists as written by code',
+    ),
   figures: z
     .array(
       z.strictObject({

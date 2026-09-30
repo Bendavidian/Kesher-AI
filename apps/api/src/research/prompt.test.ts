@@ -18,6 +18,15 @@ describe('buildBrief', () => {
     path,
     held: ['NVDA', 'MSFT'],
     stepBudget: 15,
+    codeClaims: [
+      { key: 'e1', type: 'fact', text: "TSMC supplies NVIDIA, according to NVIDIA's 10-K." },
+      {
+        key: 'm1',
+        type: 'metric',
+        text: 'TSM opened −1.16% below its previous close and NVDA opened −1.07% below its previous close; SMH −1.00%, SPY −0.22%.',
+      },
+    ],
+    omitted: [],
   });
 
   it('gives the event, the "Why you" line from the path, the held symbols and the budget', () => {
@@ -25,6 +34,26 @@ describe('buildBrief', () => {
     expect(brief).toContain('TSMC supplies NVIDIA');
     expect(brief).toContain('holds: NVDA and MSFT');
     expect(brief).toContain('at most 15 tool calls');
+  });
+
+  it('lists the claims code already wrote, by key, so the model can use them as premises', () => {
+    expect(brief).toContain("- e1 (fact): TSMC supplies NVIDIA, according to NVIDIA's 10-K.");
+    expect(brief).toContain('- m1 (metric): TSM opened −1.16% below its previous close');
+    expect(RESEARCH_SYSTEM).toMatch(/Do not write them again/);
+  });
+
+  it('says which code claim was left out, and never quotes the filing', () => {
+    const withoutMetric = buildBrief({
+      eventId,
+      path,
+      held: ['NVDA'],
+      stepBudget: 6,
+      codeClaims: [],
+      omitted: [{ kind: 'price_metric', reason: 'not_ready' }],
+    });
+    expect(withoutMetric).toContain('code wrote no price metric');
+    expect(withoutMetric).not.toContain('Claims code already wrote');
+    expect(brief).not.toMatch(/We utilize|foundr/i);
   });
 
   it('carries no user id, email or quantity: identity stays in the run token', () => {
