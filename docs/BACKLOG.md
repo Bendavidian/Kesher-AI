@@ -233,6 +233,11 @@ Found in T20. Every session and machine uses the one Atlas database `kesher` (DB
 Consider taking the database name from an env variable (for example MONGODB_DB, default kesher) so each session can use its own database on the same free cluster. Check first: the M0 limit of 3 search indexes applies per cluster, so a second database needs its own indexes and may not fit. Also decide how seed, graph:apply and graph:chunks fill a new database.
 Done when: two sessions can run the api against different databases, and a reset in one leaves the other untouched.
 
+### [~] T23 A library of real events on the public instance
+The public instance shares the kesher database (T18) and shows only the demo card. `npm run demo:library` loads the 30 real items of docs/research/eval-candidates.md (data/evals/events.json; never the synthetic poisoned items) from their committed recordings through the normal pipeline (pre filter, injection screen, extraction on the free tier, relevance), oldest first, into kesher. It is a data load, not a live decision: it runs no research gate, so it neither starts research nor stores skipped runs, and pushes nothing. It is idempotent: an item already processed is skipped before the pipeline, so a second run writes nothing, not even an ingest counter. Price reactions stay computed on request; nothing new is stored.
+The feed orders cards by arrival (FeedItem.createdAt), newest first, on the server and in the web, so a replayed demo card lands on top as in a live feed. "Hidden for you" shows the three most recent relevance 0 items from GET /feed/hidden and a count of the rest (SPEC.md decision log, T23).
+Done when: a second `npm run demo:library` changes nothing; a replayed card sits on top of the library; each persona's card count is reported and persona C sees only KO, JNJ and XOM items; "Hidden for you" shows three items and the count; the Alpaca requests of a first Render feed load are counted, and above about 100 a BACKLOG item computes price reactions only for the selected card.
+
 ## V2 (not in MVP)
 Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).
 
