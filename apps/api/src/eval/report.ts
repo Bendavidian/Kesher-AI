@@ -47,7 +47,7 @@ export function renderReport(summary: EvalSummary, retrieval: RetrievalResult): 
     '',
     '## Relevance agreement',
     '',
-    `Labels: ${s.labels.reviewed} reviewed, ${s.labels.proposed} proposed. Only reviewed labels count; the proposed ones follow the code's own rule and would inflate agreement. The predicted band is relevanceBand: high from 0.8, medium above 0, none at 0.`,
+    `Labels: ${s.labels.reviewed} reviewed, ${s.labels.proposed} proposed. Only reviewed labels count; the proposed ones follow the code's own rule and would inflate agreement. The predicted band is relevanceBand: high only for a direct holding (relevance 1), medium for any other relevance above 0, none at 0 (SPEC.md decision log, T16).`,
   );
   (['A', 'B', 'C'] as const).forEach((persona, i) => {
     const a = s.agreement[persona];
@@ -108,9 +108,9 @@ export function renderReport(summary: EvalSummary, retrieval: RetrievalResult): 
 
   out.push(
     '',
-    '### Band sets (proposals only)',
+    '### Band sets',
     '',
-    'Agreement of the reviewed labels with the same scores under other display bands. Bands only label a score; the gate reads the score itself.',
+    'Agreement of the reviewed labels with the same scores under each display band set; the decided set is relevanceBand, the one the matrices above use. Bands only label a score; the gate and the feed read the score itself.',
     '',
     '| Bands | A | B | C | All |',
     '|---|---|---|---|---|',

@@ -20,37 +20,37 @@ import { PATH_KINDS, type EvalRun, type ItemRun, type PathKind } from './runner'
 
 // The numbers of one eval run. Code decides every number here; docs/EVALS.md only shows them.
 
-// Candidate display bands, measured against the reviewed labels as proposals only. The first is
-// today's relevanceBand; medium from 0.4 is the mapping the proposed labels were written with
-// (docs/research/eval-candidates.md); high at 1 keeps high for a holding itself. A set with
-// highWith also calls a score high from that score when the extracted importance reaches the
-// given class, the way the research gate reads importance.
+// Display band sets measured against the reviewed labels. The first is the T05 placeholder;
+// medium from 0.4 is the mapping the proposed labels were written with
+// (docs/research/eval-candidates.md); high at 1 keeps high for a holding itself. The set marked
+// decided is relevanceBand since T16 (SPEC.md decision log). A set with highWith also calls a
+// score high from that score when the extracted importance reaches the given class, the way the
+// research gate reads importance. 0.8 is the supply hop weight.
 export interface BandSet {
   name: string;
   highFrom: number;
   // Scores at or above this, and above 0, are medium.
   mediumFrom: number;
   highWith?: { relevanceFrom: number; importanceFrom: number };
+  // The set relevanceBand implements (T16).
+  decided?: boolean;
 }
 
 export const BAND_SETS: readonly BandSet[] = [
+  { name: 'T05 placeholder: high from 0.8, medium above 0', highFrom: 0.8, mediumFrom: 0 },
+  { name: 'high from 0.8, medium from 0.4', highFrom: 0.8, mediumFrom: 0.4 },
   {
-    name: `today: high from ${RELEVANCE_HIGH}, medium above 0`,
+    name: 'decided (T16): high only for a holding, medium above 0',
     highFrom: RELEVANCE_HIGH,
     mediumFrom: 0,
+    decided: true,
   },
+  { name: '1a: high only for a holding, medium from 0.4', highFrom: 1, mediumFrom: 0.4 },
   {
-    name: `high from ${RELEVANCE_HIGH}, medium from 0.4`,
-    highFrom: RELEVANCE_HIGH,
-    mediumFrom: 0.4,
-  },
-  { name: 'high at 1, medium above 0', highFrom: 1, mediumFrom: 0 },
-  { name: 'high at 1, medium from 0.4', highFrom: 1, mediumFrom: 0.4 },
-  {
-    name: `high at 1, or from ${RELEVANCE_HIGH} with importance ${GATE_MIN_IMPORTANCE} or more, medium from 0.4`,
+    name: `1b: high for a holding or from 0.8 with importance ${GATE_MIN_IMPORTANCE} or more, medium from 0.4`,
     highFrom: 1,
     mediumFrom: 0.4,
-    highWith: { relevanceFrom: RELEVANCE_HIGH, importanceFrom: GATE_MIN_IMPORTANCE },
+    highWith: { relevanceFrom: 0.8, importanceFrom: GATE_MIN_IMPORTANCE },
   },
 ];
 

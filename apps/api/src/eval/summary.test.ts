@@ -130,7 +130,7 @@ describe('summarizeRun, start node rules', () => {
   };
   const labels = [
     reviewed('1', 'A', 'high'),
-    reviewed('1', 'B', 'high'),
+    reviewed('1', 'B', 'medium'),
     reviewed('1', 'C', 'none'),
     reviewed('2', 'A', 'none'),
     reviewed('2', 'B', 'none'),
@@ -150,7 +150,7 @@ describe('summarizeRun, start node rules', () => {
         sourceId: '1',
         headline: 'Headline 1',
         persona: 'B',
-        label: 'high',
+        label: 'medium',
         current: 0,
         taggedOnly: 0.8,
       },
@@ -169,12 +169,12 @@ describe('summarizeRun, start node rules', () => {
     const report = renderReport(summary, { status: 'skipped', reason: 'test' });
     expect(report).toContain('### Start node rules');
     expect(report).toContain('| B | 1 of 2 (50%) | 2 of 2 (100%) |');
-    expect(report).toContain('| 1 | Headline 1 | B | high | 0 | 0.8 |');
+    expect(report).toContain('| 1 | Headline 1 | B | medium | 0 | 0.8 |');
   });
 });
 
 describe('bandWith', () => {
-  const [today, from04, highAt1] = BAND_SETS;
+  const [placeholder, from04, decided, highAt1] = BAND_SETS;
 
   it('keeps 0 at none and both thresholds inclusive', () => {
     for (const set of BAND_SETS) expect(bandWith(set, 0, 5)).toBe('none');
@@ -183,7 +183,9 @@ describe('bandWith', () => {
     expect(bandWith(from04!, 0.399, null)).toBe('none');
     expect(bandWith(highAt1!, 0.8, null)).toBe('medium');
     expect(bandWith(highAt1!, 1, null)).toBe('high');
-    expect(bandWith(today!, 0.001, null)).toBe('medium');
+    expect(bandWith(placeholder!, 0.8, null)).toBe('high');
+    expect(bandWith(decided!, 0.8, null)).toBe('medium');
+    expect(bandWith(decided!, 0.001, null)).toBe('medium');
   });
 
   it('calls a supply hop high only with importance 4 or more in the last set', () => {
@@ -196,9 +198,10 @@ describe('bandWith', () => {
     expect(bandWith(withImportance, 0.336, 5)).toBe('none');
   });
 
-  it('gives relevanceBand for the set named today', () => {
+  it('gives relevanceBand for the decided set, and only that one is marked', () => {
+    expect(BAND_SETS.filter((set) => set.decided)).toEqual([decided]);
     for (let score = 0; score <= 1; score += 0.001) {
-      expect(bandWith(today!, score, null)).toBe(relevanceBand(score));
+      expect(bandWith(decided!, score, null)).toBe(relevanceBand(score));
     }
   });
 });
@@ -270,9 +273,9 @@ describe('summarizeRun, labels by path and band sets', () => {
   });
 
   it('scores every band set on the reviewed labels only', () => {
-    const [today, , highAt1] = summary.bandSets;
-    // 5 reviewed pairs. Today the 0.8 supplier hop reads high against medium.
-    expect(today!.total).toMatchObject({ agree: 4, total: 5 });
+    const [placeholder, , , highAt1] = summary.bandSets;
+    // 5 reviewed pairs. The T05 placeholder reads the 0.8 supplier hop high against medium.
+    expect(placeholder!.total).toMatchObject({ agree: 4, total: 5 });
     // High at 1 fixes it and breaks the 0.8 customer hop labeled high.
     expect(highAt1!.total).toMatchObject({ agree: 4, total: 5 });
     expect(highAt1!.byPersona.A).toMatchObject({ agree: 1, total: 1 });
