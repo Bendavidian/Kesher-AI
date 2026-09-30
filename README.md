@@ -63,9 +63,9 @@ The feed switches between three seeded personas. Their password, `kesher-demo`, 
 |---|---|---|
 | A, AI investor | NVDA, MSFT, AMZN | Medium 0.80, through "TSMC supplies NVIDIA" (NVIDIA 10-K) |
 | B, semiconductor investor | AMD, AVGO, TSM, ASML | High 1.00, a direct holding |
+| C, unrelated investor | KO, JNJ, XOM | None 0.00, never in the feed |
 
 Bands are structural since T16: high only for a direct holding, medium for any other relevance above 0.
-| C, unrelated investor | KO, JNJ, XOM | None 0.00, never in the feed |
 
 The demo replays one pinned, recorded Benzinga item (Alpaca news 38062166, 3 Apr 2024) through the same pipeline as live news.
 
