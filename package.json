@@ -35,6 +35,7 @@
     "record:xbrl": "npm run record:xbrl -w @kesher/api --",
     "smoke": "npm run smoke -w @kesher/api --",
     "eval:label": "npm run eval:label -w @kesher/api --",
+    "eval:materiality": "npm run eval:materiality -w @kesher/api --",
     "eval": "npm run eval -w @kesher/api --"
   },
   "devDependencies": {

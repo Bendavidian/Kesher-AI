@@ -23,6 +23,7 @@
     "start": "node --import tsx src/server.ts",
     "smoke": "tsx src/deploy/smoke-cli.ts",
     "eval:label": "tsx src/eval/label-cli.ts",
+    "eval:materiality": "tsx src/eval/materiality-cli.ts",
     "eval": "tsx src/eval/eval-cli.ts"
   },
   "dependencies": {
