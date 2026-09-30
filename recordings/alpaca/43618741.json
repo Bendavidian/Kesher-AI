@@ -1,0 +1,16 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:43:21.850Z",
+  "item": {
+    "id": 43618741,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2025-02-11T11:55:39Z",
+    "headline": "Coca-Cola Q4 2024 Adj. EPS $0.55 Beats $0.52 Estimate, Sales $11.5B Beat $10.677B Estimate",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": ["KO"],
+    "updated_at": "2025-02-11T11:55:39Z",
+    "url": "https://www.benzinga.com/news/earnings/25/02/43618741/coca-cola-q4-2024-adj-eps-0-55-beats-0-52-estimate-sales-11-5b-beat-10-677b-estimate"
+  }
+}

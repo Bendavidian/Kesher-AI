@@ -1,0 +1,21 @@
+{
+  "externalId": "47734379",
+  "recordedAt": "2026-09-29T12:53:23.858Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Nvidia And Intel To Jointly Develop AI Infrastructure And Personal Computing Products, Nvidia To Invest $5B In Intel's Stock At $23.28 Per Share",
+    "chunks": ["0.0004742558521684259"],
+    "latencyMs": [207]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"NVDA\",\n      \"impact\": \"positive\"\n    },\n    {\n      \"symbol\": \"INTC\",\n      \"impact\": \"positive\"\n    }\n  ],\n  \"eventType\": \"product\",\n  \"importance\": 3,\n  \"themes\": [\n    \"ai_accelerators\",\n    \"pc\",\n    \"data_centers\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 664,
+      "outputTokens": 204,
+      "totalTokens": 868
+    },
+    "latencyMs": 2490
+  }
+}

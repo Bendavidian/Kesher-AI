@@ -3,6 +3,7 @@ import {
   DEMO_PERSONAS,
   DemoReplayResponse,
   HealthResponse,
+  relevanceBand,
   SOCKET_EVENTS,
   type PersonaKey,
 } from '@kesher/shared';
@@ -279,7 +280,15 @@ export async function runSmoke(baseUrl: string, options: SmokeOptions): Promise<
       expectStatus(explain, 200, 'explain as C');
       const { relevance } = Explain.parse(await json(explain, 'explain'));
       if (relevance !== EXPECTED_RELEVANCE.C) fail(`explain for C gives ${relevance}, not 0`);
-      return 'A High 0.80, B High 1.00, C None 0.00';
+      const level = (key: PersonaKey, value: number) => {
+        const band = relevanceBand(value);
+        return `${key} ${band[0]!.toUpperCase()}${band.slice(1)} ${value.toFixed(2)}`;
+      };
+      return [
+        level('A', EXPECTED_RELEVANCE.A),
+        level('B', EXPECTED_RELEVANCE.B),
+        level('C', relevance),
+      ].join(', ');
     });
 
     await check('price reaction', () => {

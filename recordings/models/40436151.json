@@ -1,0 +1,21 @@
+{
+  "externalId": "40436151",
+  "recordedAt": "2026-09-29T12:53:19.131Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "AMD To Snap Hyperscale Solutions Provider ZT Systems For $4.9B Plus Potential Earnout Of Up To $400M, To Be Accretive On Adjusted Basis By 2025 End",
+    "chunks": ["0.0007516365149058402"],
+    "latencyMs": [191]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"AMD\",\n      \"impact\": \"positive\"\n    }\n  ],\n  \"eventType\": \"m_and_a\",\n  \"importance\": 5,\n  \"themes\": [\"cloud\", \"data_centers\"]\n}",
+    "usage": {
+      "inputTokens": 671,
+      "outputTokens": 121,
+      "totalTokens": 792
+    },
+    "latencyMs": 2096
+  }
+}

@@ -1,9 +1,39 @@
 # State
 
-Updated: 29 Sep 2026, T13 done (part 2), merged with main after T10 and T14
+Updated: 30 Sep 2026, T16 part 1 done, merged with main after T13 part 2, T14 and T21
 
 ## Where we are
-T00 to T14 are done; T09 completed the walking skeleton. T13 part 2, the rest of the MCP tool set, is done and merged with main after T10 and T14. T14, full verification, is merged with main after T10 and T11. T10, live ingestion, is merged with main after T11 and T12. It is proven end to end on Atlas by a live EDGAR 8-K and for the Alpaca stream by fake WebSocket tests; a live Benzinga item is to be observed in the T18 rehearsal.
+T00 to T14 and T21 are done; T16 part 1 is done and T16 stays [~] until part 2. The T16 branch has merged main after T13 part 2, T14 and T21; PR 21 is open.
+
+T16 part 1 measures the pipeline (docs/EVALS.md; SPEC.md decision log, T16):
+- Eval set in data/evals:
+  - 30 real Alpaca items recorded once in recordings/alpaca, with screen and extraction answers in recordings/models.
+  - 90 relevance labels reviewed by the user with `npm run eval:label`, which never shows the proposed label.
+  - 5 synthetic poisoned copies of real items under reserved ids 9000000001 to 9000000005, their answers in recordings/synthetic/models.
+  - 11 retrieval queries judged by the user with `npm run eval:label -- --retrieval`.
+- `npm run eval` (apps/api/src/eval):
+  - Replays everything through processItem in a fresh kesher_eval database on a local mongod, seeded with the personas and the 28 reviewed relationships, from recordings, with no provider call, and writes the block between the markers in docs/EVALS.md.
+  - `--record` records what is missing, once. Retrieval reads Atlas filing_chunks, read only, and is skipped without MONGODB_URI or the cached model.
+  - eval.integration.test.ts runs the same replay in CI.
+- Recorders:
+  - Model recordings keep latency, without the limiter's waits.
+  - A non-429 refusal is recorded as extraction.failure and the replay fails the item the same way. The first recording of 9000000004 was such a refusal; the second, kept, was a suppression.
+  - All recorders write Prettier formatted JSON.
+- Results, under the decided bands:
+  - Relevance agrees on 78 of 90 (A 97%, B 63%, C 100%). Every disagreement is a supply hop at 0.8.
+  - Injection changed the extraction in 2 of 5 attacks (1 of 5 with the screen), and only one moved relevance. The screen flagged 2 of 5 poisoned items and 0 of 30 real ones.
+  - Tagged-only start nodes give the same relevance on all 30 clean items.
+  - Retrieval: precision at 3 is 70%, recall at 3 is 46%.
+  - A median extraction is 812 tokens.
+- Decided on 30 Sep 2026, and applied in packages/shared (RELEVANCE_HIGH is 1):
+  - The display bands are structural: high only for a direct holding, medium for any other relevance above 0, none at 0.
+  - The feed filter (above 0), the gate (0.6) and the feed order (newest first) are unchanged.
+  - The demo card for persona A now reads Medium 0.80. The design mockups still show High 0.80, a known deviation.
+- Start nodes stay extracted and tagged, with no switch to tagged only yet. Part 2 first measures the cost of tagged only on 3 to 5 items with passing mentions.
+- The reviewer ran before every api, shared and merge commit. Its blocker, recordings failing the Prettier check, was fixed.
+- 968 tests are green after merging main.
+
+Earlier: T09 completed the walking skeleton. T13 part 2, the rest of the MCP tool set, is done and merged with main after T10 and T14. T14, full verification, is merged with main after T10 and T11. T10, live ingestion, is merged with main after T11 and T12. It is proven end to end on Atlas by a live EDGAR 8-K and for the Alpaca stream by fake WebSocket tests; a live Benzinga item is to be observed in the T18 rehearsal.
 
 T13 part 2 completed the MCP tool set (SPEC.md decision log, T13 part 2):
 - Tool sets: AGENT_TOOLS in packages/shared. research has all seven MVP tools (get_my_portfolio, get_event, search_news, search_filings, get_company_relationships, get_price_reaction, get_financial_facts); verifier has none by design. mintRunToken and verifyRunToken refuse a tool outside the agent's set, so the verifier never gets a token.
@@ -285,21 +315,29 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. Check that CI passes on Ubuntu and Windows for the PR "T13: full MCP tool set", then merge it. Keep LIVE_INGEST false on both machines until T18 or T19.
+1. Check that CI passes on Ubuntu and Windows for PR 21 "T16: evals part 1 and structural relevance bands", then merge it. Keep LIVE_INGEST false on both machines until T18 or T19.
 2. On each machine, once:
    - `npm run record:bars -- --event 38062166 --symbols TSM,NVDA` fills the gitignored bar cache for the demo card and the local SPIKE.md test.
-   - The api now loads the local embedding model at startup (about 90 MB into .cache/models, downloaded once); `npm run embed:events` embeds events stored before.
+   - The api loads the local embedding model at startup (about 90 MB into .cache/models, downloaded once); `npm run embed:events` embeds events stored before. `npm run eval` needs the same cache for its retrieval part.
    - `npm run seed` creates sources_text only where fewer than 3 search indexes exist; Atlas already has it.
 3. Pick the next task from BACKLOG.md:
+   - T16 part 2 (notes under T16):
+     - the verifier catch rate on the T14 planted fixture;
+     - retrieval on the hybrid search;
+     - injection on research;
+     - the research budgets (32,000 and 16,000), the gate and FLAG_THRESHOLD;
+     - the materiality flag per reviewed edge, set in graph:review (the likely case is AMD supplier_of MSFT);
+     - 3 to 5 items with passing mentions to measure tagged-only start nodes;
+     - the feed order (recency, or band then relevance), a GET /feed contract change;
+     - the README numbers.
    - T20, the deterministic report core, so point 5 of the MVP definition of done holds in every run.
-   - T21, the flaky "with AUTO_RESEARCH off" test.
-   - T16 evals: add a retrieval eval on the hybrid search_news and search_filings, and tune the budgets of 32,000 and 16,000 (notes under T13 and T16).
    - T19, live ingestion hardening, before LIVE_INGEST runs all day.
 4. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
-   - The first npm run test downloads mongod 8.0.32, about 100 MB.
-   - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay, Investigate and research:dev, MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start; SEC_USER_AGENT for get_financial_facts.
+   - The first npm run test downloads mongod 8.0.32, about 100 MB. The eval integration test starts mongod twice more.
+   - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay, Investigate and research:dev, and MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start. It needs SEC_USER_AGENT for get_financial_facts.
+   - Check that git keeps the committed JSON with LF line endings, so the Prettier check in npm run lint passes there too.
    - Run `npm run seed` once if that machine uses its own database, so older documents are backfilled; its search indexes need Atlas.
    - Both machines share one daily research budget on Atlas (30 runs, automatic runs stop at 20). Set AUTO_RESEARCH=false in a machine's .env if it should not start automatic runs.
    - Keep LIVE_INGEST=false there: the free Alpaca plan allows one live WebSocket.
@@ -307,11 +345,13 @@ Seed quotes and Source.text use the same normalization, and the T08 and T14 quot
 Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. LIVE_INGEST is false on both machines except while proving T10; with it true the api also needs the Alpaca keys and SEC_USER_AGENT. AUTO_RESEARCH is optional (on when unset).
 
 ## Open decisions
+From T16 part 1, each needing its own decision log entry: keep the edge weights; no theme overlap in relevance; the feed order; a materiality flag per edge; tagged-only start nodes. FLAG_THRESHOLD stays 0.5 for now.
 None for T11: its three open decisions were settled on 29 Sep 2026 (SPEC.md decision log, T11).
 The UI language is settled by docs/UI.md: English interface, with Hebrew summaries as a later option.
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 30 Sep 2026, macOS (Mac mini), T16 part 1: T16 split in two; eval set of 30 recorded Alpaca items with 90 labels reviewed by the user (labeling CLI that hides the proposal; two rushed labelings reset), 5 synthetic poisoned items and 11 judged retrieval queries; npm run eval replays everything in a fresh kesher_eval on a local mongod from recordings and writes docs/EVALS.md, CI runs the same; recorders keep latency, record refusals and write formatted JSON; results under the decided bands: relevance 78 of 90, injection 2 of 5 (1 of 5 with the screen), screen 2 of 5 flagged and 0 false flags, tagged-only start nodes equal on clean items, retrieval precision at 3 70% and recall 46%; display bands decided and applied (high only for a direct holding, medium above 0); part 2 notes on materiality, passing mentions and feed order; T21 marked done from PR 19; reviewer ran on every api, shared and merge commit; merged main after T13 part 2, T14 and T21; 968 tests green; PR 21 open; T16 stays [~].
 - 29 Sep 2026, macOS (Mac mini), T13 part 2: agent tool sets with the verifier empty; get_my_portfolio, get_company_relationships, search_filings, get_financial_facts from recorded SEC XBRL, hybrid search_news with the sources_text index and rank fusion; event embeddings at extraction with a backfill; 8 KB tool output cap; filing quotes checked against the text tools returned; budgets 32,000 and 16,000; sample_mflix dropped on Atlas to free the third search index; seven real runs proved the 10-K fact and the price metric in separate reports (T20 makes them code claims); merged main after T10 and T14 with T14's market_data writer kept; T20 and T21 added; 902 tests green, 1 skipped; T13 done.
 - 29 Sep 2026, macOS (Mac mini), T14: deterministic checks sources_exist, quote_verbatim, numbers_match against the price reaction code reads at the event time (with the rounding rule for text), no_advice and premises_supported with cycles; a tool-less verifier on Groq with its own 6,000 token cap that sees claims and sources only, and a priceCause classification that code uses to remove any claim tying the event to a price move as a cause (principle 7, inferences included); research token adds get_price_reaction, metrics carry figures and cite a market_data Source; planted fixture caught 17 of 17 with the real verifier; report shows supported claims only, skipped runs labeled, /runs opens the newest run not skipped; seed backfill; reviewer found no blockers, its major point fixed; merged main after T10 and T11; 832 tests green, 5 skipped; T14 done.
 - 29 Sep 2026, macOS (Mac mini), T10: Alpaca news stream and EDGAR poller behind LIVE_INGEST, an ingest queue one item at a time with 429 retries, live recordings in a recordings collection without article bodies, replay and reset by Alpaca id or accession from file or collection, recording:export, live items through the same after scoring hook as replay (merged main after T12); on Atlas a real AMD 8-K reached persona A's feed and replayed from the collection, no Benzinga item passed the pre filter while live was on; reviewer found no blockers; T19 added; merged main after T11, 762 tests green, 4 skipped; T10 done (a live Benzinga item goes to the T18 rehearsal).

@@ -1,0 +1,21 @@
+{
+  "externalId": "44859693",
+  "recordedAt": "2026-09-29T12:53:15.491Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Keybanc Downgrades Microsoft to Sector Weight",
+    "chunks": ["0.0006997112068347633"],
+    "latencyMs": [204]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"MSFT\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"other\",\n  \"themes\": [],\n  \"importance\": 3\n}",
+    "usage": {
+      "inputTokens": 640,
+      "outputTokens": 172,
+      "totalTokens": 812
+    },
+    "latencyMs": 584
+  }
+}

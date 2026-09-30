@@ -1,9 +1,8 @@
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import { loadAlpacaEnv } from '../config/env';
+import { writeJson } from '../graph/json';
 import { fetchAlpacaNewsById } from './alpaca';
 import { Recording, recordingPath } from './recordings';
 
@@ -53,6 +52,6 @@ const item = await fetchAlpacaNewsById({
 const recording = { provider: 'alpaca', recordedAt: new Date().toISOString(), item };
 Recording.parse(recording);
 
-await mkdir(dirname(path), { recursive: true });
-await writeFile(path, `${JSON.stringify(recording, null, 2)}\n`);
+// Formatted the way npm run lint checks it.
+await writeJson(path, recording);
 console.log(`Recorded Alpaca news ${id} to ${path}`);

@@ -159,7 +159,7 @@ The read model for one feed card, FeedCard in packages/shared, assembled on the 
 - evidence: one entry per hop of the path whose edge is reviewed, in path order: relationshipId, from, to, type, quote, filingDate, url, reviewed, and the filing (sourceId, filer symbol, title, form, tier). The form is the filer's annual form. A hop without reviewed evidence has no entry. A direct holding has none.
 - priceReaction: the PriceReaction from get_price_reaction (same shape, dates as dates) for the path's event company and holding, deduplicated, then SMH and SPY; null when the market data could not be read (no Alpaca keys, a provider error). Moves are shown as timing next to the benchmarks, never as a cause.
 
-"Why you" is not a field. Clients render it from item.path with whyYou in packages/shared, the same templates the api uses. Relevance bands come from relevanceBand in packages/shared: high from 0.8, medium above 0, none at 0 (placeholders until T16).
+"Why you" is not a field. Clients render it from item.path with whyYou in packages/shared, the same templates the api uses. Relevance bands come from relevanceBand in packages/shared: high only for a direct holding (relevance 1), medium for any other relevance above 0, none at 0 (SPEC.md decision log, T16).
 
 Over JSON and Socket.IO, dates travel as ISO 8601 strings; the client turns them back into dates before parsing with FeedCard.
 

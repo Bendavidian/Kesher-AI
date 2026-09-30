@@ -1,0 +1,21 @@
+{
+  "externalId": "40113523",
+  "recordedAt": "2026-09-29T12:52:16.972Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Intel Q2 Adj $0.02 Misses $0.10 Estimate, Sales $12.83B Miss $12.94B Estimate",
+    "chunks": ["0.0004336306592449546"],
+    "latencyMs": [206]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"INTC\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"earnings\",\n  \"importance\": 4,\n  \"themes\": []\n}",
+    "usage": {
+      "inputTokens": 659,
+      "outputTokens": 158,
+      "totalTokens": 817
+    },
+    "latencyMs": 743
+  }
+}

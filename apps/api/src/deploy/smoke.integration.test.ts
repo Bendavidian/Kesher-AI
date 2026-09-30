@@ -61,7 +61,7 @@ describe('npm run smoke against a production-mode api, on mongod', () => {
       ['price reaction', 'pass'],
       ['investigate', 'skip'],
     ]);
-    expect(byName('persona levels')?.detail).toBe('A High 0.80, B High 1.00, C None 0.00');
+    expect(byName('persona levels')?.detail).toBe('A Medium 0.80, B High 1.00, C None 0.00');
     expect(passed(results)).toBe(true);
   });
 

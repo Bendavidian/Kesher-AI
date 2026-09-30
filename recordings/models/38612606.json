@@ -1,0 +1,21 @@
+{
+  "externalId": "38612606",
+  "recordedAt": "2026-09-29T12:53:26.556Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "ExxonMobil Completes Acquisition of Pioneer Natural Resources",
+    "chunks": ["0.0005243439227342606"],
+    "latencyMs": [198]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"XOM\",\n      \"impact\": \"positive\"\n    }\n  ],\n  \"eventType\": \"m_and_a\",\n  \"importance\": 5,\n  \"themes\": [\n    \"oil_gas\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 642,
+      "outputTokens": 150,
+      "totalTokens": 792
+    },
+    "latencyMs": 1151
+  }
+}

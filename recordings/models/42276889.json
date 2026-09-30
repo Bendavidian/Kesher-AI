@@ -1,0 +1,21 @@
+{
+  "externalId": "42276889",
+  "recordedAt": "2026-09-29T12:52:21.786Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Lam Research Corporation Comments On Newly Announced Export Regulations; Says \"Our Initial Assessment Is That The Effect Of The Announced Measures On Lam's Business Will Be Broadly Consistent With Our Prior Expectations\"",
+    "chunks": ["0.00042598872096277773"],
+    "latencyMs": [217]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"LRCX\",\n      \"impact\": \"neutral\"\n    }\n  ],\n  \"eventType\": \"regulatory\",\n  \"themes\": [\"regulation\"],\n  \"importance\": 3\n}",
+    "usage": {
+      "inputTokens": 670,
+      "outputTokens": 157,
+      "totalTokens": 827
+    },
+    "latencyMs": 671
+  }
+}

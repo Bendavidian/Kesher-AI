@@ -1,0 +1,21 @@
+{
+  "externalId": "42482634",
+  "recordedAt": "2026-09-29T12:53:17.776Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Evercore ISI Group Maintains Outperform on Broadcom, Raises Price Target to $250",
+    "chunks": ["0.000461228919448331"],
+    "latencyMs": [203]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"AVGO\",\n      \"impact\": \"positive\"\n    }\n  ],\n  \"eventType\": \"other\",\n  \"importance\": 3,\n  \"themes\": [\n    \"semicap_equipment\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 649,
+      "outputTokens": 165,
+      "totalTokens": 814
+    },
+    "latencyMs": 1007
+  }
+}

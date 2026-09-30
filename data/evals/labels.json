@@ -1,0 +1,724 @@
+{
+  "labels": [
+    {
+      "sourceId": "38062166",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:50:08.517Z"
+    },
+    {
+      "sourceId": "38062166",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:50:08.517Z"
+    },
+    {
+      "sourceId": "38062166",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:50:08.517Z"
+    },
+    {
+      "sourceId": "43088007",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:50:24.955Z"
+    },
+    {
+      "sourceId": "43088007",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:50:24.955Z"
+    },
+    {
+      "sourceId": "43088007",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:50:24.955Z"
+    },
+    {
+      "sourceId": "40152477",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:44:12.277Z"
+    },
+    {
+      "sourceId": "40152477",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:44:12.277Z"
+    },
+    {
+      "sourceId": "40152477",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:44:12.277Z"
+    },
+    {
+      "sourceId": "39854612",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:54:30.146Z"
+    },
+    {
+      "sourceId": "39854612",
+      "persona": "B",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:54:30.146Z"
+    },
+    {
+      "sourceId": "39854612",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:54:30.146Z"
+    },
+    {
+      "sourceId": "48297781",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:54:52.853Z"
+    },
+    {
+      "sourceId": "48297781",
+      "persona": "B",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:54:52.853Z"
+    },
+    {
+      "sourceId": "48297781",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:54:52.853Z"
+    },
+    {
+      "sourceId": "38973532",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:56:35.036Z"
+    },
+    {
+      "sourceId": "38973532",
+      "persona": "B",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:56:35.036Z"
+    },
+    {
+      "sourceId": "38973532",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:56:35.036Z"
+    },
+    {
+      "sourceId": "41663854",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:57:43.660Z"
+    },
+    {
+      "sourceId": "41663854",
+      "persona": "B",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:57:43.660Z"
+    },
+    {
+      "sourceId": "41663854",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:57:43.660Z"
+    },
+    {
+      "sourceId": "42563518",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:58:02.365Z"
+    },
+    {
+      "sourceId": "42563518",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-29T13:58:02.365Z"
+    },
+    {
+      "sourceId": "42563518",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:58:02.365Z"
+    },
+    {
+      "sourceId": "41336021",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-29T13:58:30.432Z"
+    },
+    {
+      "sourceId": "41336021",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:58:30.432Z"
+    },
+    {
+      "sourceId": "41336021",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:58:30.432Z"
+    },
+    {
+      "sourceId": "43320124",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:58:49.735Z"
+    },
+    {
+      "sourceId": "43320124",
+      "persona": "B",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:58:49.735Z"
+    },
+    {
+      "sourceId": "43320124",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:58:49.735Z"
+    },
+    {
+      "sourceId": "43020311",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:01:28.855Z"
+    },
+    {
+      "sourceId": "43020311",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:01:28.855Z"
+    },
+    {
+      "sourceId": "43020311",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T14:01:28.855Z"
+    },
+    {
+      "sourceId": "42472206",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-29T14:02:32.585Z"
+    },
+    {
+      "sourceId": "42472206",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:02:32.585Z"
+    },
+    {
+      "sourceId": "42472206",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T14:02:32.585Z"
+    },
+    {
+      "sourceId": "40113523",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-29T14:02:48.596Z"
+    },
+    {
+      "sourceId": "40113523",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:02:48.596Z"
+    },
+    {
+      "sourceId": "40113523",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T14:02:48.596Z"
+    },
+    {
+      "sourceId": "44828104",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:03:14.428Z"
+    },
+    {
+      "sourceId": "44828104",
+      "persona": "B",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:03:14.428Z"
+    },
+    {
+      "sourceId": "44828104",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T14:03:14.428Z"
+    },
+    {
+      "sourceId": "44837834",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:23:05.721Z"
+    },
+    {
+      "sourceId": "44837834",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:23:05.721Z"
+    },
+    {
+      "sourceId": "44837834",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:23:05.721Z"
+    },
+    {
+      "sourceId": "40748050",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:23:28.889Z"
+    },
+    {
+      "sourceId": "40748050",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:23:28.889Z"
+    },
+    {
+      "sourceId": "40748050",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:23:28.889Z"
+    },
+    {
+      "sourceId": "42276889",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:23:52.367Z"
+    },
+    {
+      "sourceId": "42276889",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:23:52.367Z"
+    },
+    {
+      "sourceId": "42276889",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:23:52.367Z"
+    },
+    {
+      "sourceId": "40169246",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:24:09.299Z"
+    },
+    {
+      "sourceId": "40169246",
+      "persona": "B",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:24:09.299Z"
+    },
+    {
+      "sourceId": "40169246",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:24:09.299Z"
+    },
+    {
+      "sourceId": "39646124",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:24:45.583Z"
+    },
+    {
+      "sourceId": "39646124",
+      "persona": "B",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:24:45.583Z"
+    },
+    {
+      "sourceId": "39646124",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:24:45.583Z"
+    },
+    {
+      "sourceId": "44859693",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:24:59.911Z"
+    },
+    {
+      "sourceId": "44859693",
+      "persona": "B",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:24:59.911Z"
+    },
+    {
+      "sourceId": "44859693",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:24:59.911Z"
+    },
+    {
+      "sourceId": "39245673",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:25:19.578Z"
+    },
+    {
+      "sourceId": "39245673",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:25:19.578Z"
+    },
+    {
+      "sourceId": "39245673",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:25:19.578Z"
+    },
+    {
+      "sourceId": "42482634",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:25:30.948Z"
+    },
+    {
+      "sourceId": "42482634",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:25:30.948Z"
+    },
+    {
+      "sourceId": "42482634",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:25:30.948Z"
+    },
+    {
+      "sourceId": "40436151",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:26:47.311Z"
+    },
+    {
+      "sourceId": "40436151",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:26:47.311Z"
+    },
+    {
+      "sourceId": "40436151",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:26:47.311Z"
+    },
+    {
+      "sourceId": "40964871",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:27:01.802Z"
+    },
+    {
+      "sourceId": "40964871",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:27:01.802Z"
+    },
+    {
+      "sourceId": "40964871",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:01.802Z"
+    },
+    {
+      "sourceId": "47734379",
+      "persona": "A",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:27:22.635Z"
+    },
+    {
+      "sourceId": "47734379",
+      "persona": "B",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:27:22.635Z"
+    },
+    {
+      "sourceId": "47734379",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:22.635Z"
+    },
+    {
+      "sourceId": "38612606",
+      "persona": "A",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:43.275Z"
+    },
+    {
+      "sourceId": "38612606",
+      "persona": "B",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:43.275Z"
+    },
+    {
+      "sourceId": "38612606",
+      "persona": "C",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:27:43.275Z"
+    },
+    {
+      "sourceId": "42940226",
+      "persona": "A",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:55.605Z"
+    },
+    {
+      "sourceId": "42940226",
+      "persona": "B",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:55.605Z"
+    },
+    {
+      "sourceId": "42940226",
+      "persona": "C",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:27:55.605Z"
+    },
+    {
+      "sourceId": "43618741",
+      "persona": "A",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:29:51.133Z"
+    },
+    {
+      "sourceId": "43618741",
+      "persona": "B",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:29:51.133Z"
+    },
+    {
+      "sourceId": "43618741",
+      "persona": "C",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:29:51.133Z"
+    },
+    {
+      "sourceId": "44578823",
+      "persona": "A",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:30:26.355Z"
+    },
+    {
+      "sourceId": "44578823",
+      "persona": "B",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:30:26.355Z"
+    },
+    {
+      "sourceId": "44578823",
+      "persona": "C",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:30:26.355Z"
+    },
+    {
+      "sourceId": "42456879",
+      "persona": "A",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:30:41.847Z"
+    },
+    {
+      "sourceId": "42456879",
+      "persona": "B",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:30:41.847Z"
+    },
+    {
+      "sourceId": "42456879",
+      "persona": "C",
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:30:41.847Z"
+    }
+  ]
+}

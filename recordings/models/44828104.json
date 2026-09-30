@@ -1,0 +1,21 @@
+{
+  "externalId": "44828104",
+  "recordedAt": "2026-09-29T12:52:17.923Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "The U.S. Government Informed Nvidia That The USG Requires A License For Export To China (Including Hong Kong And Macau) And D:5 Countries The Company's H20 Integrated Circuits And Any Other Circuits Achieving The H20's Memory Bandwidth, Interconnect Bandwidth; The USG Informed The Company That The License Requirement Will Be In Effect For The Indefinite Future; Q1 Results Are Expected To Include Up To ~$5.5B Of Charges Associated With H20 Products For Inventory, Purchase Commitments, And Related Reserves",
+    "chunks": ["0.0005444529233500361"],
+    "latencyMs": [200]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"NVDA\",\n      \"impact\": \"negative\"\n    }\n  ],\n  \"eventType\": \"regulatory\",\n  \"importance\": 4,\n  \"themes\": [\n    \"chip_design\",\n    \"memory\"\n  ]\n}",
+    "usage": {
+      "inputTokens": 748,
+      "outputTokens": 150,
+      "totalTokens": 898
+    },
+    "latencyMs": 746
+  }
+}

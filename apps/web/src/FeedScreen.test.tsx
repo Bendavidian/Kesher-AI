@@ -121,7 +121,7 @@ describe('feed screen, signed in through the persona switcher', () => {
     await ready();
     const { feed, event, scores } = regions();
 
-    expect(within(row(feed)).getByText('High 0.80')).toBeTruthy();
+    expect(within(row(feed)).getByText('Medium 0.80')).toBeTruthy();
     expect(
       within(row(feed)).getByRole('img', { name: 'TSMC supplies NVIDIA, which you hold' }),
     ).toBeTruthy();
@@ -140,7 +140,7 @@ describe('feed screen, signed in through the persona switcher', () => {
     ).toBeTruthy();
 
     expect(relevanceScore(scores)).toBe('0.80');
-    expect(within(scores).getByText('High. Measured along the path.')).toBeTruthy();
+    expect(within(scores).getByText('Medium. Measured along the path.')).toBeTruthy();
     expect(
       within(scores).getByText(/We utilize foundries, such as Taiwan Semiconductor/),
     ).toBeTruthy();
@@ -217,7 +217,7 @@ describe('feed screen, signed in through the persona switcher', () => {
       socket().onScored!(DEMO_EVENT._id);
     });
     const feed = regions().feed;
-    expect(within(row(feed)).getByText('High 0.80')).toBeTruthy();
+    expect(within(row(feed)).getByText('Medium 0.80')).toBeTruthy();
     expect(within(row(feed)).getByText('Replayed now')).toBeTruthy();
     expect(screen.getByText('Replay')).toBeTruthy();
 

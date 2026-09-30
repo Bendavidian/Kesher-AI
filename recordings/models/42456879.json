@@ -1,0 +1,21 @@
+{
+  "externalId": "42456879",
+  "recordedAt": "2026-09-29T12:54:16.760Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Deutsche Bank Upgrades Coca-Cola to Buy, Raises Price Target to $70",
+    "chunks": ["0.0004772231914103031"],
+    "latencyMs": [198]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"KO\",\n      \"impact\": \"positive\"\n    }\n  ],\n  \"eventType\": \"guidance\",\n  \"themes\": [\"consumer_staples\"],\n  \"importance\": 3\n}",
+    "usage": {
+      "inputTokens": 644,
+      "outputTokens": 124,
+      "totalTokens": 768
+    },
+    "latencyMs": 418
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:43:19.979Z",
+  "item": {
+    "id": 42940226,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2025-01-13T11:33:50Z",
+    "headline": "Johnson & Johnson Has Agreed To Acquire Intra-cellular Therapies For $132.00 Per Share In Cash For A Total Equity Value Of Approximately $14.6B",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": ["ITCI", "JNJ"],
+    "updated_at": "2025-01-13T11:33:51Z",
+    "url": "https://www.benzinga.com/news/large-cap/25/01/42940226/johnson-johnson-has-agreed-to-acquire-intra-cellular-therapies-for-132-00-per-share-in-cash-for-a-"
+  }
+}

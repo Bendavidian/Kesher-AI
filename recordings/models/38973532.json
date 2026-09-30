@@ -1,0 +1,21 @@
+{
+  "externalId": "38973532",
+  "recordedAt": "2026-09-29T12:51:19.820Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Nvidia Sees Q2 2025 Revenue $28B +/- 2% Vs $26.64B Estimate",
+    "chunks": ["0.0003864644095301628"],
+    "latencyMs": [197]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"NVDA\",\n      \"impact\": \"positive\"\n    }\n  ],\n  \"eventType\": \"guidance\",\n  \"importance\": 3,\n  \"themes\": [\"ai_accelerators\", \"data_centers\"]\n}",
+    "usage": {
+      "inputTokens": 653,
+      "outputTokens": 145,
+      "totalTokens": 798
+    },
+    "latencyMs": 930
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:43:24.559Z",
+  "item": {
+    "id": 42456879,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2024-12-12T11:42:24Z",
+    "headline": "Deutsche Bank Upgrades Coca-Cola to Buy, Raises Price Target to $70",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": ["KO"],
+    "updated_at": "2024-12-12T11:42:24Z",
+    "url": "https://www.benzinga.com/news/24/12/42456879/deutsche-bank-upgrades-coca-cola-to-buy-raises-price-target-to-70"
+  }
+}

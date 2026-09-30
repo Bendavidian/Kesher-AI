@@ -16,13 +16,21 @@ export const ModelRecording = z.strictObject({
     // The text that was screened, and prompt guard's raw answer for each of its chunks.
     input: z.string().min(1),
     chunks: z.array(z.string()).min(1),
+    // Wall time of each chunk's call when it was recorded; recordings made before T16 have none.
+    latencyMs: z.array(z.number().nonnegative()).optional(),
   }),
   extraction: z.strictObject({
     provider: LlmProvider,
     model: z.string().min(1),
-    // The raw structured answer, exactly as the model sent it.
+    // The raw structured answer, exactly as the model sent it. For a failure, the generation the
+    // provider rejected, when it returned one.
     text: z.string().min(1),
     usage: z.strictObject({ inputTokens: Tokens, outputTokens: Tokens, totalTokens: Tokens }),
+    latencyMs: z.number().nonnegative().optional(),
+    // Set when the provider refused the call with an error other than a 429, for example an
+    // answer that failed the schema; a replay fails the extraction the same way. Recorded by the
+    // T16 evals, where an injected item can make the model refuse.
+    failure: z.strictObject({ status: z.int().nullable(), message: z.string().min(1) }).optional(),
   }),
 });
 export type ModelRecording = z.infer<typeof ModelRecording>;

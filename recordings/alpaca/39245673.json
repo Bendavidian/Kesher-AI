@@ -1,0 +1,16 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-29T12:43:09.810Z",
+  "item": {
+    "id": 39245673,
+    "author": "Benzinga Newsdesk",
+    "created_at": "2024-06-10T09:10:53Z",
+    "headline": "Morgan Stanley Downgrades Advanced Micro Devices to Equal-Weight, Maintains Price Target to $176",
+    "images": [],
+    "source": "benzinga",
+    "summary": "",
+    "symbols": ["AMD"],
+    "updated_at": "2024-06-10T09:10:53Z",
+    "url": "https://www.benzinga.com/news/24/06/39245673/morgan-stanley-downgrades-advanced-micro-devices-to-equal-weight-maintains-price-target-to-176"
+  }
+}
