@@ -71,6 +71,73 @@ export interface ScoredItem {
   created: boolean;
 }
 
+// What scoring reads of a user: never the password hash. expiresAt only for a guest.
+export interface ScoringUser {
+  _id: string;
+  holdings: Holding[];
+  expiresAt?: Date;
+}
+
+// The users and FeedItems that count: every persona, and every guest whose expiresAt has not
+// passed (SPEC.md decision log, T24). A guest the TTL monitor has not removed yet gets no new
+// item and never leaves an event unscored. A guest's items carry its expiresAt, so the same
+// filter counts only the items of users that count.
+export const liveFilter = (now: Date) => ({
+  $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: now } }],
+});
+
+// One user's FeedItem for the event, inserted or recomputed in place. _id, createdAt and the
+// research state are written only on insert. createdAt is the scoring time, except for a guest's
+// backfill, which passes the event's own.
+async function upsertItem(
+  db: Db,
+  context: ScoringContext,
+  user: ScoringUser,
+  now: Date,
+  createdAt: Date = now,
+): Promise<ScoredItem> {
+  const { event, confidence } = context;
+  const { relevance, path } = scoreFor(context, user.holdings);
+  const candidate = FeedItem.parse({
+    _id: randomUUID(),
+    userId: user._id,
+    eventId: event._id,
+    relevance,
+    path,
+    confidence,
+    status: event.status,
+    research: { ...NO_RESEARCH },
+    createdAt,
+    updatedAt: now,
+    ...(user.expiresAt ? { expiresAt: user.expiresAt } : {}),
+  });
+  const { _id, research, userId, ...computed } = candidate;
+  const { createdAt: insertedAt, ...changed } = computed;
+  const items = collection(db, 'feed_items');
+  const upsert = () =>
+    items.findOneAndUpdate(
+      { userId, eventId: event._id },
+      { $set: changed, $setOnInsert: { _id, research, createdAt: insertedAt } },
+      { upsert: true, returnDocument: 'after', includeResultMetadata: true },
+    );
+  // Concurrent first upserts of one key can fail with E11000; the retry matches the winner.
+  const result = await upsert().catch((error: unknown) => {
+    if (error instanceof MongoServerError && error.code === DUPLICATE_KEY) return upsert();
+    throw error;
+  });
+  return {
+    item: FeedItem.parse(result.value),
+    created: result.lastErrorObject?.updatedExisting !== true,
+  };
+}
+
+const scoringUsers = (db: Db, filter: object) =>
+  collection(db, 'users')
+    .find(filter)
+    .project<ScoringUser>({ _id: 1, holdings: 1, expiresAt: 1 })
+    .sort({ _id: 1 })
+    .toArray();
+
 // Propagation and relevance for one extracted event, SPEC.md Pipeline: code only. Writes one
 // FeedItem per user, relevance 0 included, so the event counts as scored for every user; the feed
 // hides relevance 0. The graph is read once per event. Safe to run again: the unique (userId,
@@ -78,57 +145,53 @@ export interface ScoredItem {
 // createdAt and the research state are written only on insert.
 export async function scoreEvent(db: Db, eventId: string, now = new Date()): Promise<ScoredItem[]> {
   const context = await loadScoringContext(db, eventId);
-  const { event, confidence } = context;
-
-  // Holdings only; the password hash never leaves the users collection.
-  const users = await collection(db, 'users')
-    .find({})
-    .project<{ _id: string; holdings: Holding[] }>({ _id: 1, holdings: 1 })
-    .sort({ _id: 1 })
-    .toArray();
-
-  const items = collection(db, 'feed_items');
   const written: ScoredItem[] = [];
-  for (const user of users) {
-    const { relevance, path } = scoreFor(context, user.holdings);
-    const candidate = FeedItem.parse({
-      _id: randomUUID(),
-      userId: user._id,
-      eventId: event._id,
-      relevance,
-      path,
-      confidence,
-      status: event.status,
-      research: { ...NO_RESEARCH },
-      createdAt: now,
-      updatedAt: now,
-    });
-    const { _id, research, createdAt, userId, ...computed } = candidate;
-    const upsert = () =>
-      items.findOneAndUpdate(
-        { userId, eventId: event._id },
-        { $set: computed, $setOnInsert: { _id, research, createdAt } },
-        { upsert: true, returnDocument: 'after', includeResultMetadata: true },
-      );
-    // Concurrent first upserts of one key can fail with E11000; the retry matches the winner.
-    const result = await upsert().catch((error: unknown) => {
-      if (error instanceof MongoServerError && error.code === DUPLICATE_KEY) return upsert();
-      throw error;
-    });
-    written.push({
-      item: FeedItem.parse(result.value),
-      created: result.lastErrorObject?.updatedExisting !== true,
-    });
+  for (const user of await scoringUsers(db, liveFilter(now))) {
+    written.push(await upsertItem(db, context, user, now));
   }
   return written;
 }
 
-// An event is scored once every user has its FeedItem. A scoring run that stopped partway, or a
-// user added since, leaves the event unscored, and the next try completes it with no model call.
-export async function isScored(db: Db, eventId: string): Promise<boolean> {
+// How many events a guest's backfill reads and scores at once.
+const BACKFILL_CONCURRENCY = 8;
+
+// Every stored extracted event for one user, with the same scoring and no model call (SPEC.md
+// decision log, T24): a new guest's feed is full at once, and a guest who changes holdings is
+// rescored in place with its research state kept. Each item takes its event's createdAt, so the
+// feed order matches a persona's. An event whose extraction is gone in between is skipped.
+export async function scoreUser(db: Db, user: ScoringUser, now = new Date()): Promise<number> {
+  const events = await collection(db, 'market_events')
+    .find({ extraction: { $ne: null } })
+    .project<{ _id: string; createdAt: Date }>({ _id: 1, createdAt: 1 })
+    .sort({ createdAt: -1, _id: 1 })
+    .toArray();
+  let scored = 0;
+  for (let start = 0; start < events.length; start += BACKFILL_CONCURRENCY) {
+    const batch = events.slice(start, start + BACKFILL_CONCURRENCY);
+    await Promise.all(
+      batch.map(async (event) => {
+        let context: ScoringContext;
+        try {
+          context = await loadScoringContext(db, event._id);
+        } catch (error) {
+          if (error instanceof EventNotScorableError) return;
+          throw error;
+        }
+        await upsertItem(db, context, user, now, event.createdAt);
+        scored += 1;
+      }),
+    );
+  }
+  return scored;
+}
+
+// An event is scored once every user that counts has its FeedItem. A scoring run that stopped
+// partway, or a user added since, leaves the event unscored, and the next try completes it with
+// no model call.
+export async function isScored(db: Db, eventId: string, now = new Date()): Promise<boolean> {
   const [users, items] = await Promise.all([
-    collection(db, 'users').countDocuments(),
-    collection(db, 'feed_items').countDocuments({ eventId }),
+    collection(db, 'users').countDocuments(liveFilter(now)),
+    collection(db, 'feed_items').countDocuments({ eventId, ...liveFilter(now) }),
   ]);
   return items >= users;
 }

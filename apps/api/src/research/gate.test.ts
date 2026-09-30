@@ -16,6 +16,7 @@ const HOUR = 60 * 60 * 1000;
 
 const input = (overrides: Partial<GateInput> = {}): GateInput => ({
   autoResearch: true,
+  guest: false,
   relevance: 0.8,
   importance: 4,
   researchState: 'none',
@@ -33,6 +34,17 @@ describe('checkGate', () => {
 
   it('passes a relevant, important event with no recent research', () => {
     expect(checkGate(input())).toEqual({ pass: true });
+  });
+
+  it('skips a guest card with guest, before every other condition but AUTO_RESEARCH', () => {
+    expect(checkGate(input({ guest: true, relevance: 1, importance: 5 }))).toEqual({
+      pass: false,
+      condition: 'guest',
+      reason: 'Automatic research does not run for guest portfolios; Investigate runs one a day.',
+    });
+    expect(checkGate(input({ guest: true, autoResearch: false }))).toMatchObject({
+      condition: 'auto_research_off',
+    });
   });
 
   it('skips every card first with auto_research_off when AUTO_RESEARCH is off', () => {

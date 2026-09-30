@@ -3,6 +3,7 @@ import { Router } from 'express';
 import type { Db } from 'mongodb';
 import { currentUser, requireUser } from '../auth/session';
 import { feedCard, type CardMarket } from '../feed/cards';
+import type { Reservation } from '../research/dailyBudget';
 import { startInvestigation, type InvestigateDeps } from '../research/investigate';
 import { reportDetail } from '../research/report';
 import { runDetail, runList } from '../research/runs';
@@ -32,10 +33,7 @@ export function researchRouter(deps: InvestigateDeps, secret: string, market?: C
       return;
     }
     if (start.outcome === 'budget_spent') {
-      const { runs, limit } = start.reservation;
-      res.status(429).json({
-        error: `Today's research budget is spent (${runs} of ${limit} runs). It resets at 00:00 UTC.`,
-      });
+      res.status(429).json({ error: budgetSpentMessage(start.reservation) });
       return;
     }
     const card = await cardOf(db, start.item, market);
@@ -76,6 +74,17 @@ export function researchRouter(deps: InvestigateDeps, secret: string, market?: C
   });
 
   return router;
+}
+
+// The 429 of Investigate, by the limit that refused the run (T24 for the guest limits).
+export function budgetSpentMessage({ runs, limit, scope }: Reservation): string {
+  if (scope === 'guest') {
+    return 'A guest portfolio gets one research run a day, and this one is used. It resets at 00:00 UTC.';
+  }
+  if (scope === 'guests') {
+    return `Today's research runs for guest portfolios are used up (${runs} of ${limit}). They reset at 00:00 UTC.`;
+  }
+  return `Today's research budget is spent (${runs} of ${limit} runs). It resets at 00:00 UTC.`;
 }
 
 async function cardOf(

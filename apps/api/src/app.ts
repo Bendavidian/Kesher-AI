@@ -13,6 +13,7 @@ import { authRouter, type AuthOptions } from './routes/auth';
 import { demoRouter, type DemoOptions } from './routes/demo';
 import { devRouter } from './routes/dev';
 import { feedRouter } from './routes/feed';
+import { guestRouter, type GuestOptions } from './routes/guest';
 import { mcpRouter } from './routes/mcp';
 import { researchRouter } from './routes/research';
 import { atlasSearch } from './search/atlas';
@@ -30,8 +31,14 @@ export interface AppDeps {
   web?: string;
   // Mounts POST /mcp when set. The secret verifies run tokens (MCP_TOKEN_SECRET).
   mcp?: { secret: string };
-  // Mounts sign in, GET /me, GET /feed and explain when set. The secret is JWT_SECRET.
+  // Mounts sign in, GET /me, GET /feed, explain and the guest routes when set. The secret is
+  // JWT_SECRET.
   auth?: AuthOptions;
+  // The clock and limits of the guest routes (SPEC.md decision log, T24). For tests.
+  guest?: GuestOptions;
+  // The proxy hops in front of the api, so req.ip is the client's address for the guest rate
+  // limit: 1 behind Render's proxy in production, unset in development.
+  trustProxy?: number;
   // Gets what each scoring run wrote; the server passes the Socket.IO pushes.
   onScored?: ProcessDeps['onScored'];
   // Where request errors go. The server passes a logger that redacts secrets.
@@ -97,6 +104,8 @@ export function createApi({
   web,
   mcp,
   auth,
+  guest,
+  trustProxy,
   onScored,
   logError = logMessage,
   log = console.log,
@@ -112,6 +121,7 @@ export function createApi({
 }: AppDeps): Api {
   const app = express();
   app.disable('x-powered-by');
+  if (trustProxy !== undefined) app.set('trust proxy', trustProxy);
   if (web) app.use(serveWeb(web));
 
   const demoMode = Boolean(demo && auth);
@@ -137,6 +147,7 @@ export function createApi({
   }
   if (auth) {
     app.use(authRouter(db, auth));
+    app.use(guestRouter(db, auth, guest));
     // Every card the api sends carries the same price reaction.
     const market = priceReactions && { priceReaction: priceReactions, logError };
     app.use(feedRouter(db, auth.secret, market));

@@ -13,6 +13,7 @@ import type { Db } from 'mongodb';
 import type { Socket } from 'socket.io-client';
 import { createApi } from '../app';
 import type { DemoOptions } from '../routes/demo';
+import type { GuestOptions } from '../routes/guest';
 import { memorySearch } from './search';
 import { SESSION_COOKIE } from '../auth/session';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
@@ -63,6 +64,8 @@ export async function startApi(
     research = false,
     autoResearch = true,
     priceReactions,
+    guest,
+    trustProxy,
   }: {
     models?: () => ModelClient;
     devRoutes?: boolean;
@@ -75,6 +78,10 @@ export async function startApi(
     autoResearch?: boolean;
     // One instance for the routes and the socket pushes, as server.ts passes it.
     priceReactions?: PriceReactions;
+    // The clock and limits of the guest routes (T24).
+    guest?: GuestOptions;
+    // Proxy hops, as server.ts passes 1 in production; tests set X-Forwarded-For with it.
+    trustProxy?: number;
   } = {},
 ): Promise<TestApi> {
   let url = '';
@@ -83,6 +90,8 @@ export async function startApi(
     devRoutes,
     ...(demo ? { demo } : {}),
     ...(web ? { web } : {}),
+    ...(guest ? { guest } : {}),
+    ...(trustProxy !== undefined ? { trustProxy } : {}),
     auth: {
       secret: TEST_JWT_SECRET,
       secureCookie: false,
@@ -161,4 +170,14 @@ export async function flushPushes(api: TestApi, socket: Socket, userId: string):
   });
   api.realtime.publishRunEnd(userId, { runId: FLUSH_RUN_ID, status: 'failed' });
   await arrived;
+}
+
+// The session cookie a response set, as a Cookie header.
+export function sessionCookieOf(response: Response): string {
+  const cookie = response.headers
+    .getSetCookie()
+    .map((header) => header.split(';')[0]!)
+    .find((pair) => pair.startsWith(`${SESSION_COOKIE}=`));
+  if (!cookie) throw new Error('no session cookie');
+  return cookie;
 }

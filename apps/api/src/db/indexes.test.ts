@@ -23,6 +23,20 @@ describe('indexes', () => {
     expect(uniqueKeys('research_budget')).toEqual([['day']]);
   });
 
+  it('expires guest documents on expiresAt', () => {
+    const ttl = (name: keyof typeof INDEXES) =>
+      INDEXES[name].filter((index) => index.expireAfterSeconds !== undefined);
+    for (const name of COLLECTION_NAMES) {
+      const expected = ['users', 'feed_items', 'agent_runs', 'reports', 'claims'].includes(name)
+        ? [{ key: { expiresAt: 1 }, expireAfterSeconds: 0 }]
+        : [];
+      expect(
+        ttl(name).map(({ key, expireAfterSeconds }) => ({ key, expireAfterSeconds })),
+        name,
+      ).toEqual(expected);
+    }
+  });
+
   it('names every index', () => {
     for (const name of COLLECTION_NAMES) {
       for (const index of INDEXES[name]) expect(index.name).toBeTruthy();
