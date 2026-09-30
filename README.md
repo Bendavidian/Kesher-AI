@@ -63,9 +63,9 @@ The feed switches between three seeded personas. Their password, `kesher-demo`, 
 |---|---|---|
 | A, AI investor | NVDA, MSFT, AMZN | Medium 0.80, through "TSMC supplies NVIDIA" (NVIDIA 10-K) |
 | B, semiconductor investor | AMD, AVGO, TSM, ASML | High 1.00, a direct holding |
+| C, unrelated investor | KO, JNJ, XOM | None 0.00, never in the feed |
 
 Bands are structural since T16: high only for a direct holding, medium for any other relevance above 0.
-| C, unrelated investor | KO, JNJ, XOM | None 0.00, never in the feed |
 
 The demo replays one pinned, recorded Benzinga item (Alpaca news 38062166, 3 Apr 2024) through the same pipeline as live news.
 
@@ -103,7 +103,20 @@ npm run smoke -- --url https://<service>.onrender.com
 
 It checks health, the web shell, closed development routes, sign in and sockets for all three personas, the demo replay and its live pushes, the three relevance levels, the price reaction, and one Investigate with its run and report. `--no-investigate` leaves out the research run.
 
+## Security
+- **Secrets** live in `.env` locally, which git ignores, and in the host's environment variables when deployed; the host has no `.env` file. [.env.example](.env.example) lists every variable with no values. The code validates them at startup and names missing keys only, never values, and redacts the connection string and other secrets from agent run steps before they are stored.
+- **Sessions** are an httpOnly cookie holding an HS256 JWT signed with `JWT_SECRET`. Every route and socket takes the user from that cookie only; none takes a user id as input.
+- **Run tokens** scope each agent run. The api mints a JWT signed with `MCP_TOKEN_SECRET`, a separate secret, that carries the user, the agent and the tools it may call, and expires after 5 minutes. The MCP server refuses any tool the token does not list.
+  - The research agent gets read only tools: `get_my_portfolio`, `get_event`, `search_news`, `search_filings`, `get_company_relationships`, `get_price_reaction` and `get_financial_facts`.
+  - The verifier and the extraction model get no tools and no token.
+  - Contract: [docs/INTERFACES.md](docs/INTERFACES.md), Run token.
+- **Licensed data stays out of git.** Recordings keep a news item's headline and summary without the article body. Raw SIP bars stay in a gitignored local cache.
+- **Reporting a problem:** please use GitHub's private vulnerability reporting (Security tab, "Report a vulnerability") rather than a public issue.
+
 ## Evaluation
 The eval numbers come in T18 part 2, after T16: label agreement over 20 recorded events × 3 personas, the verifier catch rate on planted errors, injection success with and without the screen, and cost and latency per event.
 
 Verification is proven so far on a fixture of 17 planted errors: the real verifier and the deterministic checks caught all 17, and every clean claim was supported (T14).
+
+## License
+[MIT](LICENSE)

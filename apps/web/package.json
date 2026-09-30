@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "brand": "node scripts/brand.ts",
     "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.test.json && tsc -p tsconfig.node.json"
   },
   "dependencies": {
@@ -16,6 +17,7 @@
     "socket.io-client": "^4.8.4"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",

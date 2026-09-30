@@ -1,19 +1,28 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
+import { MARK } from '../brand/mark';
 import { AGENT_RUNS_PATH, FEED_PATH } from '../routes';
 import { formatEt } from '../view/format';
 
+// The Route mark, the favicon's geometry; its token colors are MARK's, as class names.
 function Logo() {
+  const { size, line, ring, dot } = MARK;
   return (
-    <svg width="24" height="24" viewBox="0 0 28 28" aria-hidden="true">
+    <svg width="24" height="24" viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
       <path
-        d="M6 22 L6 13 Q6 6 13 6 L22 6"
+        d={line.d}
         className="fill-none stroke-supplier"
-        strokeWidth="3.5"
+        strokeWidth={line.width}
         strokeLinecap="round"
       />
-      <circle cx="6" cy="22" r="4" className="fill-panel stroke-text" strokeWidth="3" />
-      <circle cx="22" cy="6" r="4" className="fill-you stroke-you" strokeWidth="3" />
+      <circle
+        cx={ring.cx}
+        cy={ring.cy}
+        r={ring.r}
+        className="fill-bg stroke-text"
+        strokeWidth={ring.width}
+      />
+      <circle cx={dot.cx} cy={dot.cy} r={dot.r} className="fill-you" />
     </svg>
   );
 }

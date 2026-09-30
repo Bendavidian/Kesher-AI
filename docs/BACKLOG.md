@@ -239,6 +239,11 @@ The feed orders cards by arrival (FeedItem.createdAt), newest first, on the serv
 Done when: a second `npm run demo:library` changes nothing; a replayed card sits on top of the library; each persona's card count is reported and persona C sees only KO, JNJ and XOM items; "Hidden for you" shows three items and the count; the Alpaca requests of a first Render feed load are counted, and above about 100 a BACKLOG item computes price reactions only for the selected card.
 Loaded on 1 Oct 2026 into kesher on Atlas: 29 items loaded and the demo item already there, every one screened; a second run loaded nothing. Cards per persona (library cards, library hidden): A 25 and 5, B 25 and 5, C 5 and 25, and C's event companies are JNJ, KO and XOM only. Events keep embedding null until `npm run embed:events` runs on a machine with the model cached. Alpaca requests of a first feed load, counted with the api's own market data code and an empty bar cache as on Render (Render's logs are not readable from here): A 48, then B 29 and C 10 in the same process, 87 in all, 1.9 s for A, every card with its reaction. Below about 100, so no BACKLOG item for reactions on the selected card only.
 
+### [x] T25 Brand mark and link preview
+The Route mark, option 1 on the logo options board, in the browser tab, on a home screen and in shared links. apps/web/src/brand/mark.ts holds its geometry in a 64 by 64 viewBox with token names for colors; `npm run brand` writes favicon.svg (the mark on a bg rounded square), favicon.ico (16, 32 and 48 px), a 180 px apple-touch-icon.png and a 1200 by 630 og.png to apps/web/public, and the output is committed. index.html has the title, a description, the icon links, theme-color and Open Graph and Twitter tags on the public URL. The top bar draws the same geometry in theme tokens.
+Done when: a test shows that index.html links every icon and each file exists, and that the top bar and favicon.svg draw the mark's geometry; the tab shows the mark in the Browser pane.
+Done (1 Oct 2026). Deploys are manual, so a shared link shows the card after the next deploy of the public instance.
+
 ## V2 (not in MVP)
 Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).
 

@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @kesher/api\" \"npm run dev -w @kesher/web\"",
     "build": "npm run build -w @kesher/web",
+    "brand": "npm run brand -w @kesher/web",
     "start": "npm run start -w @kesher/api",
     "test": "vitest run",
     "test:watch": "vitest",
