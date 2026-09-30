@@ -91,7 +91,7 @@ Verification accepts HS256 only and rejects any other claim, a lifetime other th
 The MCP server rejects any call to a tool that the token does not list.
 
 Tool sets (SPEC.md decision log, T13):
-- research: get_my_portfolio, get_event, search_news, search_filings, get_company_relationships, get_price_reaction and get_financial_facts, all read only. The model sees only the tools the server lists for its token.
+- research: get_my_portfolio, get_event, search_news, search_filings, get_company_relationships, get_price_reaction and get_financial_facts, all read only. The model sees only the tools the server lists for its token. An api with LOCAL_EMBEDDINGS=false leaves search_filings out of the run token and the research prompt (researchTools in apps/api/src/research/mcp.ts; SPEC.md decision log, T18).
 - verifier: none, by design (T13, T14). It judges the claims and sources it is given and calls no tool, so it never gets a run token.
 
 The research agent replaces a token that is 4 minutes old before its next tool call, with the same scope, and records each issue and refresh as a run step.
@@ -118,7 +118,8 @@ Code policy only (SPEC.md Pipeline, decision log T12). After each scoring run th
 A run that passes is queued in auto mode with trigger gate. Investigate skips relevance, importance and the recent run check (Investigate again after done is allowed, decision log T08); it still answers 409 while the card's research is queued or running, and it checks the budget. Both go through one in process queue (apps/api/src/jobs/queue.ts) that runs one research run at a time.
 
 ## REST (api)
-- GET /health: `{ status: "ok" }`, HealthResponse in packages/shared
+- GET /health: `{ status: "ok", demoMode }`, HealthResponse in packages/shared. demoMode is true when POST /demo/replay is mounted; the web shows its Replay control from it.
+- In production (NODE_ENV=production) the api serves the web build (apps/web/dist) on the same origin and takes every route below under /api, with the prefix stripped as the Vite dev proxy strips it: GET /api/feed reaches GET /feed. /health, /mcp and /socket.io stay at the root. Any other GET or HEAD is a static file, or index.html for a client route such as /runs; an unknown path under /api, and any other method outside /api, answers 404 `{ error: "not found" }` (apps/api/src/web/serve.ts; SPEC.md decision log, T18).
 - POST /auth/login: body LoginRequest `{ email, password }` (packages/shared; strict, so a user id is rejected). Returns PublicUser (the User without passwordHash and createdAt) and sets the session cookie. A wrong password and an unknown email get the same 401 `{ error: "email or password is wrong" }`; a malformed body gets 400. The persona switcher signs in as a seeded persona with the public demo password.
 - POST /auth/logout: clears the session cookie and disconnects that user's sockets; 204.
 - GET /me: the signed in user's PublicUser, or 401.
@@ -135,7 +136,8 @@ A run that passes is queued in auto mode with trigger gate. Investigate skips re
   - `{ outcome: "dropped", reason: "duplicate" | "update", sourceId, eventId }`: the item was already processed (extracted and scored for every user); nothing is extracted or scored again. A second replay of the same item returns duplicate with the same ids.
   - 400 when sourceId is neither an Alpaca news id nor an accession number, 404 when there is no recording (or a filing's CIK is not a seeded company), 503 when a needed model key is missing (the body names it) or both model providers are rate limited. After a 503 the item is stored without an extraction and resumes on the next replay.
   - A replay that scores the event pushes the Socket.IO events below.
-- POST /dev/reset/:sourceId (development only, not mounted in production): deletes the FeedItems of that item's event (an Alpaca news id or an accession number, as for replay), for every user, research state included, and nothing else: the Source, the event and its extraction stay. The next replay then scores the event again with no model call and pushes feed:item as a new arrival. Returns ResetResponse `{ sourceId, eventId, deleted }`. 400 for a bad id, 404 when the item was never replayed. The web's Replay control calls reset, then replay.
+- POST /demo/replay (demo mode only: DEMO_MODE true, which is the default outside production; mounted in production too when set): the reset, then the replay, of the pinned demo item DEMO_SOURCE_ID for the signed in user, as POST /dev/reset and POST /dev/replay do. It takes no id, parameter or body, so no other item can be replayed through it. Returns DemoReplayResponse in packages/shared, `{ reset, replay }`: reset is the ResetResponse, or null when the item had never been replayed; replay is the ReplayResponse. 401 without a session. One runs at a time: 409 `{ error }` while one is running. After each one ends, whatever its result, the next waits 15 seconds (DEMO_COOLDOWN_MS): 429 `{ error }` with Retry-After in seconds. 503 as for replay when a needed model key is missing or both providers are rate limited. The reset deletes the event's FeedItems for every user, research state included, so every open session sees the card arrive as new. The web's Replay control calls it.
+- POST /dev/reset/:sourceId (development only, not mounted in production): deletes the FeedItems of that item's event (an Alpaca news id or an accession number, as for replay), for every user, research state included, and nothing else: the Source, the event and its extraction stay. The next replay then scores the event again with no model call and pushes feed:item as a new arrival. Returns ResetResponse `{ sourceId, eventId, deleted }`. 400 for a bad id, 404 when the item was never replayed.
 
 ## Live ingestion
 Runs in the api process only where LIVE_INGEST is true, on one machine (apps/api/src/ingest/live.ts). There is no route; live items reach clients as the Socket.IO events below.
@@ -145,7 +147,7 @@ Runs in the api process only where LIVE_INGEST is true, on one machine (apps/api
 - `npm run recording:export -- --id <id>` copies a live recording to recordings/<provider>/<id>.json for commit.
 
 ## Auth
-Every route except /health, /auth/login, /auth/logout and /mcp, and every socket, takes the user from the session cookie only; no route, query or socket event names a user.
+Every route except /health, /auth/login, /auth/logout and /mcp, and every socket, takes the user from the session cookie only (POST /demo/replay included); no route, query or socket event names a user.
 - Cookie `kesher_session`: httpOnly, SameSite=Lax, Path=/, Secure when NODE_ENV is production, 12 hours.
 - Its value is an HS256 JWT signed with JWT_SECRET (at least 32 characters, separate from MCP_TOKEN_SECRET), audience `kesher-web`, claims sub (user id), aud, iat and exp only. A run token never passes as a session: it has another secret and no audience.
 
