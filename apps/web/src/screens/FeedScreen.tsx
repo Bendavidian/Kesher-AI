@@ -44,7 +44,7 @@ export function FeedScreen({ personaKey, onPersonaChange, lastScoredEventId, onS
     personaKey,
     eventId: '',
   });
-  const live = useLiveFeed(personaKey, lastScoredEventId, onScored);
+  const live = useLiveFeed(personaKey, onScored);
 
   useEffect(() => {
     let active = true;
@@ -96,7 +96,7 @@ export function FeedScreen({ personaKey, onPersonaChange, lastScoredEventId, onS
   };
   const feed = buildFeedView(
     persona,
-    { cards: live.cards, explains: live.explains, replayedEventId: lastScoredEventId },
+    { cards: live.cards, hidden: live.hidden, replayedEventId: lastScoredEventId },
     selectedEventId,
   );
   const replayed = [...feed.visible, ...feed.hidden].find((entry) => entry.replayed);
@@ -131,6 +131,7 @@ export function FeedScreen({ personaKey, onPersonaChange, lastScoredEventId, onS
           persona={persona}
           visible={feed.visible}
           hidden={feed.hidden}
+          hiddenTotal={feed.hiddenTotal}
           selectedEventId={feed.selected?.event._id ?? null}
           onSelect={setSelectedEventId}
           notice={notice}
