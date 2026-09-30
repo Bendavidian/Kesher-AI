@@ -25,7 +25,7 @@ This demo runs reliably from a recorded event:
 5. Investigate runs the research agent through MCP tools: related news, the NVIDIA 10-K and the price reaction.
 6. The report arrives as typed claims, and the verifier checks each one.
 7. Agent Runs shows the whole run: trigger, gate decision and reason, tool calls with latency, sources, verification results and token cost.
-8. Switching personas shows the same event at three levels: high through a direct holding, high through a supplier path, and none.
+8. Switching personas shows the same event at three levels: high through a direct holding, medium through a supplier path, and none.
 
 ## Pipeline
 ```
