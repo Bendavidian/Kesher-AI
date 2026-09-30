@@ -54,7 +54,7 @@
       "level": "high",
       "status": "reviewed",
       "proposed": "high",
-      "decidedAt": "2026-09-29T13:53:46.244Z"
+      "decidedAt": "2026-09-30T11:44:12.277Z"
     },
     {
       "sourceId": "40152477",
@@ -62,15 +62,15 @@
       "level": "high",
       "status": "reviewed",
       "proposed": "high",
-      "decidedAt": "2026-09-29T13:53:46.244Z"
+      "decidedAt": "2026-09-30T11:44:12.277Z"
     },
     {
       "sourceId": "40152477",
       "persona": "C",
-      "level": "high",
+      "level": "none",
       "status": "reviewed",
       "proposed": "none",
-      "decidedAt": "2026-09-29T13:53:46.244Z"
+      "decidedAt": "2026-09-30T11:44:12.277Z"
     },
     {
       "sourceId": "39854612",

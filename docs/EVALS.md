@@ -41,13 +41,13 @@ Agreement 21 of 30 (70%).
 
 ### Persona C (KO, JNJ, XOM)
 
-Agreement 29 of 30 (97%).
+Agreement 30 of 30 (100%).
 
 | Label \ Predicted | high | medium | none |
 | ----------------- | ---- | ------ | ---- |
-| high              | 5    | 0      | 1    |
+| high              | 5    | 0      | 0    |
 | medium            | 0    | 0      | 0    |
-| none              | 0    | 0      | 24   |
+| none              | 0    | 0      | 25   |
 
 ### Disagreements
 
@@ -61,13 +61,12 @@ Agreement 29 of 30 (97%).
 | 39854612 | Windows PCs Crash Worldwide With Users Experiencing Blue Scr | B       | none   | 0.8       | high   | MSFT customer_of AMD                      |
 | 48297781 | 'Major AWS Outage Takes Down Fortnite, Alexa, Snapchat, And  | B       | none   | 0.336     | medium | AMZN competitor_of INTC customer_of ASML  |
 | 38973532 | Nvidia Sees Q2 2025 Revenue $28B +/- 2% Vs $26.64B Estimate  | B       | medium | 0.8       | high   | NVDA customer_of TSM                      |
-| 42563518 | Micron Sees Q2 Revenue $7.7B-$8.1B vs $9.00B Est; Adj. EPS $ | B       | high   | 0.448     | medium | MU customer_of LRCX supplier_of TSM       |
+| 42563518 | Micron Sees Q2 Revenue $7.7B-$8.1B vs $9.00B Est; Adj. EPS $ | B       | high   | 0.448     | medium | MU supplier_of NVDA customer_of TSM       |
 | 43320124 | Microsoft Shares Slide After Q2 Results, Cloud Revenue Misse | B       | medium | 0.8       | high   | MSFT customer_of AMD                      |
 | 44828104 | The U.S. Government Informed Nvidia That The USG Requires A  | B       | none   | 0.8       | high   | NVDA customer_of TSM                      |
 | 40169246 | Google Loses DOJ Antitrust Suit Over Search; Judge Finds Sea | B       | none   | 0.336     | medium | GOOGL competitor_of INTC customer_of ASML |
 | 39646124 | New Street Research Downgrades NVIDIA to Neutral             | B       | medium | 0.8       | high   | NVDA customer_of TSM                      |
 | 44859693 | Keybanc Downgrades Microsoft to Sector Weight                | B       | none   | 0.8       | high   | MSFT customer_of AMD                      |
-| 40152477 | Nvidia Upcoming Chip Launch Faces Delay Due To Design Flaws  | C       | high   | 0         | none   | none                                      |
 
 ### Labels by path
 
@@ -80,28 +79,29 @@ Reviewed labels of every item and persona pair, by how the scored path reaches t
 | one hop, event company buys from the holding | 10    | 4            | 3              | 3            |
 | one hop, competitor                          | 5     | 0            | 5              | 0            |
 | two hops                                     | 7     | 1            | 4              | 2            |
-| no path                                      | 35    | 1            | 0              | 34           |
+| no path                                      | 35    | 0            | 0              | 35           |
 
 ### Band sets (proposals only)
 
 Agreement of the reviewed labels with the same scores under other display bands. Bands only label a score; the gate reads the score itself.
 
-| Bands                                | A   | B   | C   | All            |
-| ------------------------------------ | --- | --- | --- | -------------- |
-| today: high from 0.8, medium above 0 | 83% | 70% | 97% | 75 of 90 (83%) |
-| high from 0.8, medium from 0.4       | 83% | 73% | 97% | 76 of 90 (84%) |
-| high at 1, medium above 0            | 97% | 63% | 97% | 77 of 90 (86%) |
-| high at 1, medium from 0.4           | 97% | 67% | 97% | 78 of 90 (87%) |
+| Bands                                                             | A   | B   | C    | All            |
+| ----------------------------------------------------------------- | --- | --- | ---- | -------------- |
+| today: high from 0.8, medium above 0                              | 83% | 70% | 100% | 76 of 90 (84%) |
+| high from 0.8, medium from 0.4                                    | 83% | 73% | 100% | 77 of 90 (86%) |
+| high at 1, medium above 0                                         | 97% | 63% | 100% | 78 of 90 (87%) |
+| high at 1, medium from 0.4                                        | 97% | 67% | 100% | 79 of 90 (88%) |
+| high at 1, or from 0.8 with importance 4 or more, medium from 0.4 | 90% | 73% | 100% | 79 of 90 (88%) |
 
 ### Start node rules
 
 Relevance from the extracted companies that the provider also tagged (today, T05) against every tagged universe company (tagged only), on the real items, with the same graph and best path. Agreement with the reviewed labels:
 
-| Persona | Extracted and tagged | Tagged only    |
-| ------- | -------------------- | -------------- |
-| A       | 25 of 30 (83%)       | 25 of 30 (83%) |
-| B       | 21 of 30 (70%)       | 21 of 30 (70%) |
-| C       | 29 of 30 (97%)       | 29 of 30 (97%) |
+| Persona | Extracted and tagged | Tagged only     |
+| ------- | -------------------- | --------------- |
+| A       | 25 of 30 (83%)       | 25 of 30 (83%)  |
+| B       | 21 of 30 (70%)       | 21 of 30 (70%)  |
+| C       | 30 of 30 (100%)      | 30 of 30 (100%) |
 
 The two rules give the same relevance on every real item.
 
@@ -170,7 +170,7 @@ Real items only. Tokens and model latency come from the recordings (latency with
 | Screen calls             | 30  | 1      | 1     | 30     |
 | Screen latency, ms       | 29  | 205    | 233   | 6,017  |
 | Extraction latency, ms   | 29  | 687    | 2,242 | 26,084 |
-| Pipeline code, ms        | 30  | 3      | 6     | 128    |
+| Pipeline code, ms        | 30  | 4      | 9     | 157    |
 
 ## Edge extractor (T11)
 
@@ -180,25 +180,31 @@ Of 28 relationships proposed for review, the user accepted 22. The model propose
 
 ## Reading and proposals
 
-Written on 30 Sep 2026, from the run above: 90 reviewed relevance labels (34 high, 17 medium, 39 none) and 11 judged retrieval queries. Every proposal here is only a proposal; each needs its own decision log entry in SPEC.md before any code changes.
+Written on 30 Sep 2026, from the run above: 90 reviewed relevance labels and 11 judged retrieval queries. Every proposal here is only a proposal; each needs its own decision log entry in SPEC.md before any code changes.
 
 ### Relevance
 
-- Agreement is 75 of 90 (83%): A 83%, B 70%, C 97%. Of the 15 disagreements, 14 sit on a graph path; the graph never missed a pair the labels call relevant, except one: C high on the Blackwell delay (40152477), which has no path to KO, JNJ or XOM and is worth a second look (`npm run eval:label -- --redo 40152477`).
+- Agreement is 76 of 90 (84%): A 83%, B 70%, C 100%, after the Blackwell delay (40152477) was relabeled none for C. All 14 disagreements sit on a graph path; the graph misses no pair the labels call relevant.
 - Direct holdings agree completely: 26 of 26 labeled high. Competitor hops agree completely: 5 of 5 labeled medium at 0.6.
 - The disagreements are the supply hops, which score exactly 0.8 and so land on today's high threshold. When the event company supplies the holding, 5 of 7 pairs are labeled medium (MU and TSM results for NVDA holders, three AMD items for MSFT holders). When the event company buys from the holding, the 10 pairs split 4 high, 3 medium and 3 none.
-- Neither the edge type nor the importance explains the split. The same edge, TSM supplier_of NVDA, is labeled high for the Taiwan earthquake and medium for TSMC's quarterly results, and high and none both occur at importance 4. For B, news of semiconductor customers leans high (Intel's results, Qualcomm's approach to Intel, the Blackwell delay, the NVIDIA and Intel partnership), news of software and cloud customers leans medium or none (Microsoft's results and downgrade, the CrowdStrike crash on Windows), and NVIDIA's own guidance, downgrade and export license split between medium and none.
+- Neither the edge type nor the importance alone explains the split. The same edge, TSM supplier_of NVDA, is labeled high for the Taiwan earthquake and medium for TSMC's quarterly results, and high and none both occur at importance 4. For B, Intel's results and Qualcomm's approach to Intel (through INTC customer_of ASML) are labeled high, while Microsoft's results, its downgrade and the CrowdStrike crash on Windows (through MSFT customer_of AMD) are medium or none; NVIDIA's own guidance, downgrade and export license split between medium and none.
+- One edge carries four of B's pairs: MSFT customer_of AMD, which scores every item tagged MSFT at 0.8 for AMD holders. Its labels are high (the Blackwell delay), medium (Microsoft's results) and none twice (the CrowdStrike crash, the Keybanc downgrade). The edge rests on AMD supplying Microsoft, with Xbox the likely source, which says little about most Microsoft headlines. Part 2 tests a materiality flag per reviewed edge as the explanation.
 - Two hop paths: 7 pairs, 4 labeled medium, 2 none (Amazon's outage and Google's antitrust loss reaching ASML holders at 0.336, through a competitor and a customer edge) and 1 high (Micron's guidance reaching TSM holders at 0.448 through LRCX).
 
 Proposals:
 
-1. Display bands: high for a holding itself (1) and medium from 0.4. It raises agreement from 75 to 78 of 90: A from 83% to 97%, C unchanged, B from 70% to 67%, since B's customer hops labeled high fall to medium. Bands only label a score, so this changes the card's wording and nothing the gate decides; the change is RELEVANCE_HIGH and relevanceBand in packages/shared/src/feed.ts.
-2. Keep the edge weights: supplier or customer 0.8, competitor 0.6, two hops times 0.7. Competitor hops agree completely, and no single supply weight fits labels that depend on the event and on the kind of customer: lowering it to fit the software and cloud news would push the semiconductor news, labeled high, below the gate's 0.6 as well. What the labels point to is a rule on the kind of event or company along the edge, which is a design change for later, measured first on more items than these 30.
-3. Theme overlap (the T11 question): no label here needs it. The only pair the graph cannot reach and the labels call relevant is the Blackwell delay for C, which no shared theme explains. Keep in_sector and has_theme out of relevance.
+1. Display bands. Two band sets tie at 79 of 90 (88%), against 76 today:
+   - 1a, high for a holding itself (1), medium from 0.4: A 97%, B 67%, C 100%.
+   - 1b, high for a holding itself or from 0.8 with importance 4 or more, medium from 0.4: A 90%, B 73%, C 100%.
+
+   The two differ on 10 pairs, all supply hops at 0.8, and each is right on 4 of them. 1b is right on the demo event for A (the Taiwan earthquake, importance 4, which 1a turns medium against its label), the Blackwell delay, Intel's results and Qualcomm's approach for B. 1a is right on TSMC's results, AMD's export controls and the ZT Systems deal for A, and Microsoft's results for B. Both are wrong on the CrowdStrike crash and NVIDIA's export license for B, labeled none. 1b uses the extraction's importance class the way the research gate already does, for a label only: a band decides nothing. The choice is the user's; either one is RELEVANCE_HIGH and relevanceBand in packages/shared/src/feed.ts, 1b with importance passed in.
+
+2. Keep the edge weights: supplier or customer 0.8, competitor 0.6, two hops times 0.7. Competitor hops agree completely, and no single supply weight fits labels that depend on the event and on the edge: lowering it to fit the Microsoft news would push Intel's news, labeled high, below the gate's 0.6 as well. A materiality flag per edge (part 2) is the first explanation to test.
+3. Theme overlap (the T11 question): no label here needs it; the graph reaches every pair the labels call relevant. Keep in_sector and has_theme out of relevance.
 
 ### Start nodes: keep extracted and tagged for now
 
-- On the 30 clean items the two rules give the same relevance for every persona, so their agreement is identical (83%, 70%, 97%). On the poisoned items, tagged only moves nobody's relevance, where today's rule lets 9000000004's suppression remove MSFT and move A and B.
+- On the 30 clean items the two rules give the same relevance for every persona, so their agreement is identical (83%, 70%, 100%). On the poisoned items, tagged only moves nobody's relevance, where today's rule lets 9000000004's suppression remove MSFT and move A and B.
 - The rule stays as it is (decided on 30 Sep 2026). Part 2 first adds 3 to 5 items where the provider tags universe companies that the text only mentions in passing, such as market wraps, and measures the cost of tagged only there: cards for companies the item is not about.
 - What neither rule fixes: 9000000004 also lowered importance from 3 to 1. Importance only gates research (at least 4), so here it changed nothing, but an injection that lowers a 4 to a 3 cancels automatic research.
 
