@@ -6,11 +6,12 @@ import { z } from 'zod';
 import { collection } from '../db/collections';
 import type { Embedder } from '../graph/embed';
 import { EVAL_DIR } from './dataset';
-import { recallAtK, recallCeiling } from './metrics';
+import { precisionAtK, recallAtK, recallCeiling } from './metrics';
 
 // The retrieval eval (BACKLOG.md T16, note from T11): about 10 queries over the filing chunks,
-// each with the chunks the user judged relevant, measured as recall at 3. Part 1 runs it on the
-// local MiniLM vectors through $vectorSearch on Atlas, read only; part 2 adds the hybrid search.
+// each with the chunks the user judged relevant, measured as recall and precision at 3. Part 1
+// runs it on the local MiniLM vectors through $vectorSearch on Atlas, read only; part 2 adds the
+// hybrid search.
 
 export const RETRIEVAL_PATH = resolve(EVAL_DIR, 'retrieval.json');
 export const RETRIEVAL_K = 3;
@@ -105,6 +106,7 @@ export interface RetrievalRow {
   found: string[];
   recall: number | null;
   ceiling: number | null;
+  precision: number;
 }
 
 export type RetrievalResult =
@@ -115,6 +117,7 @@ export type RetrievalResult =
       // Queries not judged yet; they count in nothing.
       proposed: string[];
       meanRecall: number | null;
+      meanPrecision: number | null;
       // Judged chunks whose text no longer starts as it did when judged.
       drift: string[];
     }
@@ -143,6 +146,7 @@ export async function runRetrieval(
       found: relevant.filter((r) => retrieved.includes(r)),
       recall: recallAtK(retrieved, relevant, k),
       ceiling: recallCeiling(relevant.length, k),
+      precision: precisionAtK(retrieved, relevant, k),
     });
   }
   // Every judged chunk is read back by key to check it still holds the judged text.
@@ -167,6 +171,8 @@ export async function runRetrieval(
     rows,
     proposed: queries.filter((q) => q.status === 'proposed').map((q) => q.id),
     meanRecall: scored.length === 0 ? null : scored.reduce((a, b) => a + b, 0) / scored.length,
+    meanPrecision:
+      rows.length === 0 ? null : rows.reduce((sum, r) => sum + r.precision, 0) / rows.length,
     drift,
   };
 }

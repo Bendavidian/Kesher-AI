@@ -1,4 +1,4 @@
-import { relevanceBand, type PersonaKey } from '@kesher/shared';
+import { RELEVANCE_HIGH, relevanceBand, type PersonaKey } from '@kesher/shared';
 import { groupRelationships, type Review } from '../graph/review';
 import type { CandidatesFile } from '../graph/rows';
 import { eventCompanies } from '../relevance/score';
@@ -16,17 +16,39 @@ import {
   type ScreenCounts,
   type Summary,
 } from './metrics';
-import type { EvalRun, ItemRun } from './runner';
+import { PATH_KINDS, type EvalRun, type ItemRun, type PathKind } from './runner';
 
 // The numbers of one eval run. Code decides every number here; docs/EVALS.md only shows them.
 
-// The label mapping the proposed labels were written with (docs/research/eval-candidates.md):
-// medium from 0.4. Shown next to the code's bands as a proposal only.
-export const ALTERNATIVE_MEDIUM_FROM = 0.4;
+// Candidate display bands, measured against the reviewed labels as proposals only. The first is
+// today's relevanceBand; medium from 0.4 is the mapping the proposed labels were written with
+// (docs/research/eval-candidates.md); high at 1 keeps high for a holding itself.
+export interface BandSet {
+  name: string;
+  highFrom: number;
+  // Scores at or above this, and above 0, are medium.
+  mediumFrom: number;
+}
 
-export function alternativeBand(relevance: number): Level {
-  if (relevance >= 0.8) return 'high';
-  return relevance >= ALTERNATIVE_MEDIUM_FROM ? 'medium' : 'none';
+export const BAND_SETS: readonly BandSet[] = [
+  {
+    name: `today: high from ${RELEVANCE_HIGH}, medium above 0`,
+    highFrom: RELEVANCE_HIGH,
+    mediumFrom: 0,
+  },
+  {
+    name: `high from ${RELEVANCE_HIGH}, medium from 0.4`,
+    highFrom: RELEVANCE_HIGH,
+    mediumFrom: 0.4,
+  },
+  { name: 'high at 1, medium above 0', highFrom: 1, mediumFrom: 0 },
+  { name: 'high at 1, medium from 0.4', highFrom: 1, mediumFrom: 0.4 },
+];
+
+export function bandWith(set: BandSet, relevance: number): Level {
+  if (relevance <= 0) return 'none';
+  if (relevance >= set.highFrom) return 'high';
+  return relevance >= set.mediumFrom ? 'medium' : 'none';
 }
 
 export interface LabelRow {
@@ -36,13 +58,12 @@ export interface LabelRow {
   label: Level;
   relevance: number;
   band: Level;
+  path: string | null;
 }
 
 export interface PersonaAgreement {
   reviewed: Confusion;
   proposed: Confusion;
-  // Reviewed labels against the alternative bands; a proposal only.
-  alternative: Confusion;
 }
 
 export interface InjectionRow {
@@ -82,6 +103,10 @@ export interface EvalSummary {
   labels: { reviewed: number; proposed: number };
   agreement: Record<PersonaKey, PersonaAgreement>;
   disagreements: LabelRow[];
+  // Agreement of the reviewed labels under each candidate band set.
+  bandSets: { set: BandSet; byPersona: Record<PersonaKey, Confusion>; total: Confusion }[];
+  // Reviewed labels by how the path reaches the holding, all personas together.
+  byPathKind: { kind: PathKind; pairs: number; labels: Record<Level, number> }[];
   startNodes: StartNodeRules;
   // Universe companies the extraction named that the provider did not tag (T05, fails closed).
   untagged: { sourceId: string; headline: string; symbols: string[] }[];
@@ -152,7 +177,6 @@ export function summarizeRun(
   for (const persona of PERSONA_KEYS) {
     const reviewed: { label: Level; predicted: Level }[] = [];
     const proposed: { label: Level; predicted: Level }[] = [];
-    const alternative: { label: Level; predicted: Level }[] = [];
     for (const r of real) {
       const label = labelOf.get(key(r.item.id, persona));
       if (!label) continue;
@@ -163,7 +187,6 @@ export function summarizeRun(
         continue;
       }
       reviewed.push({ label: label.level, predicted: band });
-      alternative.push({ label: label.level, predicted: alternativeBand(relevance) });
       if (label.level !== band) {
         disagreements.push({
           sourceId: r.item.id,
@@ -172,13 +195,13 @@ export function summarizeRun(
           label: label.level,
           relevance,
           band,
+          path: r.paths[persona],
         });
       }
     }
     agreement[persona] = {
       reviewed: confusion(reviewed),
       proposed: confusion(proposed),
-      alternative: confusion(alternative),
     };
   }
 
@@ -283,6 +306,40 @@ export function summarizeRun(
     agreement,
     disagreements,
     startNodes: { current, taggedOnly, differences },
+    bandSets: BAND_SETS.map((set) => {
+      const pairs = (persona: PersonaKey) =>
+        real.flatMap((r) => {
+          const label = labelOf.get(key(r.item.id, persona));
+          return label?.status === 'reviewed'
+            ? [{ label: label.level, predicted: bandWith(set, r.relevance[persona]) }]
+            : [];
+        });
+      return {
+        set,
+        byPersona: Object.fromEntries(PERSONA_KEYS.map((p) => [p, confusion(pairs(p))])) as Record<
+          PersonaKey,
+          Confusion
+        >,
+        total: confusion(PERSONA_KEYS.flatMap(pairs)),
+      };
+    }),
+    byPathKind: PATH_KINDS.map((kind) => {
+      const labelsOf = real.flatMap((r) =>
+        PERSONA_KEYS.filter((p) => r.pathKinds[p] === kind).flatMap((p) => {
+          const label = labelOf.get(key(r.item.id, p));
+          return label?.status === 'reviewed' ? [label.level] : [];
+        }),
+      );
+      return {
+        kind,
+        pairs: labelsOf.length,
+        labels: {
+          high: labelsOf.filter((l) => l === 'high').length,
+          medium: labelsOf.filter((l) => l === 'medium').length,
+          none: labelsOf.filter((l) => l === 'none').length,
+        },
+      };
+    }),
     untagged,
     failed: real.flatMap((r) =>
       r.outcome.outcome === 'failed'

@@ -7,7 +7,8 @@ import { PERSONAS } from '../seed/config';
 import { LEVELS } from './labels';
 import type { Confusion, Summary } from './metrics';
 import type { RetrievalResult } from './retrieval';
-import { ALTERNATIVE_MEDIUM_FROM, type EvalSummary } from './summary';
+import type { PathKind } from './runner';
+import type { EvalSummary } from './summary';
 
 // docs/EVALS.md: npm run eval writes only the block between the markers, so the hand written
 // reading of the numbers and the tuning proposals around it stay.
@@ -73,21 +74,50 @@ export function renderReport(summary: EvalSummary, retrieval: RetrievalResult): 
     out.push(s.labels.reviewed === 0 ? 'None counted: no reviewed labels yet.' : 'None.');
   } else {
     out.push(
-      '| Item | Headline | Persona | Label | Relevance | Band |',
-      '|---|---|---|---|---|---|',
+      '| Item | Headline | Persona | Label | Relevance | Band | Path |',
+      '|---|---|---|---|---|---|---|',
     );
     for (const d of s.disagreements) {
       out.push(
-        `| ${d.sourceId} | ${cell(d.headline).slice(0, 90)} | ${d.persona} | ${d.label} | ${d.relevance} | ${d.band} |`,
+        `| ${d.sourceId} | ${cell(d.headline).slice(0, 60)} | ${d.persona} | ${d.label} | ${d.relevance} | ${d.band} | ${d.path ?? 'none'} |`,
       );
     }
   }
 
+  const kindName: Record<PathKind, string> = {
+    direct: 'holding itself',
+    supplier_of: 'one hop, event company supplies the holding',
+    customer_of: 'one hop, event company buys from the holding',
+    competitor_of: 'one hop, competitor',
+    two_hops: 'two hops',
+    none: 'no path',
+  };
   out.push(
     '',
-    '### Other bands (a proposal only)',
+    '### Labels by path',
     '',
-    `Agreement of the reviewed labels if medium started at ${ALTERNATIVE_MEDIUM_FROM} and lower scores were none: ${(['A', 'B', 'C'] as const).map((p) => `${p} ${pct(s.agreement[p].alternative.agreement)}`).join(', ')}.`,
+    'Reviewed labels of every item and persona pair, by how the scored path reaches the holding.',
+    '',
+    '| Path | Pairs | Labeled high | Labeled medium | Labeled none |',
+    '|---|---|---|---|---|',
+    ...s.byPathKind.map(
+      (k) =>
+        `| ${kindName[k.kind]} | ${k.pairs} | ${k.labels.high} | ${k.labels.medium} | ${k.labels.none} |`,
+    ),
+  );
+
+  out.push(
+    '',
+    '### Band sets (proposals only)',
+    '',
+    'Agreement of the reviewed labels with the same scores under other display bands. Bands only label a score; the gate reads the score itself.',
+    '',
+    '| Bands | A | B | C | All |',
+    '|---|---|---|---|---|',
+    ...s.bandSets.map(
+      (b) =>
+        `| ${b.set.name} | ${(['A', 'B', 'C'] as const).map((p) => pct(b.byPersona[p].agreement)).join(' | ')} | ${b.total.agree} of ${b.total.total} (${pct(b.total.agreement)}) |`,
+    ),
     '',
     '### Start node rules',
     '',
@@ -203,16 +233,16 @@ export function renderReport(summary: EvalSummary, retrieval: RetrievalResult): 
     out.push(`Skipped: ${retrieval.reason}.`);
   } else {
     out.push(
-      `Recall at ${retrieval.k} over the filing chunks, local MiniLM vectors through $vectorSearch on Atlas. Mean over judged queries: ${pct(retrieval.meanRecall)}.${retrieval.proposed.length > 0 ? ` Not judged yet: ${retrieval.proposed.join(', ')}.` : ''}`,
+      `Recall and precision at ${retrieval.k} over the filing chunks, local MiniLM vectors through $vectorSearch on Atlas. Recall is the share of the relevant chunks in the first ${retrieval.k}, and cannot pass its best possible value when more than ${retrieval.k} are relevant; precision is the share of the first ${retrieval.k} that are relevant. Mean over judged queries: recall ${pct(retrieval.meanRecall)} (queries with a relevant chunk), precision ${pct(retrieval.meanPrecision)} (all judged queries).${retrieval.proposed.length > 0 ? ` Not judged yet: ${retrieval.proposed.join(', ')}.` : ''}`,
     );
     if (retrieval.rows.length > 0) {
       out.push(
         '',
-        '| Query | Filer | Relevant | Found in top 3 | Recall | Best possible |',
-        '|---|---|---|---|---|---|',
+        '| Query | Filer | Relevant | Found in top 3 | Recall | Best possible | Precision |',
+        '|---|---|---|---|---|---|---|',
         ...retrieval.rows.map(
           (r) =>
-            `| ${cell(r.query)} | ${r.symbol ?? 'all'} | ${r.relevant} | ${r.found.join(', ') || 'none'} | ${pct(r.recall)} | ${pct(r.ceiling)} |`,
+            `| ${cell(r.query)} | ${r.symbol ?? 'all'} | ${r.relevant} | ${r.found.join(', ') || 'none'} | ${pct(r.recall)} | ${pct(r.ceiling)} | ${pct(r.precision)} |`,
         ),
       );
     }

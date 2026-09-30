@@ -129,6 +129,18 @@ export function recallAtK(
   return relevant.filter((r) => top.has(r)).length / relevant.length;
 }
 
+// The share of the first k results that are relevant. A query judged to have no relevant chunk
+// scores 0: whatever the search returned, none of it answers the query.
+export function precisionAtK(
+  retrieved: readonly string[],
+  relevant: readonly string[],
+  k: number,
+): number {
+  if (k <= 0) return 0;
+  const wanted = new Set(relevant);
+  return [...new Set(retrieved.slice(0, k))].filter((r) => wanted.has(r)).length / k;
+}
+
 // The highest recall at k a query allows: with more relevant items than k, not all fit.
 export function recallCeiling(relevant: number, k: number): number | null {
   return relevant === 0 ? null : Math.min(k, relevant) / relevant;

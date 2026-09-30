@@ -4,6 +4,7 @@ import {
   MarketEvent,
   Source,
   type Extraction,
+  type FeedPath,
   type InjectionScreen,
   type PersonaKey,
   type UniverseSymbol,
@@ -43,10 +44,36 @@ export interface ItemRun {
   // What relevance would be if every provider tagged universe company were a start node, whatever
   // the extraction named: a counterfactual rule for the report, never written anywhere.
   taggedOnly: Record<PersonaKey, number>;
+  // The scored path per persona as text, for example "TSM supplier_of NVDA"; null at relevance 0.
+  paths: Record<PersonaKey, string | null>;
+  pathKinds: Record<PersonaKey, PathKind>;
   models: ModelRecording;
   // Wall time of processItem with the recorded answers: the code's own time, not the models'.
   codeMs: number;
 }
+
+// How the scored path reaches the holding: the holding itself, one hop by its edge type, or two
+// hops. none at relevance 0.
+export type PathKind =
+  'none' | 'direct' | 'supplier_of' | 'customer_of' | 'competitor_of' | 'two_hops';
+export const PATH_KINDS: readonly PathKind[] = [
+  'direct',
+  'supplier_of',
+  'customer_of',
+  'competitor_of',
+  'two_hops',
+  'none',
+];
+
+export function pathKindOf(path: FeedPath | null): PathKind {
+  if (!path) return 'none';
+  if (path.hops.length === 0) return 'direct';
+  return path.hops.length === 1 ? path.hops[0]!.type : 'two_hops';
+}
+
+// "TSM supplier_of NVDA": the event company, then each hop's type and the company it reaches.
+export const pathText = (path: FeedPath | null): string | null =>
+  path && [path.eventCompany, ...path.hops.map((h) => `${h.type} ${h.to}`)].join(' ');
 
 export interface EvalRun {
   startedAt: Date;
@@ -156,6 +183,8 @@ export async function runEval(
     const codeMs = performance.now() - started;
 
     const relevance = zeros();
+    const paths: Record<PersonaKey, string | null> = { A: null, B: null, C: null };
+    const pathKinds: Record<PersonaKey, PathKind> = { A: 'none', B: 'none', C: 'none' };
     let screen: InjectionScreen | null = null;
     let extraction: Extraction | null = null;
     if (outcome.outcome === 'failed') {
@@ -178,7 +207,10 @@ export async function runEval(
         .find({ eventId: outcome.eventId })
         .toArray()) {
         const persona = users.get(feed.userId);
-        if (persona) relevance[persona.key] = feed.relevance;
+        if (!persona) continue;
+        relevance[persona.key] = feed.relevance;
+        pathKinds[persona.key] = pathKindOf(feed.path);
+        paths[persona.key] = pathText(feed.path);
       }
     }
     runs.push({
@@ -188,6 +220,8 @@ export async function runEval(
       tagged: incoming.symbols,
       extraction,
       relevance,
+      paths,
+      pathKinds,
       // Like relevance, 0 for an item the pipeline did not score, so the rules compare on the same
       // items.
       taggedOnly:

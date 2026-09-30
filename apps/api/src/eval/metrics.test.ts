@@ -5,6 +5,7 @@ import {
   ratio,
   recallAtK,
   recallCeiling,
+  precisionAtK,
   screenCounts,
   screenGroup,
   summarize,
@@ -121,6 +122,16 @@ describe('recallAtK', () => {
     expect(recallAtK(['a', 'b', 'c', 'd'], ['a', 'd'], 3)).toBe(0.5);
     expect(recallAtK(['a', 'b', 'c'], ['c'], 3)).toBe(1);
     expect(recallAtK(['a'], [], 3)).toBeNull();
+  });
+});
+
+describe('precisionAtK', () => {
+  it('is the share of the first k results that are relevant', () => {
+    expect(precisionAtK(['a', 'b', 'c', 'd'], ['a', 'd'], 3)).toBeCloseTo(1 / 3);
+    expect(precisionAtK(['a', 'b', 'c'], ['a', 'b', 'c', 'x'], 3)).toBe(1);
+    // Fewer results than k still divide by k, and nothing relevant scores 0.
+    expect(precisionAtK(['a'], ['a'], 3)).toBeCloseTo(1 / 3);
+    expect(precisionAtK(['a', 'b', 'c'], [], 3)).toBe(0);
   });
 });
 
