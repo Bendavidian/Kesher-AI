@@ -21,5 +21,12 @@ export const User = z.strictObject({
     }),
   interests: z.array(Theme),
   createdAt: z.date(),
+  // Only a guest has it: the TTL index removes the guest at this time (SPEC.md decision log,
+  // T24). The seeded personas never expire.
+  expiresAt: z.date().optional(),
+  // A guest's last Investigate, as its UTC day: one run per guest per day (T24).
+  investigatedOn: z.iso.date().optional(),
 });
 export type User = z.infer<typeof User>;
+
+export const isGuest = (user: Pick<User, 'expiresAt'>): boolean => user.expiresAt !== undefined;

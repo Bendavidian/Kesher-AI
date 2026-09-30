@@ -38,4 +38,10 @@ describe('PublicUser', () => {
   it('never carries the password hash', () => {
     expect(PublicUser.safeParse({ ...user, passwordHash: 'scrypt$1' }).success).toBe(false);
   });
+
+  it('carries a guest expiry but never the guest Investigate day', () => {
+    const expiresAt = new Date('2026-10-02T12:00:00Z');
+    expect(PublicUser.parse({ ...user, expiresAt })).toEqual({ ...user, expiresAt });
+    expect(PublicUser.safeParse({ ...user, investigatedOn: '2026-10-01' }).success).toBe(false);
+  });
 });

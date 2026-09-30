@@ -123,6 +123,8 @@ export const FeedItem = z
     research: FeedResearch,
     createdAt: z.date(),
     updatedAt: z.date(),
+    // A guest's items expire with the guest (SPEC.md decision log, T24).
+    expiresAt: z.date().optional(),
   })
   .refine((item) => (item.path === null) === (item.relevance === 0), {
     error: 'an item has a path exactly when its relevance is above 0',

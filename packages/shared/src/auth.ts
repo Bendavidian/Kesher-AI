@@ -14,5 +14,6 @@ export type LoginRequest = z.infer<typeof LoginRequest>;
 
 // The user as the web sees it, from POST /auth/login and GET /me. The password hash never leaves
 // the api, and nothing here identifies the caller to the server: that is the session cookie.
-export const PublicUser = User.omit({ passwordHash: true, createdAt: true });
+// A guest carries expiresAt, which the web shows; investigatedOn stays on the server.
+export const PublicUser = User.omit({ passwordHash: true, createdAt: true, investigatedOn: true });
 export type PublicUser = z.infer<typeof PublicUser>;
