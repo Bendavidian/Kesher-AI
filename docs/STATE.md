@@ -1,9 +1,30 @@
 # State
 
-Updated: 30 Sep 2026, T20 done, merged with main after T16 part 1
+Updated: 1 Oct 2026, T16 done, merged with main after T23 and T25
 
 ## Where we are
-T00 to T14, T20 and T21 are done; T16 part 1 is done and T16 stays [~] until part 2. T20, the deterministic report core, has merged main after T16 part 1, so point 5 of the MVP definition of done now holds in every report the model completes.
+T00 to T14, T16, T20, T21 and T25 are done. T16, the evals, closed on 1 Oct 2026 with part 2, and its numbers are in the README. On main from other sessions: T18 [~], whose part 1, the deployed replay only instance, is merged and whose part 2, the rehearsal, is open; T23 [~], the event library; T25, the brand mark; and a public release chore (MIT license, a security section in the README). PR 28 (T24, Your portfolio) is open. New from T16: T26 (research evals and tuning), T27 (passing mentions in the start nodes, approved) and T28 (a stable path between equal paths).
+
+T16 measured the pipeline; part 2 closed it on 1 Oct 2026 (docs/EVALS.md; SPEC.md decision log, T16):
+- Eval set in data/evals, recorded once and replayed:
+  - 30 real Alpaca items with 90 labels, and 4 market wraps with 12 labels (part 2). The user reviewed all 102 with `npm run eval:label`, which never shows the proposed label. The wraps are reported apart, so every other number stays on the 30 items.
+  - 5 synthetic poisoned copies of real items (reserved ids 9000000001 to 9000000005) and 11 retrieval queries judged by the user.
+  - The user's materiality flag, major or minor, for all 56 directions of the 28 reviewed relationships, set with `npm run eval:materiality` (data/evals/materiality.json, eval only).
+- `npm run eval` (apps/api/src/eval) replays everything through processItem in a fresh kesher_eval database on a local mongod, from recordings with no provider call, and writes the block between the markers in docs/EVALS.md. `--record` records what is missing, once; CI runs the same replay (eval.integration.test.ts); retrieval reads Atlas filing_chunks, read only. Part 2 added the verifier section (the T14 planted fixture replayed from recordings/verifier/planted.json), the wraps under both start node rules and the materiality grid.
+- Results:
+  - Relevance agrees on 78 of 90 (A 97%, B 63%, C 100%). Every disagreement sits on a graph path: 9 on a supply hop at 0.8, 3 on two hops.
+  - The verifier fixture: 17 of 17 planted errors caught by the checks they were planted for, no clean claim removed.
+  - Injection changed the extraction in 2 of 5 attacks (1 of 5 with the screen) and moved relevance in 1. The screen flagged 2 of 5 poisoned items and 0 of 30 real ones.
+  - Filing retrieval, vector only: precision at 3 70%, recall at 3 46%.
+  - The wraps: today's start node rule agrees on 3 of 12, tagged only on 4 of 12. The user labels a holding mentioned in passing medium, so the cost of tagged only is holdings read high, not extra cards.
+  - Materiality: 54 of 56 directions major. The two minor ones (INTC competitor_of META and INTC competitor_of MSFT) change no band, and MSFT customer_of AMD is major both ways, so the flag does not explain B's misses.
+  - A median extraction is 812 tokens; every call is on a free tier.
+- Decided (SPEC.md decision log, T16): on 30 Sep the display bands became structural (high only for a direct holding, medium above 0). On 1 Oct filing retrieval stays vector only (M0 has no fourth search index), the materiality flag is closed without a Relationship field, the bands and the edge weights stay (the demo card reads medium for A; the design mockups still show High 0.80, a known deviation), and every card above 0 stays visible. The mention rule, where every tagged company starts the graph and a holding reads high only when the extraction names it, was approved as T27 with the EVALS.md numbers as its acceptance. The rest of part 2 moved to T26.
+- Found in part 2: an extraction that fails Groq's schema check answers 400 and gets no fallback, so the item is lost (the first draw of 39898757; a note under T19). A tie between equal paths goes by random edge ids, so the eval's path text for 42563518 changes between runs (T28).
+- T26 was first added as T23, which a parallel session held along with T24 and T25; it was renumbered before the first push.
+- Merged main after T23 and T25. T23's library read every event in data/evals/events.json and expected 30, so libraryEvents now leaves the market wraps out, with a test.
+- The reviewer ran before the api commits and on the merge, with no blockers; its two majors on the report wording and its nits on the merge were fixed.
+- 1,060 tests green on T16 alone and 1,092 after the merge; RunScreen.test.tsx failed once under full suite load (a note under T09).
 
 T20 made the 10-K fact and the price metric code claims in every report (SPEC.md decision log, T20):
 - Before the model's first turn, code reads the price reaction for the path's event company and holding (Market data read) and writes, in a code step Code claims (CODE_CLAIMS_STEP):
@@ -20,34 +41,6 @@ T20 made the 10-K fact and the price metric code claims in every report (SPEC.md
 - Proof on Atlas, persona A, TSMC card: three real Investigate runs in a row, each with the 10-K fact and the metric supported (the first series had failed on run 3 with source ids in premises, which led to the premise change). A fourth run through `npm run research:dev -- --record --force` is recorded (7 of 7 claims supported) and replayed in replay.integration.test.ts with the edge, the 10-K and a filing chunk under the recorded ids. Report and run screens checked at 1440px and 1279px.
 - The reviewer found one blocker (customer_of rendered as "buys from") and two majors (a second market read that could discard or contradict the first), all fixed, and nothing more on the premise and recording changes.
 - 940 tests green, 1 skipped, on T20 alone; 1,003 green, 1 skipped after merging main with T16 part 1.
-
-T16 part 1 measures the pipeline (docs/EVALS.md; SPEC.md decision log, T16):
-- Eval set in data/evals:
-  - 30 real Alpaca items recorded once in recordings/alpaca, with screen and extraction answers in recordings/models.
-  - 90 relevance labels reviewed by the user with `npm run eval:label`, which never shows the proposed label.
-  - 5 synthetic poisoned copies of real items under reserved ids 9000000001 to 9000000005, their answers in recordings/synthetic/models.
-  - 11 retrieval queries judged by the user with `npm run eval:label -- --retrieval`.
-- `npm run eval` (apps/api/src/eval):
-  - Replays everything through processItem in a fresh kesher_eval database on a local mongod, seeded with the personas and the 28 reviewed relationships, from recordings, with no provider call, and writes the block between the markers in docs/EVALS.md.
-  - `--record` records what is missing, once. Retrieval reads Atlas filing_chunks, read only, and is skipped without MONGODB_URI or the cached model.
-  - eval.integration.test.ts runs the same replay in CI.
-- Recorders:
-  - Model recordings keep latency, without the limiter's waits.
-  - A non-429 refusal is recorded as extraction.failure and the replay fails the item the same way. The first recording of 9000000004 was such a refusal; the second, kept, was a suppression.
-  - All recorders write Prettier formatted JSON.
-- Results, under the decided bands:
-  - Relevance agrees on 78 of 90 (A 97%, B 63%, C 100%). Every disagreement is a supply hop at 0.8.
-  - Injection changed the extraction in 2 of 5 attacks (1 of 5 with the screen), and only one moved relevance. The screen flagged 2 of 5 poisoned items and 0 of 30 real ones.
-  - Tagged-only start nodes give the same relevance on all 30 clean items.
-  - Retrieval: precision at 3 is 70%, recall at 3 is 46%.
-  - A median extraction is 812 tokens.
-- Decided on 30 Sep 2026, and applied in packages/shared (RELEVANCE_HIGH is 1):
-  - The display bands are structural: high only for a direct holding, medium for any other relevance above 0, none at 0.
-  - The feed filter (above 0), the gate (0.6) and the feed order (newest first) are unchanged.
-  - The demo card for persona A now reads Medium 0.80. The design mockups still show High 0.80, a known deviation.
-- Start nodes stay extracted and tagged, with no switch to tagged only yet. Part 2 first measures the cost of tagged only on 3 to 5 items with passing mentions.
-- The reviewer ran before every api, shared and merge commit. Its blocker, recordings failing the Prettier check, was fixed.
-- 968 tests are green after merging main.
 
 Earlier: T09 completed the walking skeleton. T13 part 2, the rest of the MCP tool set, is done and merged with main after T10 and T14. T14, full verification, is merged with main after T10 and T11. T10, live ingestion, is merged with main after T11 and T12. It is proven end to end on Atlas by a live EDGAR 8-K and for the Alpaca stream by fake WebSocket tests; a live Benzinga item is to be observed in the T18 rehearsal.
 
@@ -331,24 +324,18 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. Check that CI passes on Ubuntu and Windows for PR 23 "T20: deterministic report core", then merge it. Keep LIVE_INGEST false on both machines until T18 or T19.
-2. Any database a session on older code writes to needs `npm run seed` again after this merge, or its claims and reports fail the strict schema (origin, omitted). Atlas is repaired as of 30 Sep 2026.
+1. Check that CI passes on Ubuntu and Windows for the T16 PR, then merge it; it carries main up to T23 and T25. Keep LIVE_INGEST false on both machines until T18 part 2 or T19.
+2. Other open work: T23 [~], the event library (`npm run demo:library`, loaded on Atlas), and PR 28, T24 Your portfolio. The library keeps to the 30 core items (libraryEvents); whether it should also carry the market wraps is T23's call. CLAUDE.md's demo:library line and T23's BACKLOG entry still name only the poisoned items as left out; the wording is left to the user and T23.
 3. On each machine, once:
    - `npm run record:bars -- --event 38062166 --symbols TSM,NVDA` fills the gitignored bar cache for the demo card and the local SPIKE.md test.
    - The api loads the local embedding model at startup (about 90 MB into .cache/models, downloaded once); `npm run embed:events` embeds events stored before. `npm run eval` needs the same cache for its retrieval part.
 4. Pick the next task from BACKLOG.md:
-   - T22, a database per session: in T20 a parallel session's reset of the demo event on the shared Atlas database removed persona A's card mid-proof and wrote documents in the old schema.
-   - T16 part 2 (notes under T16):
-     - the verifier catch rate on the T14 planted fixture;
-     - claims reported by origin, and how often the model restates the code metric (notes from T20);
-     - retrieval on the hybrid search;
-     - injection on research;
-     - the research budgets (32,000 and 16,000), the gate and FLAG_THRESHOLD;
-     - the materiality flag per reviewed edge, set in graph:review (the likely case is AMD supplier_of MSFT);
-     - 3 to 5 items with passing mentions to measure tagged-only start nodes;
-     - the feed order (recency, or band then relevance), a GET /feed contract change;
-     - the README numbers.
-   - T19, live ingestion hardening, before LIVE_INGEST runs all day.
+   - T27, passing mentions in the start nodes, approved on 1 Oct 2026. Its acceptance is the EVALS.md numbers: 9 of 12 on the wraps, the 30 items unchanged, and the 9000000004 case. Decide first how a holding named only in passing scores, since the gate and the feed read the score.
+   - T28, a stable path when two paths score the same: small, and it makes the eval's path text reproducible.
+   - T26, research evals and tuning: injection on research, claims by origin, the research budgets, the gate, FLAG_THRESHOLD, the live pre filter savings and the band then relevance feed order.
+   - T22, a database per session.
+   - T19, live ingestion hardening, before LIVE_INGEST runs all day; it now also covers an extraction that fails Groq's schema check.
+   - T18 part 2: the rehearsal from docs/DEMO.md and a live Benzinga item; the README eval numbers are in.
 5. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
@@ -362,12 +349,13 @@ Seed quotes and Source.text use the same normalization, and the T08 and T14 quot
 Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. LIVE_INGEST is false on both machines except while proving T10; with it true the api also needs the Alpaca keys and SEC_USER_AGENT. AUTO_RESEARCH is optional (on when unset).
 
 ## Open decisions
-From T16 part 1, each needing its own decision log entry: keep the edge weights; no theme overlap in relevance; the feed order; a materiality flag per edge; tagged-only start nodes. FLAG_THRESHOLD stays 0.5 for now.
+From T16: no theme overlap in relevance (part 1) still needs its own decision log entry, and whether the feed should sort by band then relevance is T26 (T23 decided arrival order). FLAG_THRESHOLD stays 0.5 until T26. Decided on 1 Oct 2026 (SPEC.md decision log, T16): the bands and the edge weights stay, the materiality flag is closed and every card above 0 stays visible; the start node change is T27.
 None for T11: its three open decisions were settled on 29 Sep 2026 (SPEC.md decision log, T11).
 The UI language is settled by docs/UI.md: English interface, with Hebrew summaries as a later option.
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 1 Oct 2026, macOS (Mac mini), T16 part 2: part 2 narrowed by the user to five points, the rest moved to T26 (first numbered T23, renumbered because parallel sessions held T23 to T25); verifier catch rate on the T14 fixture 17 of 17 with no clean claim removed; four market wraps recorded (one extraction redrawn after a Groq schema 400) and labeled by the user: today's start node rule 3 of 12, tagged only 4 of 12, and the mention rule at 9 of 12, approved as T27; materiality flags for all 56 edge directions with npm run eval:materiality, 54 major, no band changed, flag closed; filing retrieval stated as vector only; bands, weights and every card above 0 kept (SPEC.md decision log); README eval numbers, and the bands sentence moved out of the persona table; T28 added for ties broken by random edge ids, a possible web flake noted under T09; merged main after T23 and T25 with T23's library kept to the 30 core items; reviewer ran on the api commits and the merge; 1,060 tests green on T16 alone and 1,092 after the merge; RunScreen.test.tsx failed once under full suite load (a note under T09); T16 done.
 - 30 Sep 2026, macOS (Mac mini), T20: code writes the path's 10-K fact (e1, e2) and the price metric (m1) in every report from shared templates, before the model's first turn, listed in the brief; Claim.origin and Report.omitted with a seed backfill and a neutral report line per omission; FACT_VERB so customer_of passes no_advice; one reaction read for the path, missing symbols merged or left unverified; draft premises relaxed after a real run lost its report to source ids in premises, with unknownPremise counts in the run; three real Investigate runs in a row with both code claims supported, a fourth recorded and replayed; Atlas repaired after a parallel session's reset; T22 added and a T16 note; reviewer's blocker and majors fixed; merged main after T16 part 1; 1,003 tests green, 1 skipped; T20 done.
 - 30 Sep 2026, macOS (Mac mini), T16 part 1: T16 split in two; eval set of 30 recorded Alpaca items with 90 labels reviewed by the user (labeling CLI that hides the proposal; two rushed labelings reset), 5 synthetic poisoned items and 11 judged retrieval queries; npm run eval replays everything in a fresh kesher_eval on a local mongod from recordings and writes docs/EVALS.md, CI runs the same; recorders keep latency, record refusals and write formatted JSON; results under the decided bands: relevance 78 of 90, injection 2 of 5 (1 of 5 with the screen), screen 2 of 5 flagged and 0 false flags, tagged-only start nodes equal on clean items, retrieval precision at 3 70% and recall 46%; display bands decided and applied (high only for a direct holding, medium above 0); part 2 notes on materiality, passing mentions and feed order; T21 marked done from PR 19; reviewer ran on every api, shared and merge commit; merged main after T13 part 2, T14 and T21; 968 tests green; PR 21 open; T16 stays [~].
 - 29 Sep 2026, macOS (Mac mini), T13 part 2: agent tool sets with the verifier empty; get_my_portfolio, get_company_relationships, search_filings, get_financial_facts from recorded SEC XBRL, hybrid search_news with the sources_text index and rank fusion; event embeddings at extraction with a backfill; 8 KB tool output cap; filing quotes checked against the text tools returned; budgets 32,000 and 16,000; sample_mflix dropped on Atlas to free the third search index; seven real runs proved the 10-K fact and the price metric in separate reports (T20 makes them code claims); merged main after T10 and T14 with T14's market_data writer kept; T20 and T21 added; 902 tests green, 1 skipped; T13 done.

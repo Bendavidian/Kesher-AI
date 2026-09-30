@@ -109,6 +109,7 @@ Notes for later tasks:
 - T12: gate runs appear in GET /runs and the run screen as they are; the summary line already words trigger gate. A run lost to a restart stays running in the list, since only its FeedItem is taken over.
 - T14: a check step turns red when its output lists removedClaimIds, so the verifier should record removals the same way. Its model steps add their provider and model to the served limits by themselves.
 - Each run screen opens its own socket next to the feed's; share one connection if more screens listen.
+- Possible flake, found in the T16 wrap on 1 Oct 2026: apps/web/src/RunScreen.test.tsx, "Agent run screen, live > adds each pushed step of this run once, in order", failed once under full suite load on macOS (expected 3 steps, got 2), then passed alone three times and in the next full run. If it recurs, capture the output and look for a wait that depends on timing, as in T21.
 
 ## Phase 2: deepen
 
@@ -267,6 +268,11 @@ Done when, with `npm run eval` on the same recordings:
 - the 30 items are unchanged: 78 of 90 (A 97%, B 63%, C 100%), with the same relevance for every pair;
 - 9000000004, the suppression that drops MSFT from the extraction, lowers A's card from high to medium instead of removing A's and B's cards, and B's card stays medium; 9000000002, the KO item whose text names NVDA, still leaves A at 0;
 - tests cover a named holding (high), a holding named only in passing (medium), a hop from a company named only in passing, and a company only the text names (no start node).
+
+### [ ] T28 A stable path when two paths score the same
+Found in the T16 wrap on 1 Oct 2026. bestPath (apps/api/src/relevance/score.ts) breaks a tie between paths of the same score and hop count by the edges' _id, and the seed and graph:apply draw edge ids with randomUUID. So each fresh database can pick the other path: in the eval, Micron's guidance (42563518) reaches TSM holders at 0.448 through LRCX in one run and through NVDA in the next, and two databases can show a different Why you line for the same event. Relevance and bands are the same either way; only the path shown changes.
+Break the tie on what the edges say (their from, type and to) instead of their ids, so the same graph content always gives the same path.
+Done when: a test scores the same graph twice under different edge ids and gets the same path, and `npm run eval` writes the same path for 42563518 on every run.
 
 ## V2 (not in MVP)
 Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).

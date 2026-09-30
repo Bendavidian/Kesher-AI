@@ -271,6 +271,10 @@ Written on 1 Oct 2026, from the run above: the 90 labels of part 1, 12 labels on
 
 - The first extraction recorded for the Fear and Greed wrap (39898757) failed: Groq answered 400 because the model's answer put a theme outside the list, and only a 429 falls back to Gemini, so the api would have shown no card for that item. The second draw, kept here, passed, as 9000000004's second draw did in part 1.
 
+#### Reproducibility
+
+- Every number above but the code time is the same on every run. The path text of a pair with two equal paths is not: bestPath breaks the tie by edge ids, which each fresh database draws at random, so Micron's guidance (42563518) reaches TSM holders through LRCX or through NVDA at 0.448 from run to run. T28 makes the choice stable.
+
 #### Proposals
 
 Decided on 1 Oct 2026: proposal 1 became T27 (BACKLOG.md), proposals 2, 3 and 4 are in the SPEC.md decision log (T16), and proposal 5 stays a note under T19.
