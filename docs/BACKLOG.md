@@ -233,6 +233,12 @@ Found in T20. Every session and machine uses the one Atlas database `kesher` (DB
 Consider taking the database name from an env variable (for example MONGODB_DB, default kesher) so each session can use its own database on the same free cluster. Check first: the M0 limit of 3 search indexes applies per cluster, so a second database needs its own indexes and may not fit. Also decide how seed, graph:apply and graph:chunks fill a new database.
 Done when: two sessions can run the api against different databases, and a reset in one leaves the other untouched.
 
+### [~] T24 Your portfolio on the public instance
+A visitor to the public instance can see the feed for their own holdings, not only the three personas. The persona switcher gets a fourth option, "Your portfolio", which opens a picker: 1 to 6 holdings from the 17 universe companies, grouped by sector. Choosing creates a guest session: a temporary user created by the server, whose user, FeedItems, runs, reports and claims expire 24 hours after it was created (a TTL index on expiresAt). Identity comes from the session cookie only, as everywhere else. On creation, code scores every stored event for the guest with the existing scoring and no model call, so the feed is full at once, with a path and a band on every card. The visitor can change the holdings later; switching to a persona and back creates a new guest.
+Protection for a public instance: guest creation is rate limited per IP, the number of live guests is capped, automatic research never runs for a guest (the gate skips it with its own condition), and Investigate for a guest is limited to one run per UTC day, from the shared daily budget, with at most 10 guest runs a day in total.
+Done when: a guest sees only their own feed with every card scored at creation and no model call; a second guest cannot read the first one's feed, reports or runs; the TTL removes the guest's user, FeedItems, runs, reports and claims and leaves the personas alone; guest creation over the rate limit, a second guest Investigate in a UTC day, and an 11th guest run in a day answer 429.
+Decided on 1 Oct 2026 (SPEC.md decision log, T24). Runs in parallel with T23, the event library, which changes the feed order and adds GET /feed/hidden: whichever merges second merges origin/main and keeps both.
+
 ## V2 (not in MVP)
 Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).
 
