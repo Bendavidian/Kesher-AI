@@ -35,18 +35,22 @@ function keyOf(secret: string): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
+// A persona's session lasts SESSION_TTL_SECONDS. A guest's ends when the guest expires
+// (SPEC.md decision log, T24), so the cookie dies before the TTL monitor removes the user.
 export async function signSession(
   secret: string,
   userId: string,
   now: Date = new Date(),
+  expiresAt?: Date,
 ): Promise<string> {
   const iat = Math.floor(now.getTime() / 1000);
+  const exp = expiresAt ? Math.floor(expiresAt.getTime() / 1000) : iat + SESSION_TTL_SECONDS;
   return new SignJWT({})
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(Id.parse(userId))
     .setAudience(AUDIENCE)
     .setIssuedAt(iat)
-    .setExpirationTime(iat + SESSION_TTL_SECONDS)
+    .setExpirationTime(exp)
     .sign(keyOf(secret));
 }
 
@@ -102,11 +106,13 @@ export function sessionCookieOptions(secure: boolean): CookieOptions {
   return { httpOnly: true, sameSite: 'lax', secure, path: '/' };
 }
 
-export function setSessionCookie(res: Response, token: string, secure: boolean): void {
-  res.cookie(SESSION_COOKIE, token, {
-    ...sessionCookieOptions(secure),
-    maxAge: SESSION_TTL_SECONDS * 1000,
-  });
+export function setSessionCookie(
+  res: Response,
+  token: string,
+  secure: boolean,
+  maxAgeMs: number = SESSION_TTL_SECONDS * 1000,
+): void {
+  res.cookie(SESSION_COOKIE, token, { ...sessionCookieOptions(secure), maxAge: maxAgeMs });
 }
 
 export function clearSessionCookie(res: Response, secure: boolean): void {

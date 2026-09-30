@@ -5,8 +5,10 @@ import {
   type FeedResearch,
   type HiddenFeed,
   type PersonaKey,
+  type PublicUser,
+  type UniverseSymbol,
 } from '@kesher/shared';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import demoReaction from '../../../recordings/price-reactions/38062166.json';
 import { App } from './App';
@@ -30,11 +32,30 @@ const HEADLINE =
 
 const NONE_HIDDEN: HiddenFeed = { recent: [], total: 0 };
 
+// A guest portfolio as POST /guest answers it (T24), and its feed: A's demo card, as its own.
+const GUEST_USER: PublicUser = {
+  _id: '5b0f5a9e-8c1d-4f2a-9b3e-1a2b3c4d5e09',
+  email: 'guest-5b0f5a9e-8c1d-4f2a-9b3e-1a2b3c4d5e09@guest.invalid',
+  displayName: 'Your portfolio',
+  holdings: [{ symbol: 'NVDA', quantity: 1 }],
+  interests: [],
+  expiresAt: new Date('2026-10-02T12:00:00Z'),
+};
+const GUEST_CARDS: FeedCard[] = DEMO_CARDS.A.map((card) => ({
+  ...card,
+  item: { ...card.item, userId: GUEST_USER._id, expiresAt: GUEST_USER.expiresAt },
+}));
+
 // A fake api and socket over the fixtures: the signed in persona decides every answer, like the
 // session cookie does on the real api. hidden is what GET /feed/hidden answers per persona; a
-// test changes it as scoring would.
-function fakeLive({ feeds = DEMO_CARDS }: { feeds?: Record<PersonaKey, FeedCard[]> } = {}) {
-  let signedIn: PersonaKey = 'A';
+// test changes it as scoring would. start 'guest' is a browser that holds a guest cookie.
+function fakeLive({
+  feeds = DEMO_CARDS,
+  start = 'A',
+}: { feeds?: Record<PersonaKey, FeedCard[]>; start?: PersonaKey | 'guest' } = {}) {
+  let signedIn: PersonaKey | 'guest' = start;
+  let guest: PublicUser = GUEST_USER;
+  const userOf = () => (signedIn === 'guest' ? guest : PUBLIC_USERS[signedIn]);
   const hidden: Record<PersonaKey, HiddenFeed> = { A: NONE_HIDDEN, B: NONE_HIDDEN, C: NONE_HIDDEN };
   const sockets: { handlers: FeedSocketHandlers; closed: boolean }[] = [];
   const api = {
@@ -42,9 +63,18 @@ function fakeLive({ feeds = DEMO_CARDS }: { feeds?: Record<PersonaKey, FeedCard[
       signedIn = key;
       return Promise.resolve(PUBLIC_USERS[key]);
     }),
-    me: vi.fn(() => Promise.resolve(PUBLIC_USERS[signedIn])),
-    feed: vi.fn(() => Promise.resolve(feeds[signedIn])),
-    hidden: vi.fn(() => Promise.resolve(hidden[signedIn])),
+    me: vi.fn(() => Promise.resolve(userOf())),
+    createGuest: vi.fn((symbols: UniverseSymbol[]) => {
+      signedIn = 'guest';
+      guest = { ...GUEST_USER, holdings: symbols.map((symbol) => ({ symbol, quantity: 1 })) };
+      return Promise.resolve(guest);
+    }),
+    changeGuestPortfolio: vi.fn((symbols: UniverseSymbol[]) => {
+      guest = { ...guest, holdings: symbols.map((symbol) => ({ symbol, quantity: 1 })) };
+      return Promise.resolve(guest);
+    }),
+    feed: vi.fn(() => Promise.resolve(signedIn === 'guest' ? GUEST_CARDS : feeds[signedIn])),
+    hidden: vi.fn(() => Promise.resolve(signedIn === 'guest' ? NONE_HIDDEN : hidden[signedIn])),
     investigate: vi.fn(() =>
       Promise.resolve(researched({ state: 'running', runId: RUN_ID, reportId: null })),
     ),
@@ -104,8 +134,12 @@ function pickPersona(label: string) {
   fireEvent.click(within(switcher).getByRole('button', { name: label }));
 }
 
-// Waits for the signed in persona's feed to load.
+// Waits for the signed in persona's feed to load. The app first asks GET /me whether the cookie
+// is a guest's (T24), so the sign in notice shows until then.
 async function ready(text: RegExp | string = /Events that connect to|Nothing connects to/) {
+  await waitFor(() =>
+    expect(screen.queryByText(/^Signing in as|^Loading your portfolio/)).toBeNull(),
+  );
   await screen.findByText(text);
 }
 
@@ -463,5 +497,128 @@ describe('feed screen, signed in through the persona switcher', () => {
     render(<App deps={deps} />);
 
     expect(await screen.findByText(/Could not load the feed/)).toBeTruthy();
+  });
+});
+
+describe('Your portfolio, the guest option of the switcher (T24)', () => {
+  // The picker remembers the last pick in local storage; each test starts without one.
+  beforeEach(() => localStorage.clear());
+
+  const pressedLabels = () =>
+    within(screen.getByRole('group', { name: 'Viewing as' }))
+      .getAllByRole('button')
+      .filter((button) => button.getAttribute('aria-pressed') === 'true')
+      .map((button) => button.textContent);
+
+  it('offers four options and opens the picker by sector', async () => {
+    const { api, deps } = fakeLive();
+    render(<App deps={deps} />);
+    await ready();
+    const switcher = screen.getByRole('group', { name: 'Viewing as' });
+    expect(
+      within(switcher)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['AI investor', 'Semiconductors', 'Unrelated', 'Your portfolio']);
+
+    pickPersona('Your portfolio');
+    const dialog = screen.getByRole('dialog', { name: 'Your portfolio' });
+    expect(
+      within(dialog)
+        .getAllByRole('group')
+        .map((group) => group.textContent),
+    ).toHaveLength(4);
+    for (const sector of [
+      'AI and cloud',
+      'Semiconductors',
+      'Manufacturing and equipment',
+      'Unrelated',
+    ]) {
+      expect(within(dialog).getByRole('group', { name: sector })).toBeTruthy();
+    }
+    const show = within(dialog).getByRole('button', { name: 'Show my feed' });
+    expect((show as HTMLButtonElement).disabled).toBe(true);
+    // Still persona A until the visitor confirms.
+    expect(pressedLabels()).toEqual(['AI investor']);
+    expect(api.createGuest).not.toHaveBeenCalled();
+  });
+
+  it('allows at most six companies', async () => {
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    pickPersona('Your portfolio');
+    const dialog = screen.getByRole('dialog', { name: 'Your portfolio' });
+    for (const name of [/^NVDA/, /^MSFT/, /^AMZN/, /^GOOGL/, /^META/, /^AMD/]) {
+      fireEvent.click(within(dialog).getByRole('button', { name }));
+    }
+    expect(within(dialog).getByText('6 of 6 picked')).toBeTruthy();
+    const ko = within(dialog).getByRole('button', { name: /^KO/ });
+    expect(ko).toHaveProperty('disabled', true);
+    fireEvent.click(within(dialog).getByRole('button', { name: /^AMD/ }));
+    expect(ko).toHaveProperty('disabled', false);
+  });
+
+  it('creates a guest, loads its feed and hides the demo replay', async () => {
+    const { api, deps } = fakeLive();
+    render(<App deps={deps} />);
+    await ready();
+    expect(await screen.findByRole('button', { name: 'Replay demo event' })).toBeTruthy();
+
+    pickPersona('Your portfolio');
+    const dialog = screen.getByRole('dialog', { name: 'Your portfolio' });
+    fireEvent.click(within(dialog).getByRole('button', { name: /^NVDA/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Show my feed' }));
+
+    await screen.findByText('Events that connect to NVDA');
+    expect(api.createGuest).toHaveBeenCalledWith(['NVDA']);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(pressedLabels()).toEqual(['Your portfolio']);
+    expect(
+      screen.getByText('Guest portfolio, deleted after 24 hours. One Investigate a day.'),
+    ).toBeTruthy();
+    expect(within(row(regions().feed)).getByText('Medium 0.80')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Replay demo event' })).toBeNull();
+  });
+
+  it('keeps a guest after a reload, and changes its holdings in place', async () => {
+    const { api, deps } = fakeLive({ start: 'guest' });
+    render(<App deps={deps} />);
+    await ready('Events that connect to NVDA');
+    expect(api.signInAs).not.toHaveBeenCalled();
+    expect(pressedLabels()).toEqual(['Your portfolio']);
+
+    pickPersona('Your portfolio');
+    const dialog = screen.getByRole('dialog', { name: 'Your portfolio' });
+    // Prefilled with the guest's holdings.
+    expect(within(dialog).getByRole('button', { name: /^NVDA/ }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: /^TSM/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Update my feed' }));
+
+    await screen.findByText('Events that connect to NVDA and TSM');
+    expect(api.changeGuestPortfolio).toHaveBeenCalledWith(['NVDA', 'TSM']);
+    expect(api.createGuest).not.toHaveBeenCalled();
+    expect(api.feed).toHaveBeenCalledTimes(2);
+  });
+
+  it('names the error and keeps the picker open', async () => {
+    const { api, deps } = fakeLive();
+    api.createGuest.mockImplementationOnce(() =>
+      Promise.reject(new Error('Too many guest portfolios from this address. Try again later.')),
+    );
+    render(<App deps={deps} />);
+    await ready();
+    pickPersona('Your portfolio');
+    const dialog = screen.getByRole('dialog', { name: 'Your portfolio' });
+    fireEvent.click(within(dialog).getByRole('button', { name: /^KO/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Show my feed' }));
+
+    expect((await within(dialog).findByRole('alert')).textContent).toBe(
+      'Too many guest portfolios from this address. Try again later.',
+    );
+    expect(pressedLabels()).toEqual(['AI investor']);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

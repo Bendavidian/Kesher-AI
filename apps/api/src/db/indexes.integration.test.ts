@@ -32,6 +32,7 @@ describe('ensureCollections and ensureIndexes on mongod', () => {
         const index = created.find((i) => i.name === spec.name);
         expect(index?.key, `${name}.${spec.name}`).toEqual(spec.key);
         expect(Boolean(index?.unique), `${name}.${spec.name} unique`).toBe(Boolean(spec.unique));
+        expect(index?.expireAfterSeconds, `${name}.${spec.name} ttl`).toBe(spec.expireAfterSeconds);
       }
       // _id plus the declared indexes, nothing more.
       expect(created).toHaveLength(INDEXES[name].length + 1);

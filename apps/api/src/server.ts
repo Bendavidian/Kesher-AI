@@ -84,6 +84,8 @@ const { app, afterScoring } = createApi({
   ...(env.DEMO_MODE ? { demo: {} } : {}),
   ...(web ? { web } : {}),
   mcp: { secret: mcpEnv.MCP_TOKEN_SECRET },
+  // Render's proxy is the one hop in front of the api (SPEC.md decision log, T24).
+  ...(env.NODE_ENV === 'production' ? { trustProxy: 1 } : {}),
   auth: {
     secret: authEnv.JWT_SECRET,
     secureCookie: env.NODE_ENV === 'production',

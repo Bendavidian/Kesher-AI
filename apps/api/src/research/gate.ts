@@ -1,5 +1,5 @@
 import type { ResearchState } from '@kesher/shared';
-import { AUTO_RUN_LIMIT, DAILY_RUN_LIMIT } from './dailyBudget';
+import { AUTO_RUN_LIMIT, DAILY_RUN_LIMIT, GUEST_RUN_LIMIT } from './dailyBudget';
 
 // The research gate (SPEC.md Pipeline): relevance ≥ 0.6, importance ≥ 4, not recent, budget
 // left. Code policy only; no model output other than the importance class reaches it, and every
@@ -11,11 +11,13 @@ export const RECENT_RUN_MS = 24 * 60 * 60 * 1000;
 
 // budget is checked after these, with an atomic reservation (dailyBudget.ts).
 export type GateCondition =
-  'auto_research_off' | 'relevance' | 'importance' | 'active' | 'recent' | 'budget';
+  'auto_research_off' | 'guest' | 'relevance' | 'importance' | 'active' | 'recent' | 'budget';
 
 export interface GateInput {
   // AUTO_RESEARCH: when off, the gate starts no run and skips every card first.
   autoResearch: boolean;
+  // The card belongs to a guest: automatic research never runs for a guest (T24).
+  guest: boolean;
   relevance: number;
   importance: number | null;
   researchState: ResearchState;
@@ -39,6 +41,7 @@ function hoursAgo(ms: number): string {
 // that fails is the reason.
 export function checkGate({
   autoResearch,
+  guest,
   relevance,
   importance,
   researchState,
@@ -50,6 +53,13 @@ export function checkGate({
       pass: false,
       condition: 'auto_research_off',
       reason: 'Automatic research is off on this server (AUTO_RESEARCH=false).',
+    };
+  }
+  if (guest) {
+    return {
+      pass: false,
+      condition: 'guest',
+      reason: 'Automatic research does not run for guest portfolios; Investigate runs one a day.',
     };
   }
   if (relevance < GATE_MIN_RELEVANCE) {
@@ -116,5 +126,12 @@ export function investigateReason(runs: number): string {
   return (
     'Investigate skips the relevance and importance conditions, not the daily budget: ' +
     `research run ${runs} of ${DAILY_RUN_LIMIT} today.`
+  );
+}
+
+export function guestInvestigateReason(runs: number, guestRuns: number): string {
+  return (
+    `${investigateReason(runs)} A guest portfolio's one run today: ` +
+    `guest run ${guestRuns} of ${GUEST_RUN_LIMIT} today.`
   );
 }

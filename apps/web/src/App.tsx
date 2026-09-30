@@ -1,15 +1,37 @@
-import { useState } from 'react';
+import { isGuest } from '@kesher/shared';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
-import { LiveDepsContext, type LiveDeps } from './live/deps';
+import { LiveDepsContext, useLiveDeps, type LiveDeps } from './live/deps';
 import { FeedScreen } from './screens/FeedScreen';
 import { NotFoundScreen } from './screens/NotFoundScreen';
 import { ReportScreen } from './screens/ReportScreen';
 import { RunScreen, RunsIndexScreen } from './screens/RunScreen';
-import type { PersonaKey } from './view/types';
+import type { Viewer } from './view/types';
+
+const PERSONA_A: Viewer = { key: 'A', session: 0 };
 
 export function AppRoutes() {
-  const [personaKey, setPersonaKey] = useState<PersonaKey>('A');
+  const { api } = useLiveDeps();
+  // null until the app knows whether the cookie is a guest's: a guest who reloads keeps its
+  // portfolio (T24). Anyone else starts as persona A, as before.
+  const [viewer, setViewer] = useState<Viewer | null>(null);
   const [lastScoredEventId, setLastScoredEventId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    api.me().then(
+      (user) => {
+        if (active)
+          setViewer((v) => v ?? (isGuest(user) ? { key: 'guest', session: 0 } : PERSONA_A));
+      },
+      () => {
+        if (active) setViewer((v) => v ?? PERSONA_A);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [api]);
 
   return (
     <Routes>
@@ -17,8 +39,8 @@ export function AppRoutes() {
         path="/"
         element={
           <FeedScreen
-            personaKey={personaKey}
-            onPersonaChange={setPersonaKey}
+            viewer={viewer}
+            onViewerChange={setViewer}
             lastScoredEventId={lastScoredEventId}
             onScored={setLastScoredEventId}
           />
