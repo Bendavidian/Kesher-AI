@@ -1,0 +1,17 @@
+{
+  "externalId": "48646917",
+  "recordedAt": "2026-09-30T21:29:51.272Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Stock Market Today: Dow, S&P 500, Nasdaq Futures Slip But McDonald's Rises After Q3 Beat— AMD, Qualcomm, Robinhood In Focus (UPDATED)\n\n(Editor’s note: The future prices of benchmark tracking ETFs and headlines were updated in the story.) U.S. stock futures declined on Wednesday after Dow Jones pared initial gains following Tuesday’s lower close. Futures of major benchmark indices were lower.",
+    "chunks": ["0.00043143174843862653"],
+    "latencyMs": [115]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"AMD\",\n      \"impact\": \"unclear\"\n    },\n    {\n      \"symbol\": \"QCOM\",\n      \"impact\": \"unclear\"\n    }\n  ],\n  \"eventType\": \"macro\",\n  \"themes\": [],\n  \"importance\": 1\n}",
+    "usage": { "inputTokens": 747, "outputTokens": 170, "totalTokens": 917 },
+    "latencyMs": 1264
+  }
+}

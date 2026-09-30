@@ -224,6 +224,38 @@
       "createdAt": "2024-12-12T11:42:24Z",
       "updatedAt": "2024-12-12T11:42:24Z",
       "type": "analyst_action"
+    },
+    {
+      "id": "39898757",
+      "symbol": "NVDA",
+      "createdAt": "2024-07-23T06:28:20Z",
+      "updatedAt": "2024-07-23T06:28:20Z",
+      "type": "market_wrap",
+      "note": "Market wrap (Fear and Greed index); tags GOOGL, KO and NVDA, mentioned in passing."
+    },
+    {
+      "id": "43615981",
+      "symbol": "NVDA",
+      "createdAt": "2025-02-11T08:25:23Z",
+      "updatedAt": "2025-02-11T08:28:03Z",
+      "type": "market_wrap",
+      "note": "Market wrap (Fear and Greed index); NVIDIA and Broadcom lead the Nasdaq, KO and MU in passing."
+    },
+    {
+      "id": "48646917",
+      "symbol": "AMD",
+      "createdAt": "2025-11-05T13:44:26Z",
+      "updatedAt": "2025-11-05T14:06:44Z",
+      "type": "market_wrap",
+      "note": "Pre-market wrap led by McDonald's results; AMD, Qualcomm and the other tags in passing."
+    },
+    {
+      "id": "50343948",
+      "symbol": "NVDA",
+      "createdAt": "2026-02-03T17:34:13Z",
+      "updatedAt": "2026-02-03T17:34:14Z",
+      "type": "market_wrap",
+      "note": "Walmart reaches a $1 trillion value; AMZN, GOOGL and NVDA are tagged as the other trillion dollar companies."
     }
   ]
 }

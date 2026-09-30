@@ -719,6 +719,90 @@
       "status": "reviewed",
       "proposed": "high",
       "decidedAt": "2026-09-30T11:30:41.847Z"
+    },
+    {
+      "sourceId": "39898757",
+      "persona": "A",
+      "level": "none",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
+    },
+    {
+      "sourceId": "39898757",
+      "persona": "B",
+      "level": "none",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
+    },
+    {
+      "sourceId": "39898757",
+      "persona": "C",
+      "level": "none",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
+    },
+    {
+      "sourceId": "43615981",
+      "persona": "A",
+      "level": "medium",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
+    },
+    {
+      "sourceId": "43615981",
+      "persona": "B",
+      "level": "medium",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
+    },
+    {
+      "sourceId": "43615981",
+      "persona": "C",
+      "level": "none",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
+    },
+    {
+      "sourceId": "48646917",
+      "persona": "A",
+      "level": "none",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
+    },
+    {
+      "sourceId": "48646917",
+      "persona": "B",
+      "level": "none",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
+    },
+    {
+      "sourceId": "48646917",
+      "persona": "C",
+      "level": "none",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
+    },
+    {
+      "sourceId": "50343948",
+      "persona": "A",
+      "level": "none",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
+    },
+    {
+      "sourceId": "50343948",
+      "persona": "B",
+      "level": "none",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
+    },
+    {
+      "sourceId": "50343948",
+      "persona": "C",
+      "level": "none",
+      "status": "proposed",
+      "reason": "Market wrap: tagged companies are mentioned in passing, so only a company the item is about is relevant."
     }
   ]
 }

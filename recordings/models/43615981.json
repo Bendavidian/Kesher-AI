@@ -1,0 +1,17 @@
+{
+  "externalId": "43615981",
+  "recordedAt": "2026-09-30T21:29:50.365Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Nasdaq Gains 1% As Nvidia, Broadcom Surge: Investor Sentiment Improves, Fear & Greed Index Moves To 'Neutral' Zone\n\nThe CNN Fear and Greed Index improved to Neutral zone on Monday with the overall market sentiment improving. U.S. stocks closed higher, led by tech gains.",
+    "chunks": ["0.0003726428549271077"],
+    "latencyMs": [121]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [\n    {\n      \"symbol\": \"NVDA\",\n      \"impact\": \"positive\"\n    },\n    {\n      \"symbol\": \"AVGO\",\n      \"impact\": \"positive\"\n    }\n  ],\n  \"eventType\": \"macro\",\n  \"themes\": [\n    \"ai_accelerators\"\n  ],\n  \"importance\": 1\n}",
+    "usage": { "inputTokens": 705, "outputTokens": 197, "totalTokens": 902 },
+    "latencyMs": 780
+  }
+}

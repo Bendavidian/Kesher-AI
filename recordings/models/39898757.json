@@ -1,0 +1,17 @@
+{
+  "externalId": "39898757",
+  "recordedAt": "2026-09-30T21:30:14.801Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "S&P 500 Notches Best Day Since June As Investor Sentiment Improves: Fear Index Moves To 'Greed' Zone\n\nStocks rise as overall market sentiment improves, with the CNN Money Fear and Greed index moving to the Greed zone.",
+    "chunks": ["0.00036627144436351955"],
+    "latencyMs": [164]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [],\n  \"eventType\": \"macro\",\n  \"themes\": [\"rates_macro\"],\n  \"importance\": 1\n}",
+    "usage": { "inputTokens": 697, "outputTokens": 81, "totalTokens": 778 },
+    "latencyMs": 565
+  }
+}
