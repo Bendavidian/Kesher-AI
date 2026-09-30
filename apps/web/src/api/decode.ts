@@ -1,7 +1,7 @@
 import {
-  EventExplain,
   EventScored,
   FeedCard,
+  HiddenFeed,
   PublicUser,
   ReportDetail,
   RunDetail,
@@ -30,7 +30,7 @@ export function decodeFeed(json: unknown): FeedCard[] {
   if (!Array.isArray(json)) throw new Error('the feed is not a list');
   return json.map(decodeFeedCard);
 }
-export const decodeExplain = (json: unknown): EventExplain => EventExplain.parse(reviveDates(json));
+export const decodeHidden = (json: unknown): HiddenFeed => HiddenFeed.parse(reviveDates(json));
 // A guest's user carries expiresAt (T24).
 export const decodeUser = (json: unknown): PublicUser => PublicUser.parse(reviveDates(json));
 export const decodeScored = (json: unknown): EventScored => EventScored.parse(json);

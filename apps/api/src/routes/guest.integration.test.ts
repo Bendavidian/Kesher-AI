@@ -199,9 +199,13 @@ describe('guest portfolios, on mongod (T24)', () => {
     expect(relevanceBand(card!.item.relevance)).toBe('medium');
     expect(card!.item.path?.hops.map((hop) => [hop.from, hop.to])).toEqual([['TSM', 'NVDA']]);
     expect(card!.evidence).toHaveLength(1);
-    // A backfilled item takes the event's createdAt, so the feed order matches a persona's.
-    const event = await collection(mongo.db, 'market_events').findOne({ _id: eventId });
-    expect(card!.item.createdAt).toEqual(event!.createdAt);
+    // A backfilled item takes the event's arrival in the personas' feeds, so the arrival order
+    // matches a persona's.
+    const personaItem = await collection(mongo.db, 'feed_items').findOne({
+      eventId,
+      expiresAt: { $exists: false },
+    });
+    expect(card!.item.createdAt).toEqual(personaItem!.createdAt);
 
     const explain = (await (await get(`/events/${eventId}/explain`, cookie)).json()) as {
       relevance: number;
@@ -216,6 +220,21 @@ describe('guest portfolios, on mongod (T24)', () => {
     expect((await feedOf(tsm.cookie))[0]!.item.relevance).toBe(1);
     const me = PublicUser.parse(revive(await (await get('/me', tsm.cookie)).json()));
     expect(me._id).toBe(tsm.user._id);
+  });
+
+  it('lists a guest its own relevance 0 events in GET /feed/hidden', async () => {
+    const guest = await createGuest(['KO']);
+    const response = await get('/feed/hidden', guest.cookie);
+    expect(response.status).toBe(200);
+    const hidden = (await response.json()) as {
+      recent: { event: { _id: string }; relevance: number }[];
+      total: number;
+    };
+    expect(hidden.total).toBe(1);
+    expect(hidden.recent.map((explain) => [explain.event._id, explain.relevance])).toEqual([
+      [eventId, 0],
+    ]);
+    expect(await feedOf(guest.cookie)).toEqual([]);
   });
 
   it('refuses anything but 1 to 6 distinct universe companies, and a user id', async () => {
@@ -415,6 +434,19 @@ describe('guest portfolios, on mongod (T24)', () => {
     expect(
       await collection(mongo.db, 'feed_items').findOne({ userId: guest.user._id }),
     ).toMatchObject({ _id: before!._id, createdAt: before!.createdAt });
+
+    // A guest made after the replay sees the card where the personas do: at its new arrival.
+    const later = await createGuest(['NVDA']);
+    const replayedAt = (await collection(mongo.db, 'feed_items').findOne({
+      eventId,
+      expiresAt: { $exists: false },
+    }))!.createdAt;
+    const event = await collection(mongo.db, 'market_events').findOne({ _id: eventId });
+    expect(replayedAt.getTime()).toBeGreaterThan(event!.createdAt.getTime());
+    expect(
+      (await collection(mongo.db, 'feed_items').findOne({ userId: later.user._id, eventId }))!
+        .createdAt,
+    ).toEqual(replayedAt);
   });
 
   it(`answers 503 once ${MAX_LIVE_GUESTS} guests are alive`, async () => {

@@ -2,8 +2,8 @@ import {
   DEMO_PASSWORD,
   DEMO_PERSONAS,
   DemoReplayResponse,
-  type EventExplain,
   type FeedCard,
+  type HiddenFeed,
   type PersonaKey,
   type PublicUser,
   type ReportDetail,
@@ -12,9 +12,9 @@ import {
   type UniverseSymbol,
 } from '@kesher/shared';
 import {
-  decodeExplain,
   decodeFeed,
   decodeFeedCard,
+  decodeHidden,
   decodeReport,
   decodeRun,
   decodeRuns,
@@ -33,7 +33,8 @@ export interface KesherApi {
   createGuest(symbols: UniverseSymbol[]): Promise<PublicUser>;
   changeGuestPortfolio(symbols: UniverseSymbol[]): Promise<PublicUser>;
   feed(): Promise<FeedCard[]>;
-  explain(eventId: string): Promise<EventExplain>;
+  // The most recent relevance 0 items, as explanations, and how many there are.
+  hidden(): Promise<HiddenFeed>;
   // Starts research on the event for the signed in user; answers with the card, now running.
   investigate(eventId: string): Promise<FeedCard>;
   // One report of the signed in user, with its claims, sources, run and card.
@@ -94,8 +95,8 @@ export const httpApi: KesherApi = {
   async feed() {
     return decodeFeed(await request('/feed'));
   },
-  async explain(eventId) {
-    return decodeExplain(await request(`/events/${encodeURIComponent(eventId)}/explain`));
+  async hidden() {
+    return decodeHidden(await request('/feed/hidden'));
   },
   async investigate(eventId) {
     return decodeFeedCard(await post(`/events/${encodeURIComponent(eventId)}/investigate`));

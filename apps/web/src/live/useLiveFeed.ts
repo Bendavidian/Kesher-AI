@@ -1,4 +1,4 @@
-import type { EventExplain, FeedCard, PublicUser } from '@kesher/shared';
+import type { FeedCard, HiddenFeed, PublicUser } from '@kesher/shared';
 import type { Viewer } from '../view/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveDeps } from './deps';
@@ -11,8 +11,9 @@ export interface LiveFeed {
   user: PublicUser | null;
   // FeedCards, relevance above 0, one per event.
   cards: FeedCard[];
-  // Scored events that stay out of this user's feed, explained on request (relevance 0).
-  explains: EventExplain[];
+  // The most recent scored events that stay out of this user's feed (relevance 0), explained,
+  // and how many there are (GET /feed/hidden).
+  hidden: HiddenFeed;
   connected: boolean;
 }
 
@@ -25,7 +26,7 @@ const START: LiveFeed = {
   status: 'signing_in',
   user: null,
   cards: [],
-  explains: [],
+  hidden: { recent: [], total: 0 },
   connected: false,
 };
 
@@ -42,14 +43,13 @@ export function upsertCard(cards: readonly FeedCard[], card: FeedCard): FeedCard
   return [card, ...cards.filter((c) => c.event._id !== card.event._id)];
 }
 
-// Signs in as the persona, loads GET /feed and keeps it live over Socket.IO. When an event is
-// scored and no card for it arrives, it asks explain why, so the event shows as None. The last
-// scored event lives above the screen, so switching persona explains it for the new persona too.
-// A guest is already signed in by the cookie POST /guest set, so it only reads GET /me. A null
-// viewer waits: the app is still finding out whether the cookie is a guest's.
+// Signs in as the persona, loads GET /feed and GET /feed/hidden, and keeps them live over
+// Socket.IO: after each scored event it reads the hidden items again, so an event with no path
+// shows as None (SPEC.md decision log, T23). A guest is already signed in by the cookie POST
+// /guest set, so it only reads GET /me (T24). A null viewer waits: the app is still finding out
+// whether the cookie is a guest's.
 export function useLiveFeed(
   viewer: Viewer | null,
-  lastScoredEventId: string | null,
   onScored: (eventId: string) => void,
 ): LiveFeedControls {
   const { api, connectFeed } = useLiveDeps();
@@ -61,10 +61,8 @@ export function useLiveFeed(
   const cardsRef = useRef<FeedCard[]>([]);
   // Set once the current persona signed in; a card from before a switch is dropped.
   const upsertRef = useRef<(card: FeedCard) => void>(() => undefined);
-  const lastScoredRef = useRef(lastScoredEventId);
   const onScoredRef = useRef(onScored);
   useEffect(() => {
-    lastScoredRef.current = lastScoredEventId;
     onScoredRef.current = onScored;
   });
 
@@ -82,30 +80,22 @@ export function useLiveFeed(
 
     const setCards = (cards: FeedCard[]) => {
       cardsRef.current = cards;
-      const shown = new Set(cards.map((card) => card.event._id));
-      setState((s) => ({
-        ...s,
-        cards,
-        explains: s.explains.filter((explain) => !shown.has(explain.event._id)),
-      }));
+      setState((s) => ({ ...s, cards }));
     };
 
     upsertRef.current = () => undefined;
 
-    const explainHidden = async (eventId: string) => {
-      const carded = () => cardsRef.current.some((card) => card.event._id === eventId);
-      if (carded()) return;
-      try {
-        const explain = await api.explain(eventId);
-        // Above 0 means its card is on the way; only None belongs in the hidden list.
-        if (!active || carded() || explain.relevance > 0) return;
-        setState((s) => ({
-          ...s,
-          explains: [explain, ...s.explains.filter((e) => e.event._id !== eventId)],
-        }));
-      } catch {
-        // Nothing to explain; the feed stays as it is.
-      }
+    // Reads rarely overlap, but only the latest answer is kept.
+    let hiddenReads = 0;
+    const loadHidden = async () => {
+      const read = ++hiddenReads;
+      const hidden = await api.hidden();
+      if (active && read === hiddenReads) setState((s) => ({ ...s, hidden }));
+    };
+    const refreshHidden = () => {
+      loadHidden().catch(() => {
+        // The hidden list stays as it is.
+      });
     };
 
     void (async () => {
@@ -124,19 +114,19 @@ export function useLiveFeed(
           onScored: (eventId) => {
             if (!active) return;
             onScoredRef.current(eventId);
-            void explainHidden(eventId);
+            refreshHidden();
           },
           onConnection: (connected) => {
             if (active) setState((s) => ({ ...s, connected }));
           },
         });
-        const loaded = await api.feed();
+        // A hidden list that fails to load leaves the feed usable, with nothing hidden shown.
+        const [loaded] = await Promise.all([api.feed(), loadHidden().catch(() => undefined)]);
         if (!active) return;
         // Cards pushed while the feed loaded are newer than the ones it returned.
         const pushed = cardsRef.current;
         setCards(pushed.reduceRight(upsertCard, loaded));
         setState((s) => ({ ...s, status: 'ready', user }));
-        if (lastScoredRef.current) await explainHidden(lastScoredRef.current);
       } catch {
         if (active) setState((s) => ({ ...s, status: 'error' }));
       }

@@ -1,7 +1,9 @@
 import {
   PriceReaction,
+  type EventExplain,
   type FeedCard,
   type FeedResearch,
+  type HiddenFeed,
   type PersonaKey,
   type PublicUser,
   type UniverseSymbol,
@@ -28,6 +30,8 @@ const researched = (research: FeedResearch): FeedCard => {
 const HEADLINE =
   'TSMC Suspends Chip Production After Taiwan Rocked By Strongest Tremor In 25 Years';
 
+const NONE_HIDDEN: HiddenFeed = { recent: [], total: 0 };
+
 // A guest portfolio as POST /guest answers it (T24), and its feed: A's demo card, as its own.
 const GUEST_USER: PublicUser = {
   _id: '5b0f5a9e-8c1d-4f2a-9b3e-1a2b3c4d5e09',
@@ -43,7 +47,8 @@ const GUEST_CARDS: FeedCard[] = DEMO_CARDS.A.map((card) => ({
 }));
 
 // A fake api and socket over the fixtures: the signed in persona decides every answer, like the
-// session cookie does on the real api.
+// session cookie does on the real api. hidden is what GET /feed/hidden answers per persona; a
+// test changes it as scoring would. start 'guest' is a browser that holds a guest cookie.
 function fakeLive({
   feeds = DEMO_CARDS,
   start = 'A',
@@ -51,6 +56,7 @@ function fakeLive({
   let signedIn: PersonaKey | 'guest' = start;
   let guest: PublicUser = GUEST_USER;
   const userOf = () => (signedIn === 'guest' ? guest : PUBLIC_USERS[signedIn]);
+  const hidden: Record<PersonaKey, HiddenFeed> = { A: NONE_HIDDEN, B: NONE_HIDDEN, C: NONE_HIDDEN };
   const sockets: { handlers: FeedSocketHandlers; closed: boolean }[] = [];
   const api = {
     signInAs: vi.fn((key: PersonaKey) => {
@@ -68,7 +74,7 @@ function fakeLive({
       return Promise.resolve(guest);
     }),
     feed: vi.fn(() => Promise.resolve(signedIn === 'guest' ? GUEST_CARDS : feeds[signedIn])),
-    explain: vi.fn(() => Promise.resolve(DEMO_EXPLAINS[signedIn === 'guest' ? 'A' : signedIn])),
+    hidden: vi.fn(() => Promise.resolve(signedIn === 'guest' ? NONE_HIDDEN : hidden[signedIn])),
     investigate: vi.fn(() =>
       Promise.resolve(researched({ state: 'running', runId: RUN_ID, reportId: null })),
     ),
@@ -99,7 +105,7 @@ function fakeLive({
   };
   // The open socket of the current session.
   const socket = () => sockets.filter((s) => !s.closed).at(-1)!.handlers;
-  return { api, deps, socket, sockets };
+  return { api, deps, socket, sockets, hidden };
 }
 
 beforeEach(() => {
@@ -206,8 +212,8 @@ describe('feed screen, signed in through the persona switcher', () => {
     expect(within(scores).queryByText(/We utilize foundries/)).toBeNull();
   });
 
-  it('C: an empty feed until the event is scored, then None from explain', async () => {
-    const { api, deps, socket } = fakeLive();
+  it('C: an empty feed until the event is scored, then None from the hidden items', async () => {
+    const { api, deps, socket, hidden } = fakeLive();
     render(<App deps={deps} />);
     await ready();
     pickPersona('Unrelated');
@@ -215,13 +221,15 @@ describe('feed screen, signed in through the persona switcher', () => {
 
     expect(within(regions().feed).getByText('0 events')).toBeTruthy();
     expect(within(regions().feed).queryByText('Hidden for you')).toBeNull();
-    expect(api.explain).not.toHaveBeenCalled();
+    const reads = api.hidden.mock.calls.length;
 
+    hidden.C = { recent: [DEMO_EXPLAINS.C], total: 1 };
     act(() => socket().onScored!(DEMO_EVENT._id));
     await screen.findByText('Hidden for you');
     const { feed, event, scores } = regions();
 
-    expect(api.explain).toHaveBeenCalledWith(DEMO_EVENT._id);
+    expect(api.hidden).toHaveBeenCalledTimes(reads + 1);
+    expect(within(feed).queryByText(/more events? with no path/)).toBeNull();
     expect(within(row(feed)).getByText('None 0.00')).toBeTruthy();
     expect(within(row(feed)).getByText('No path to your holdings')).toBeTruthy();
     expect(within(row(feed)).getByText('Replayed now')).toBeTruthy();
@@ -235,15 +243,48 @@ describe('feed screen, signed in through the persona switcher', () => {
     expect(within(scores).getByText(/nothing to investigate for you/)).toBeTruthy();
   });
 
-  it('explains the last scored event after a switch to C in the same browser', async () => {
-    const { api, deps, socket } = fakeLive();
+  it('shows the last scored event as hidden after a switch to C in the same browser', async () => {
+    const { deps, socket, hidden } = fakeLive();
     render(<App deps={deps} />);
     await ready();
+    hidden.C = { recent: [DEMO_EXPLAINS.C], total: 1 };
     act(() => socket().onScored!(DEMO_EVENT._id));
 
     pickPersona('Unrelated');
     await screen.findByText('Hidden for you');
-    expect(api.explain).toHaveBeenLastCalledWith(DEMO_EVENT._id);
+    expect(within(row(regions().feed)).getByText('Replayed now')).toBeTruthy();
+  });
+
+  it('shows the three most recent hidden events and counts the rest', async () => {
+    const { deps, hidden } = fakeLive();
+    const hiddenItem = (n: number, headline: string): EventExplain => ({
+      ...DEMO_EXPLAINS.C,
+      event: {
+        ...DEMO_EXPLAINS.C.event,
+        _id: `00000000-0000-4000-8000-0000000000c${n}`,
+        headline,
+      },
+    });
+    hidden.C = {
+      recent: [
+        hiddenItem(1, 'Newest hidden'),
+        hiddenItem(2, 'Second hidden'),
+        hiddenItem(3, 'Third hidden'),
+      ],
+      total: 25,
+    };
+    render(<App deps={deps} />);
+    await ready();
+    pickPersona('Unrelated');
+    await screen.findByText('Hidden for you');
+    const { feed } = regions();
+
+    const text = feed.textContent ?? '';
+    const at = ['Newest hidden', 'Second hidden', 'Third hidden'].map((h) => text.indexOf(h));
+    expect(at.every((index) => index >= 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    expect(within(feed).getByText('22 more events with no path to your holdings')).toBeTruthy();
+    expect(within(feed).getByText(/^25 events had no path to KO, JNJ or XOM/)).toBeTruthy();
   });
 
   it('shows a pushed card, and closes the socket of the previous persona on a switch', async () => {
@@ -266,9 +307,10 @@ describe('feed screen, signed in through the persona switcher', () => {
   });
 
   it('keeps the event scores that do not depend on the investor', async () => {
-    const { deps, socket } = fakeLive();
+    const { deps, socket, hidden } = fakeLive();
     render(<App deps={deps} />);
     await ready();
+    hidden.C = { recent: [DEMO_EXPLAINS.C], total: 1 };
     act(() => socket().onScored!(DEMO_EVENT._id));
     for (const label of ['AI investor', 'Semiconductors', 'Unrelated']) {
       pickPersona(label);
@@ -511,9 +553,9 @@ describe('Your portfolio, the guest option of the switcher (T24)', () => {
     }
     expect(within(dialog).getByText('6 of 6 picked')).toBeTruthy();
     const ko = within(dialog).getByRole('button', { name: /^KO/ });
-    expect(ko.disabled).toBe(true);
+    expect(ko).toHaveProperty('disabled', true);
     fireEvent.click(within(dialog).getByRole('button', { name: /^AMD/ }));
-    expect(ko.disabled).toBe(false);
+    expect(ko).toHaveProperty('disabled', false);
   });
 
   it('creates a guest, loads its feed and hides the demo replay', async () => {

@@ -32,7 +32,7 @@ function fakeDeps({
     createGuest: vi.fn(() => Promise.reject(new Error('not used'))),
     changeGuestPortfolio: vi.fn(() => Promise.reject(new Error('not used'))),
     feed: vi.fn(() => Promise.resolve([])),
-    explain: vi.fn(() => Promise.reject(new Error('not used'))),
+    hidden: vi.fn(() => Promise.reject(new Error('not used'))),
     investigate: vi.fn(() => Promise.reject(new Error('not used'))),
     report: vi.fn(() => Promise.reject(new Error('not used'))),
     run: vi.fn((runId: string) => {

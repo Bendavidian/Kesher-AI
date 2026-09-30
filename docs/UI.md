@@ -46,6 +46,11 @@ Define these once in the Tailwind theme. Components never hardcode hex values.
 - 12px gaps between panels. Top bar 56px, ticker footer 34px. Touch targets at least 44px.
 - Percentages always carry a sign and a true minus (+1.25%, −1.16%), in up or down color.
 
+## Brand mark
+- The Route mark: a line from a company, the ring, to the user, the orange dot. apps/web/src/brand/mark.ts holds its geometry in a 64 by 64 viewBox.
+- Colors are tokens: the line supplier, the ring bg with a text stroke, the dot you. The top bar draws the mark at 24px with these as classes.
+- `npm run brand` writes the favicon (the mark on a bg rounded square), favicon.ico, the touch icon and the 1200 by 630 link preview image (the mark, "Kesher AI" in Overpass 800 and one line in text-2) to apps/web/public.
+
 ## Feed screen
 - **Top bar:** logo, tabs (Feed, Agent runs), search, replay status with a pulsing orange dot and the event time in ET, persona switcher. The switcher has a fourth option, Your portfolio (T24), which opens the guest picker; the Replay control is hidden for a guest.
 - **Guest picker (T24):** a dialog over the feed, panel style, titled Your portfolio. The 17 universe companies in four sector groups, each a 44px toggle with the ticker in mono and the short name; the picked ones in the you tint with an orange border. At most 6: once 6 are picked the rest are disabled. A count ("3 of 6 picked"), Cancel (secondary) and Show my feed, or Update my feed for a guest (primary orange). One meta line says the guest portfolio is deleted after 24 hours and Investigate runs once a day for it; an api error shows as one neutral line. The feed header of a guest repeats that line.

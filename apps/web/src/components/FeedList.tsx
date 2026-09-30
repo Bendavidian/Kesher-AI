@@ -52,7 +52,9 @@ export function FeedRow({ entry, selected, onSelect }: RowProps) {
 interface ListProps {
   persona: Persona;
   visible: FeedEntry[];
+  // The most recent hidden items; hiddenTotal counts them all, these included.
   hidden: FeedEntry[];
+  hiddenTotal: number;
   selectedEventId: string | null;
   onSelect: (eventId: string) => void;
   // Shown in place of the lists while signing in, or when the feed could not load.
@@ -64,12 +66,14 @@ export function FeedList({
   persona,
   visible,
   hidden,
+  hiddenTotal,
   selectedEventId,
   onSelect,
   notice = null,
   className = '',
 }: ListProps) {
   const held = persona.holdings.map((holding) => holding.symbol);
+  const hiddenRest = Math.max(0, hiddenTotal - hidden.length);
   const count = `${visible.length} ${visible.length === 1 ? 'event' : 'events'}`;
   const subtitle =
     visible.length > 0
@@ -126,11 +130,11 @@ export function FeedList({
               <div className="flex flex-col gap-1.5 rounded-panel border border-dashed border-border-strong p-4">
                 <p className="text-[15px] font-extrabold">Nothing connects to your holdings yet</p>
                 <p className="text-[13px] leading-normal text-text-2">
-                  {hidden.length > 0 ? (
+                  {hiddenTotal > 0 ? (
                     <>
-                      {hidden.length} {hidden.length === 1 ? 'event' : 'events'} had no path to{' '}
+                      {hiddenTotal} {hiddenTotal === 1 ? 'event' : 'events'} had no path to{' '}
                       {joinList(held, 'or')} within two stops, so Kesher keeps{' '}
-                      {hidden.length === 1 ? 'it' : 'them'} out of your feed.
+                      {hiddenTotal === 1 ? 'it' : 'them'} out of your feed.
                     </>
                   ) : (
                     <>
@@ -155,6 +159,12 @@ export function FeedList({
                     </li>
                   ))}
                 </ol>
+                {hiddenRest > 0 && (
+                  <p className="text-xs text-text-3 tabular-nums">
+                    {hiddenRest} more {hiddenRest === 1 ? 'event' : 'events'} with no path to your
+                    holdings
+                  </p>
+                )}
               </>
             )}
           </div>

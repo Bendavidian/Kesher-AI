@@ -23,7 +23,8 @@
     "start": "node --import tsx src/server.ts",
     "smoke": "tsx src/deploy/smoke-cli.ts",
     "eval:label": "tsx src/eval/label-cli.ts",
-    "eval": "tsx src/eval/eval-cli.ts"
+    "eval": "tsx src/eval/eval-cli.ts",
+    "demo:library": "tsx src/demo/library-cli.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.82",

@@ -157,14 +157,26 @@ const BACKFILL_CONCURRENCY = 8;
 
 // Every stored extracted event for one user, with the same scoring and no model call (SPEC.md
 // decision log, T24): a new guest's feed is full at once, and a guest who changes holdings is
-// rescored in place with its research state kept. Each item takes its event's createdAt, so the
-// feed order matches a persona's. An event whose extraction is gone in between is skipped.
+// rescored in place with its research state kept. Each new item takes the time its event arrived
+// in the personas' feeds (their newest item, else the event's createdAt), so the arrival order
+// (T23) matches a persona's, a replayed card included. An event whose extraction is gone in
+// between is skipped.
 export async function scoreUser(db: Db, user: ScoringUser, now = new Date()): Promise<number> {
   const events = await collection(db, 'market_events')
     .find({ extraction: { $ne: null } })
     .project<{ _id: string; createdAt: Date }>({ _id: 1, createdAt: 1 })
     .sort({ createdAt: -1, _id: 1 })
     .toArray();
+  const arrivals = new Map(
+    (
+      await collection(db, 'feed_items')
+        .aggregate<{ _id: string; arrivedAt: Date }>([
+          { $match: { eventId: { $in: events.map((e) => e._id) }, expiresAt: { $exists: false } } },
+          { $group: { _id: '$eventId', arrivedAt: { $max: '$createdAt' } } },
+        ])
+        .toArray()
+    ).map((row) => [row._id, row.arrivedAt]),
+  );
   let scored = 0;
   for (let start = 0; start < events.length; start += BACKFILL_CONCURRENCY) {
     const batch = events.slice(start, start + BACKFILL_CONCURRENCY);
@@ -177,7 +189,7 @@ export async function scoreUser(db: Db, user: ScoringUser, now = new Date()): Pr
           if (error instanceof EventNotScorableError) return;
           throw error;
         }
-        await upsertItem(db, context, user, now, event.createdAt);
+        await upsertItem(db, context, user, now, arrivals.get(event._id) ?? event.createdAt);
         scored += 1;
       }),
     );
