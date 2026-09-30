@@ -26,6 +26,20 @@
       "runtimeArgs": ["run", "dev", "-w", "@kesher/web"],
       "env": { "WEB_PORT": "5183", "API_PORT": "3011" },
       "port": 5183
+    },
+    {
+      "name": "prod-local",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "tsx", "apps/api/src/server.ts"],
+      "env": {
+        "NODE_ENV": "production",
+        "PORT": "3021",
+        "DEMO_MODE": "true",
+        "LIVE_INGEST": "false",
+        "AUTO_RESEARCH": "false",
+        "LOCAL_EMBEDDINGS": "false"
+      },
+      "port": 3021
     }
   ]
 }
