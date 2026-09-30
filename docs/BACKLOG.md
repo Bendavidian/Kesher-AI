@@ -216,9 +216,10 @@ Done when: a test drops the stream, delivers items only through the REST gap, an
 Found in T13 part 2. Code adds two claims to every report: the evidence quote of each edge on the user's path as a fact, citing that edge's filing Source, and the event's price reaction as a metric with its figures, citing the market_data Source. The model writes the rest: news facts, inferences and open questions. Both code claims still go through the deterministic checks and the verifier, like any other claim. This makes point 5 of the MVP definition of done hold in every run, instead of depending on flash-lite's choices: in T13's seven real runs on Atlas, one report quoted the NVIDIA 10-K about TSMC and others carried the price metric, but none had both.
 Done when: a replayed run whose model writes no fact and no metric still yields a report with the path's 10-K quote as a supported fact and the price reaction as a metric that passed numbers_match, and a real Investigate on the TSMC card shows both.
 
-### [ ] T21 Flaky "with AUTO_RESEARCH off" test
+### [x] T21 Flaky "with AUTO_RESEARCH off" test
 apps/api/src/research/auto.integration.test.ts, the test "with AUTO_RESEARCH off, records auto_research_off for every card and calls no model", passes alone and has failed three times under full suite load (T13 part 2). The last failure found 2 skipped runs for a persona where it expects 1, which suggests a run from an earlier test in the same database, or a gate decision still in flight, reaching this test.
 Done when: the cause is found and fixed, and the full suite passes it 20 times in a row.
+Done in PR 19, merged on 29 Sep 2026 (summary from the PR; its session left the BACKLOG mark to the T16 wrap): the test before it waited only for persona A, so a reset under load let the gate queue a new run for B that leaked into this test; the integration tests now drain research runs and pushes between tests.
 
 ## V2 (not in MVP)
 Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).
