@@ -4,631 +4,721 @@
       "sourceId": "38062166",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "TSM supplier_of NVDA, 0.8"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:50:08.517Z"
     },
     {
       "sourceId": "38062166",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds TSM"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:50:08.517Z"
     },
     {
       "sourceId": "38062166",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:50:08.517Z"
     },
     {
       "sourceId": "43088007",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds NVDA, which the item tags with TSM"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:50:24.955Z"
     },
     {
       "sourceId": "43088007",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds TSM"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:50:24.955Z"
     },
     {
       "sourceId": "43088007",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:50:24.955Z"
     },
     {
       "sourceId": "40152477",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds NVDA and MSFT (both tagged)"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:53:46.244Z"
     },
     {
       "sourceId": "40152477",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "NVDA customer_of TSM (inverse of TSM supplier_of NVDA), 0.8"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:53:46.244Z"
     },
     {
       "sourceId": "40152477",
       "persona": "C",
-      "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:53:46.244Z"
     },
     {
       "sourceId": "39854612",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds MSFT"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:54:30.146Z"
     },
     {
       "sourceId": "39854612",
       "persona": "B",
       "level": "none",
-      "status": "proposed",
-      "reason": "best path MSFT→NVDA→TSM (competitor 0.6 × customer 0.8 × 0.7) is 0.34"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:54:30.146Z"
     },
     {
       "sourceId": "39854612",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:54:30.146Z"
     },
     {
       "sourceId": "48297781",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds AMZN"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:54:52.853Z"
     },
     {
       "sourceId": "48297781",
       "persona": "B",
       "level": "none",
-      "status": "proposed",
-      "reason": "best path AMZN→NVDA→TSM (competitor 0.6 × customer 0.8 × 0.7) is 0.34"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:54:52.853Z"
     },
     {
       "sourceId": "48297781",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:54:52.853Z"
     },
     {
       "sourceId": "38973532",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds NVDA"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:56:35.036Z"
     },
     {
       "sourceId": "38973532",
       "persona": "B",
-      "level": "high",
-      "status": "proposed",
-      "reason": "NVDA customer_of TSM (inverse of TSM supplier_of NVDA), 0.8"
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:56:35.036Z"
     },
     {
       "sourceId": "38973532",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:56:35.036Z"
     },
     {
       "sourceId": "41663854",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds AMZN"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:57:43.660Z"
     },
     {
       "sourceId": "41663854",
       "persona": "B",
-      "level": "none",
-      "status": "proposed",
-      "reason": "best path AMZN→NVDA→TSM (competitor 0.6 × customer 0.8 × 0.7) is 0.34"
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:57:43.660Z"
     },
     {
       "sourceId": "41663854",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:57:43.660Z"
     },
     {
       "sourceId": "42563518",
       "persona": "A",
-      "level": "high",
-      "status": "proposed",
-      "reason": "MU supplier_of NVDA, 0.8"
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:58:02.365Z"
     },
     {
       "sourceId": "42563518",
       "persona": "B",
-      "level": "medium",
-      "status": "proposed",
-      "reason": "MU→NVDA→TSM (supplier 0.8 × customer 0.8 × 0.7) is 0.45"
+      "level": "high",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-29T13:58:02.365Z"
     },
     {
       "sourceId": "42563518",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:58:02.365Z"
     },
     {
       "sourceId": "41336021",
       "persona": "A",
       "level": "medium",
-      "status": "proposed",
-      "reason": "same sector as NVDA, 0.4; without a sector edge ASML→INTC→NVDA is 0.34"
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-29T13:58:30.432Z"
     },
     {
       "sourceId": "41336021",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds ASML"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:58:30.432Z"
     },
     {
       "sourceId": "41336021",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:58:30.432Z"
     },
     {
       "sourceId": "43320124",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds MSFT"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T13:58:49.735Z"
     },
     {
       "sourceId": "43320124",
       "persona": "B",
-      "level": "none",
-      "status": "proposed",
-      "reason": "best path MSFT→NVDA→TSM (competitor 0.6 × customer 0.8 × 0.7) is 0.34"
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:58:49.735Z"
     },
     {
       "sourceId": "43320124",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T13:58:49.735Z"
     },
     {
       "sourceId": "43020311",
       "persona": "A",
-      "level": "high",
-      "status": "proposed",
-      "reason": "TSM supplier_of NVDA, 0.8"
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:01:28.855Z"
     },
     {
       "sourceId": "43020311",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds TSM"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:01:28.855Z"
     },
     {
       "sourceId": "43020311",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T14:01:28.855Z"
     },
     {
       "sourceId": "42472206",
       "persona": "A",
       "level": "medium",
-      "status": "proposed",
-      "reason": "AVGO competitor_of NVDA, 0.6"
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-29T14:02:32.585Z"
     },
     {
       "sourceId": "42472206",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds AVGO"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:02:32.585Z"
     },
     {
       "sourceId": "42472206",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T14:02:32.585Z"
     },
     {
       "sourceId": "40113523",
       "persona": "A",
       "level": "medium",
-      "status": "proposed",
-      "reason": "INTC competitor_of NVDA, MSFT and AMZN, 0.6"
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-29T14:02:48.596Z"
     },
     {
       "sourceId": "40113523",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "INTC customer_of TSM and of ASML, 0.8"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:02:48.596Z"
     },
     {
       "sourceId": "40113523",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T14:02:48.596Z"
     },
     {
       "sourceId": "44828104",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds NVDA"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:03:14.428Z"
     },
     {
       "sourceId": "44828104",
       "persona": "B",
-      "level": "high",
-      "status": "proposed",
-      "reason": "NVDA customer_of TSM (inverse of TSM supplier_of NVDA), 0.8"
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-29T14:03:14.428Z"
     },
     {
       "sourceId": "44828104",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-29T14:03:14.428Z"
     },
     {
       "sourceId": "44837834",
       "persona": "A",
       "level": "medium",
-      "status": "proposed",
-      "reason": "AMD competitor_of NVDA, 0.6"
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:23:05.721Z"
     },
     {
       "sourceId": "44837834",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds AMD"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:23:05.721Z"
     },
     {
       "sourceId": "44837834",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:23:05.721Z"
     },
     {
       "sourceId": "40748050",
       "persona": "A",
       "level": "medium",
-      "status": "proposed",
-      "reason": "same sector as NVDA, 0.4; without a sector edge ASML→INTC→NVDA is 0.34"
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:23:28.889Z"
     },
     {
       "sourceId": "40748050",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds ASML"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:23:28.889Z"
     },
     {
       "sourceId": "40748050",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:23:28.889Z"
     },
     {
       "sourceId": "42276889",
       "persona": "A",
       "level": "medium",
-      "status": "proposed",
-      "reason": "LRCX→TSM→NVDA and LRCX→MU→NVDA (supplier 0.8 × 0.8 × 0.7) are 0.45"
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:23:52.367Z"
     },
     {
       "sourceId": "42276889",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "LRCX supplier_of TSM (inverse of TSM customer_of LRCX), 0.8"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:23:52.367Z"
     },
     {
       "sourceId": "42276889",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:23:52.367Z"
     },
     {
       "sourceId": "40169246",
       "persona": "A",
       "level": "medium",
-      "status": "proposed",
-      "reason": "GOOGL competitor_of NVDA, 0.6"
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:24:09.299Z"
     },
     {
       "sourceId": "40169246",
       "persona": "B",
       "level": "none",
-      "status": "proposed",
-      "reason": "best path GOOGL→NVDA→TSM (competitor 0.6 × customer 0.8 × 0.7) is 0.34"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:24:09.299Z"
     },
     {
       "sourceId": "40169246",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:24:09.299Z"
     },
     {
       "sourceId": "39646124",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds NVDA"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:24:45.583Z"
     },
     {
       "sourceId": "39646124",
       "persona": "B",
-      "level": "high",
-      "status": "proposed",
-      "reason": "NVDA customer_of TSM (inverse of TSM supplier_of NVDA), 0.8"
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:24:45.583Z"
     },
     {
       "sourceId": "39646124",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:24:45.583Z"
     },
     {
       "sourceId": "44859693",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds MSFT"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:24:59.911Z"
     },
     {
       "sourceId": "44859693",
       "persona": "B",
       "level": "none",
-      "status": "proposed",
-      "reason": "best path MSFT→NVDA→TSM (competitor 0.6 × customer 0.8 × 0.7) is 0.34"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:24:59.911Z"
     },
     {
       "sourceId": "44859693",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:24:59.911Z"
     },
     {
       "sourceId": "39245673",
       "persona": "A",
       "level": "medium",
-      "status": "proposed",
-      "reason": "AMD competitor_of NVDA, 0.6"
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:25:19.578Z"
     },
     {
       "sourceId": "39245673",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds AMD"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:25:19.578Z"
     },
     {
       "sourceId": "39245673",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:25:19.578Z"
     },
     {
       "sourceId": "42482634",
       "persona": "A",
       "level": "medium",
-      "status": "proposed",
-      "reason": "AVGO competitor_of NVDA, 0.6"
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:25:30.948Z"
     },
     {
       "sourceId": "42482634",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds AVGO"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:25:30.948Z"
     },
     {
       "sourceId": "42482634",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:25:30.948Z"
     },
     {
       "sourceId": "40436151",
       "persona": "A",
       "level": "medium",
-      "status": "proposed",
-      "reason": "AMD competitor_of NVDA, 0.6"
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:26:47.311Z"
     },
     {
       "sourceId": "40436151",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds AMD"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:26:47.311Z"
     },
     {
       "sourceId": "40436151",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:26:47.311Z"
     },
     {
       "sourceId": "40964871",
       "persona": "A",
       "level": "medium",
-      "status": "proposed",
-      "reason": "QCOM and INTC competitor_of NVDA, 0.6"
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T11:27:01.802Z"
     },
     {
       "sourceId": "40964871",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "QCOM and INTC customer_of TSM, 0.8"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:27:01.802Z"
     },
     {
       "sourceId": "40964871",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:01.802Z"
     },
     {
       "sourceId": "47734379",
       "persona": "A",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds NVDA"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:27:22.635Z"
     },
     {
       "sourceId": "47734379",
       "persona": "B",
       "level": "high",
-      "status": "proposed",
-      "reason": "NVDA and INTC customer_of TSM, 0.8"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:27:22.635Z"
     },
     {
       "sourceId": "47734379",
       "persona": "C",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from a tech company to KO, JNJ or XOM"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:22.635Z"
     },
     {
       "sourceId": "38612606",
       "persona": "A",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from KO, JNJ or XOM to a tech company"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:43.275Z"
     },
     {
       "sourceId": "38612606",
       "persona": "B",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from KO, JNJ or XOM to a tech company"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:43.275Z"
     },
     {
       "sourceId": "38612606",
       "persona": "C",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds XOM"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:27:43.275Z"
     },
     {
       "sourceId": "42940226",
       "persona": "A",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from KO, JNJ or XOM to a tech company"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:55.605Z"
     },
     {
       "sourceId": "42940226",
       "persona": "B",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from KO, JNJ or XOM to a tech company"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:27:55.605Z"
     },
     {
       "sourceId": "42940226",
       "persona": "C",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds JNJ"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:27:55.605Z"
     },
     {
       "sourceId": "43618741",
       "persona": "A",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from KO, JNJ or XOM to a tech company"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:29:51.133Z"
     },
     {
       "sourceId": "43618741",
       "persona": "B",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from KO, JNJ or XOM to a tech company"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:29:51.133Z"
     },
     {
       "sourceId": "43618741",
       "persona": "C",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds KO"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:29:51.133Z"
     },
     {
       "sourceId": "44578823",
       "persona": "A",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from KO, JNJ or XOM to a tech company"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:30:26.355Z"
     },
     {
       "sourceId": "44578823",
       "persona": "B",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from KO, JNJ or XOM to a tech company"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:30:26.355Z"
     },
     {
       "sourceId": "44578823",
       "persona": "C",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds JNJ"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:30:26.355Z"
     },
     {
       "sourceId": "42456879",
       "persona": "A",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from KO, JNJ or XOM to a tech company"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:30:41.847Z"
     },
     {
       "sourceId": "42456879",
       "persona": "B",
       "level": "none",
-      "status": "proposed",
-      "reason": "no path from KO, JNJ or XOM to a tech company"
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T11:30:41.847Z"
     },
     {
       "sourceId": "42456879",
       "persona": "C",
       "level": "high",
-      "status": "proposed",
-      "reason": "holds KO"
+      "status": "reviewed",
+      "proposed": "high",
+      "decidedAt": "2026-09-30T11:30:41.847Z"
     }
   ]
 }
