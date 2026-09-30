@@ -92,7 +92,7 @@ The deployed instance is a Render free web service described by [render.yaml](re
 - The api serves the web build on the same origin, with its routes under `/api`.
 - The free instance has 512 MB, so `LOCAL_EMBEDDINGS=false` keeps the embedding model off. Research then runs without filing search, and the NVIDIA 10-K quote comes from the reviewed graph edge.
 - Secrets are set in the Render dashboard.
-- The Atlas IP access list must allow the host.
+- The public instance has its own free Atlas project and M0 cluster, seeded once with `npm run seed` and `npm run graph:apply`. It shares no data with development ([docs/DEMO.md](docs/DEMO.md), Public database).
 - A free external cron pings `/health` every 10 minutes so the instance does not sleep.
 
 After a deploy, run:
