@@ -2,6 +2,17 @@
 
 A five minute demo from the recorded TSMC event, on the deployed app, with the app running locally as the fallback. T18 part 2 rehearses it after T16 and T20 (docs/BACKLOG.md).
 
+## Shared use
+- **Any visitor can press Replay.** The persona password is public, so anyone who opens the deployed app can sign in and press Replay demo event. Every replay:
+  - resets the demo event: its FeedItems are deleted for every user, research state included, until the replay pushes the card back;
+  - stores the research gate's skipped runs in the Agent runs list.
+  It calls no model once the item is extracted, and it cannot start new research within 24 hours of the last run on that card. After that, the daily budget bounds it. A cooldown of 15 seconds separates replays.
+- **Do not run `npm run smoke` against a shared database while another session is working.** The api always uses the database named `kesher` (apps/api/src/db/client.ts), so today the deployed instance and both development machines share one database. A smoke run:
+  - resets the demo event for every user, so the card disappears from open feeds and comes back as new;
+  - signs in all three personas;
+  - with Investigate, queues a deep research run on the shared daily budget.
+  A session that is replaying, investigating or running `research:dev` at the same time sees cards vanish, gets a 409 or 429, or has its run queued behind the smoke's. Run it only when no one else is working, or with `--no-investigate` to leave the budget alone.
+
 ## The day before
 - [ ] The deployed service runs the latest main, and render.yaml matches its settings: LIVE_INGEST false, DEMO_MODE true, LOCAL_EMBEDDINGS false.
 - [ ] The keep-alive cron pinged /health in the last hour (its log shows 200).
@@ -10,7 +21,7 @@ A five minute demo from the recorded TSMC event, on the deployed app, with the a
 - [ ] Groq and Gemini quotas are not near their daily limits (docs/SPIKE.md).
 - [ ] The feed, report and run screens render on the deployed URL at 1440px and at 1279px.
 - [ ] The demo item is already extracted on Atlas, so a replay calls no model. On a fresh database, the first replay runs the injection screen and the extraction once.
-- [ ] Anyone with the public persona password can press Replay. A replay by someone else moves the card and resets research state, but it cannot start new research within 24 hours of the last run. Check the Agent runs tab for surprises before starting.
+- [ ] Check the Agent runs tab for replays or runs you did not start (see Shared use below).
 - [ ] The local fallback works: `git pull`, `npm install`, `npm run dev`, then sign in as A, Replay, and Investigate on localhost:5173.
 
 ## One hour before
