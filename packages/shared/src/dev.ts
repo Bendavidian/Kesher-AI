@@ -39,3 +39,12 @@ export const ResetResponse = z.strictObject({
   deleted: z.int().min(0),
 });
 export type ResetResponse = z.infer<typeof ResetResponse>;
+
+// POST /demo/replay (demo mode only, SPEC.md decision log T18): the reset, then the replay, of the
+// pinned demo item. reset is null when the item had never been replayed, so there was nothing to
+// reset; the replay then processes it.
+export const DemoReplayResponse = z.strictObject({
+  reset: ResetResponse.nullable(),
+  replay: ReplayResponse,
+});
+export type DemoReplayResponse = z.infer<typeof DemoReplayResponse>;

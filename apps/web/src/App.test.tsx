@@ -15,7 +15,7 @@ afterEach(() => {
 
 describe('App frame', () => {
   it('renders the top bar, three panels in stacking order and the ticker footer', () => {
-    stubFetch(() => Promise.resolve(Response.json({ status: 'ok' })));
+    stubFetch(() => Promise.resolve(Response.json({ status: 'ok', demoMode: false })));
     render(<App />);
 
     expect(within(screen.getByRole('banner')).getByText('Kesher')).toBeTruthy();
@@ -32,7 +32,9 @@ describe('App frame', () => {
   });
 
   it('shows API ok when /api/health returns a valid body', async () => {
-    const fetchMock = stubFetch(() => Promise.resolve(Response.json({ status: 'ok' })));
+    const fetchMock = stubFetch(() =>
+      Promise.resolve(Response.json({ status: 'ok', demoMode: false })),
+    );
     render(<App />);
 
     expect(await screen.findByText('API ok')).toBeTruthy();
@@ -47,7 +49,9 @@ describe('App frame', () => {
   });
 
   it('shows API unreachable on an error status', async () => {
-    stubFetch(() => Promise.resolve(Response.json({ status: 'ok' }, { status: 500 })));
+    stubFetch(() =>
+      Promise.resolve(Response.json({ status: 'ok', demoMode: false }, { status: 500 })),
+    );
     render(<App />);
 
     expect(await screen.findByText('API unreachable')).toBeTruthy();

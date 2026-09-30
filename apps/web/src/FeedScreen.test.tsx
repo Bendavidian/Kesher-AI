@@ -42,11 +42,14 @@ function fakeLive({ feeds = DEMO_CARDS }: { feeds?: Record<PersonaKey, FeedCard[
     runs: vi.fn(() => Promise.resolve([])),
     replayDemo: vi.fn(() =>
       Promise.resolve({
-        outcome: 'processed' as const,
-        sourceId: DEMO_EVENT.sourceIds[0]!,
-        eventId: DEMO_EVENT._id,
-        sourceCreated: false,
-        eventCreated: false,
+        reset: null,
+        replay: {
+          outcome: 'processed' as const,
+          sourceId: DEMO_EVENT.sourceIds[0]!,
+          eventId: DEMO_EVENT._id,
+          sourceCreated: false,
+          eventCreated: false,
+        },
       }),
     ),
   };
@@ -67,7 +70,7 @@ function fakeLive({ feeds = DEMO_CARDS }: { feeds?: Record<PersonaKey, FeedCard[
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn(() => Promise.resolve(Response.json({ status: 'ok' }))),
+    vi.fn(() => Promise.resolve(Response.json({ status: 'ok', demoMode: true }))),
   );
 });
 
@@ -374,14 +377,27 @@ describe('feed screen, signed in through the persona switcher', () => {
     ).toBe(false);
   });
 
-  it('Replay demo event resets and replays through the api', async () => {
+  it('Replay demo event resets and replays through the api in demo mode', async () => {
     const { api, deps } = fakeLive();
     render(<App deps={deps} />);
     await ready();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Replay demo event' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Replay demo event' }));
     expect(api.replayDemo).toHaveBeenCalledOnce();
     await screen.findByRole('button', { name: 'Replay demo event' });
+  });
+
+  it('hides Replay demo event when the api is not in demo mode', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(Response.json({ status: 'ok', demoMode: false }))),
+    );
+    const { deps } = fakeLive();
+    render(<App deps={deps} />);
+    await ready();
+
+    await screen.findByText('API ok');
+    expect(screen.queryByRole('button', { name: 'Replay demo event' })).toBeNull();
   });
 
   it('names the replay error', async () => {
@@ -390,7 +406,7 @@ describe('feed screen, signed in through the persona switcher', () => {
     render(<App deps={deps} />);
     await ready();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Replay demo event' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Replay demo event' }));
     expect((await screen.findByRole('alert')).textContent).toBe('GROQ_API_KEY is not set');
   });
 

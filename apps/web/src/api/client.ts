@@ -1,8 +1,7 @@
 import {
   DEMO_PASSWORD,
   DEMO_PERSONAS,
-  DEMO_SOURCE_ID,
-  ReplayResponse,
+  DemoReplayResponse,
   type EventExplain,
   type FeedCard,
   type PersonaKey,
@@ -38,8 +37,9 @@ export interface KesherApi {
   run(runId: string): Promise<RunDetail>;
   // The signed in user's agent runs, newest first.
   runs(): Promise<RunSummary[]>;
-  // Development only: reset, then replay the demo item, so every open session sees it arrive.
-  replayDemo(): Promise<ReplayResponse>;
+  // Demo mode only: the api resets, then replays the pinned demo item, so every open session
+  // sees it arrive.
+  replayDemo(): Promise<DemoReplayResponse>;
 }
 
 export class ApiError extends Error {
@@ -98,10 +98,6 @@ export const httpApi: KesherApi = {
     return decodeRuns(await request('/runs'));
   },
   async replayDemo() {
-    // A reset before the first replay has nothing to reset; the replay then processes it.
-    await post(`/dev/reset/${DEMO_SOURCE_ID}`).catch((error: unknown) => {
-      if (!(error instanceof ApiError && error.status === 404)) throw error;
-    });
-    return ReplayResponse.parse(await post(`/dev/replay/${DEMO_SOURCE_ID}`));
+    return DemoReplayResponse.parse(await post('/demo/replay'));
   },
 };

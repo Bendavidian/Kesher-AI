@@ -10,6 +10,7 @@ import {
   type RunFailureReason,
   type RunStepPushed,
   type TokenUsage,
+  type ToolName,
   VERIFIER_STEP,
 } from '@kesher/shared';
 import { jsonSchema, tool, type ModelMessage, type ToolResultPart, type ToolSet } from 'ai';
@@ -21,9 +22,9 @@ import type { PriceReactions } from '../market/reactions';
 import { checkDraft, DETERMINISTIC_CHECKS, type CheckedDraft } from './checks';
 import { REPORT_DRAFT_JSON_SCHEMA, ReportDraft } from './draft';
 import { upsertMarketSource } from './marketSource';
-import { openToolbox, type TokenIssued, type Toolbox } from './mcp';
+import { openToolbox, RESEARCH_TOOLS, type TokenIssued, type Toolbox } from './mcp';
 import { capStepOutput } from './output';
-import { buildBrief, quoteToolOutput, REPORT_TOOL, RESEARCH_SYSTEM } from './prompt';
+import { buildBrief, quoteToolOutput, REPORT_TOOL, researchSystem } from './prompt';
 import type { RecordedTurn, RecordedVerifierCall } from './recordings';
 import { collectPassages, storeToolSources, withPassages } from './toolSources';
 import { applyVerdicts, VERIFIER_TOKEN_CAP, verifyClaims, type VerifierCall } from './verifier';
@@ -53,6 +54,9 @@ export interface ResearchDeps {
   onEnd?: (userId: string, ended: RunEnded) => Promise<void> | void;
   // Where a background failure goes, such as a failed push. Redacted by the server.
   logError?: (error: unknown) => void;
+  // The tools a run gets, for its token and its prompt: RESEARCH_TOOLS when unset. The server
+  // leaves out search_filings without the local embedding model (researchTools).
+  tools?: readonly ToolName[];
 }
 
 export interface ResearchRequest {
@@ -396,6 +400,7 @@ export async function runResearch(
       url: deps.mcp.url,
       secret: deps.mcp.secret,
       userId: request.userId,
+      ...(deps.tools ? { tools: deps.tools } : {}),
       now,
       onToken,
     });
@@ -412,6 +417,8 @@ export async function runResearch(
       inputSchema: jsonSchema(REPORT_DRAFT_JSON_SCHEMA as Record<string, unknown>),
     });
     const toolNames = new Set(toolbox.tools.map((t) => t.name));
+    // The prompt names only the tools this run has.
+    const system = researchSystem(deps.tools ?? RESEARCH_TOOLS);
     const toolsText = JSON.stringify([
       ...toolbox.tools,
       { name: REPORT_TOOL, schema: REPORT_DRAFT_JSON_SCHEMA },
@@ -433,7 +440,7 @@ export async function runResearch(
     let draft: ReportDraft | null = null;
 
     for (let turn = 1; draft === null; turn++) {
-      const promptTokens = estimateTokens(RESEARCH_SYSTEM + toolsText + JSON.stringify(messages));
+      const promptTokens = estimateTokens(system + toolsText + JSON.stringify(messages));
       const plan = planTurn({ stepBudget, tokenBudget, toolCallsUsed, tokensUsed, promptTokens });
       if (reportAttempts >= MAX_REPORT_ATTEMPTS) {
         return await finish('failed', 'invalid_report');
@@ -457,7 +464,7 @@ export async function runResearch(
       const result = await models.runStep(
         ref,
         {
-          system: RESEARCH_SYSTEM,
+          system,
           messages,
           tools,
           toolChoice: reportTurn ? { type: 'tool', toolName: REPORT_TOOL } : 'required',

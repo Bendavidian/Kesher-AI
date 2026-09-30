@@ -29,6 +29,6 @@ describe('api', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toMatch(/application\/json/);
-    expect(HealthResponse.parse(await response.json())).toEqual({ status: 'ok' });
+    expect(HealthResponse.parse(await response.json())).toEqual({ status: 'ok', demoMode: false });
   });
 });

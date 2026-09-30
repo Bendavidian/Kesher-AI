@@ -7,6 +7,14 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 // The research agent's tool set (AGENT_TOOLS in packages/shared), all read only.
 export const RESEARCH_TOOLS: readonly ToolName[] = AGENT_TOOLS.research;
 
+// The tools a run gets on this server. Without the local embedding model (LOCAL_EMBEDDINGS off,
+// SPEC.md decision log T18) search_filings cannot embed its query, so it is left out of the token
+// and the prompt: the model never spends a step on a tool that cannot work. search_news stays,
+// with its word list alone.
+export function researchTools({ filingSearch }: { filingSearch: boolean }): ToolName[] {
+  return RESEARCH_TOOLS.filter((name) => filingSearch || name !== 'search_filings');
+}
+
 // A token this old is replaced before the next tool call, so no call runs on one about to expire.
 export const TOKEN_REFRESH_AFTER_MS = (RUN_TOKEN_TTL_SECONDS - 60) * 1000;
 
@@ -43,6 +51,8 @@ export interface ToolboxOptions {
   secret: string;
   // From the auth context (or the dev script), never from a model. It goes into the token only.
   userId: string;
+  // The tools the run token lists, a subset of RESEARCH_TOOLS; all of them when unset.
+  tools?: readonly ToolName[];
   now?: () => number;
   // Each token issued or refreshed is recorded as a run step.
   onToken: (event: TokenIssued) => Promise<void>;
@@ -59,6 +69,7 @@ export async function openToolbox({
   url,
   secret,
   userId,
+  tools: scope = RESEARCH_TOOLS,
   now = Date.now,
   onToken,
 }: ToolboxOptions): Promise<Toolbox> {
@@ -67,7 +78,7 @@ export async function openToolbox({
     const issuedAt = new Date(start);
     const token = await mintRunToken(
       secret,
-      { userId, agent: 'research', tools: [...RESEARCH_TOOLS] },
+      { userId, agent: 'research', tools: [...scope] },
       issuedAt,
     );
     const client = new Client({ name: 'kesher-research', version: '0.1.0' });
@@ -80,7 +91,7 @@ export async function openToolbox({
       await onToken({
         kind,
         agent: 'research',
-        tools: [...RESEARCH_TOOLS],
+        tools: [...scope],
         ttlSeconds: RUN_TOKEN_TTL_SECONDS,
         issuedAt,
         latencyMs: now() - start,

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type { FeedPath } from '@kesher/shared';
+import { AGENT_TOOLS, type FeedPath } from '@kesher/shared';
 import { describe, expect, it } from 'vitest';
-import { buildBrief, quoteToolOutput, RESEARCH_SYSTEM } from './prompt';
+import { researchTools } from './mcp';
+import { buildBrief, quoteToolOutput, RESEARCH_SYSTEM, researchSystem } from './prompt';
 
 const path: FeedPath = {
   eventCompany: 'TSM',
@@ -69,5 +70,36 @@ describe('RESEARCH_SYSTEM', () => {
     expect(RESEARCH_SYSTEM).toMatch(/verbatim/i);
     expect(RESEARCH_SYSTEM).toMatch(/not advice|never recommend/i);
     expect(RESEARCH_SYSTEM).toMatch(/submit_report/);
+  });
+});
+
+describe('researchSystem', () => {
+  it('names search_filings in step 3 when the run has it', () => {
+    expect(researchSystem(AGENT_TOOLS.research)).toBe(RESEARCH_SYSTEM);
+    expect(RESEARCH_SYSTEM).toContain(
+      "which lists each of its edges with the quote from its filing; then search_filings in that holding's 10-K for what it says about the event's company.",
+    );
+  });
+
+  it('leaves search_filings out when the run does not have it, and keeps the edge quotes', () => {
+    const system = researchSystem(researchTools({ filingSearch: false }));
+    expect(system).not.toContain('search_filings');
+    expect(system).toContain(
+      'get_company_relationships for that holding, leaving out types, which lists each of its edges with the quote from its filing.\n',
+    );
+    expect(system).not.toContain('{filingStep}');
+  });
+});
+
+describe('researchTools', () => {
+  it('is every research tool with the local embeddings, in order', () => {
+    expect(researchTools({ filingSearch: true })).toEqual([...AGENT_TOOLS.research]);
+  });
+
+  it('leaves out only search_filings without them', () => {
+    expect(researchTools({ filingSearch: false })).toEqual(
+      AGENT_TOOLS.research.filter((name) => name !== 'search_filings'),
+    );
+    expect(researchTools({ filingSearch: false })).toHaveLength(AGENT_TOOLS.research.length - 1);
   });
 });

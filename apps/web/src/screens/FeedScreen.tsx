@@ -31,6 +31,8 @@ interface Props {
 export function FeedScreen({ personaKey, onPersonaChange, lastScoredEventId, onScored }: Props) {
   const { api } = useLiveDeps();
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
+  // The Replay control shows only where the api has the demo route (DEMO_MODE).
+  const [demoMode, setDemoMode] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [replay, setReplay] = useState<{ busy: boolean; error: string | null }>({
     busy: false,
@@ -46,8 +48,10 @@ export function FeedScreen({ personaKey, onPersonaChange, lastScoredEventId, onS
 
   useEffect(() => {
     let active = true;
-    void fetchHealth().then((status) => {
-      if (active) setApiStatus(status);
+    void fetchHealth().then((health) => {
+      if (!active) return;
+      setApiStatus(health.status);
+      setDemoMode(health.demoMode);
     });
     return () => {
       active = false;
@@ -110,7 +114,7 @@ export function FeedScreen({ personaKey, onPersonaChange, lastScoredEventId, onS
     <div className="flex min-h-screen flex-col xl:h-screen">
       <TopBar current="feed" start={<SearchBox />}>
         {replayed && <ReplayStatus at={replayed.event.publishedAt} />}
-        {import.meta.env.DEV && (
+        {demoMode && (
           <div className="flex items-center gap-2">
             <ReplayButton busy={replay.busy} onReplay={onReplay} />
             {replay.error && (
