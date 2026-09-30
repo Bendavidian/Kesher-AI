@@ -199,6 +199,19 @@ try {
       console.error(`Not recorded: the run ended as ${outcome.status}.`);
       process.exitCode = 1;
     } else {
+      // The path's edges and their filings, as the run's code facts cited them.
+      const item = await collection(db, 'feed_items').findOne({
+        userId: user._id,
+        eventId: event._id,
+      });
+      const hops = item?.path?.hops ?? [];
+      const edges = await collection(db, 'relationships')
+        .find({ _id: { $in: hops.map((hop) => hop.relationshipId) } })
+        .toArray();
+      const pathIds = hops.flatMap((hop) => {
+        const edge = edges.find((e) => e._id === hop.relationshipId);
+        return edge ? [{ relationshipId: edge._id, filingSourceId: edge.evidence.sourceId }] : [];
+      });
       const recording = ResearchRecording.parse({
         externalId: DEMO_SOURCE_ID,
         recordedAt: new Date().toISOString(),
@@ -206,7 +219,7 @@ try {
         mode,
         provider: run.steps.find((s) => s.kind === 'model')?.provider,
         model: run.steps.find((s) => s.kind === 'model')?.model,
-        ids: { eventId: event._id, sourceIds: event.sourceIds },
+        ids: { eventId: event._id, sourceIds: event.sourceIds, path: pathIds },
         turns,
         verifier: verifierCalls,
         reaction: checkedReaction,

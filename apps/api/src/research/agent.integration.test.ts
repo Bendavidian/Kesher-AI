@@ -27,6 +27,7 @@ import type { PriceReactions } from '../market/reactions';
 import { memorySearch } from '../test/search';
 import { runResearch, type ResearchRequest } from './agent';
 import { RESEARCH_TOOLS, TOKEN_REFRESH_AFTER_MS } from './mcp';
+import { PRICE_CAUSE_REASON } from './verifier';
 
 const SECRET = 'research-secret-that-is-long-enough';
 
@@ -930,7 +931,10 @@ describe('runResearch', () => {
     });
 
     // A model that writes no fact and no metric: one inference on the code claims, and a question.
-    const inferenceOnly = (premises: string[]): ModelReply => ({
+    const inferenceOnly = (
+      premises: string[],
+      text = 'NVIDIA may see wafer supply questions while TSMC recovers.',
+    ): ModelReply => ({
       toolCalls: [
         {
           toolName: 'submit_report',
@@ -939,7 +943,7 @@ describe('runResearch', () => {
               {
                 key: 'c1',
                 type: 'inference',
-                text: 'NVIDIA may see wafer supply questions while TSMC recovers.',
+                text,
                 sources: [],
                 premises,
                 figures: [],
@@ -1217,6 +1221,34 @@ describe('runResearch', () => {
           droppedKeys: ['c3'],
         },
       });
+    });
+
+    it('removes a hedged inference that ties the event to the code metric as a cause', async () => {
+      const causal = inferenceOnly(
+        ['e1', 'm1'],
+        'The earthquake could have contributed to the lower open in NVDA.',
+      );
+      const { run } = setup([getEvent, causal], {
+        priceReactions: () => Promise.resolve(reaction),
+        verifier: [
+          JSON.stringify({
+            verdicts: [
+              { claim: 'k1', verdict: 'supported', priceCause: false, reason: 'quoted' },
+              { claim: 'k2', verdict: 'supported', priceCause: false, reason: 'timing only' },
+              { claim: 'k3', verdict: 'supported', priceCause: true, reason: 'hedged cause' },
+            ],
+          }),
+        ],
+      });
+
+      const outcome = await run({ userId: personaA._id });
+
+      const [fact, metric, inference] = await claimsOf(outcome.reportId);
+      expect([fact?.status, metric?.status]).toEqual(['supported', 'supported']);
+      expect(inference?.status).toBe('removed');
+      expect(inference?.checks.filter((c) => !c.passed)).toEqual([
+        { name: 'verifier', passed: false, detail: PRICE_CAUSE_REASON },
+      ]);
     });
 
     it('removes an inference that names a code claim the report does not have', async () => {
