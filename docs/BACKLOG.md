@@ -233,6 +233,11 @@ Found in T20. Every session and machine uses the one Atlas database `kesher` (DB
 Consider taking the database name from an env variable (for example MONGODB_DB, default kesher) so each session can use its own database on the same free cluster. Check first: the M0 limit of 3 search indexes applies per cluster, so a second database needs its own indexes and may not fit. Also decide how seed, graph:apply and graph:chunks fill a new database.
 Done when: two sessions can run the api against different databases, and a reset in one leaves the other untouched.
 
+### [x] T25 Brand mark and link preview
+The Route mark, option 1 on the logo options board, in the browser tab, on a home screen and in shared links. apps/web/src/brand/mark.ts holds its geometry in a 64 by 64 viewBox with token names for colors; `npm run brand` writes favicon.svg (the mark on a bg rounded square), favicon.ico (16, 32 and 48 px), a 180 px apple-touch-icon.png and a 1200 by 630 og.png to apps/web/public, and the output is committed. index.html has the title, a description, the icon links, theme-color and Open Graph and Twitter tags on the public URL. The top bar draws the same geometry in theme tokens.
+Done when: a test shows that index.html links every icon and each file exists, and that the top bar and favicon.svg draw the mark's geometry; the tab shows the mark in the Browser pane.
+Done (1 Oct 2026). Deploys are manual, so a shared link shows the card after the next deploy of the public instance.
+
 ## V2 (not in MVP)
 Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).
 
