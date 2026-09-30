@@ -103,6 +103,16 @@ npm run smoke -- --url https://<service>.onrender.com
 
 It checks health, the web shell, closed development routes, sign in and sockets for all three personas, the demo replay and its live pushes, the three relevance levels, the price reaction, and one Investigate with its run and report. `--no-investigate` leaves out the research run.
 
+## Security
+- **Secrets** live in `.env` locally, which git ignores, and in the host's environment variables when deployed; the host has no `.env` file. [.env.example](.env.example) lists every variable with no values. The code validates them at startup and names missing keys only, never values, and redacts the connection string and other secrets from agent run steps before they are stored.
+- **Sessions** are an httpOnly cookie holding an HS256 JWT signed with `JWT_SECRET`. Every route and socket takes the user from that cookie only; none takes a user id as input.
+- **Run tokens** scope each agent run. The api mints a JWT signed with `MCP_TOKEN_SECRET`, a separate secret, that carries the user, the agent and the tools it may call, and expires after 5 minutes. The MCP server refuses any tool the token does not list.
+  - The research agent gets read only tools: `get_my_portfolio`, `get_event`, `search_news`, `search_filings`, `get_company_relationships`, `get_price_reaction` and `get_financial_facts`.
+  - The verifier and the extraction model get no tools and no token.
+  - Contract: [docs/INTERFACES.md](docs/INTERFACES.md), Run token.
+- **Licensed data stays out of git.** Recordings keep a news item's headline and summary without the article body. Raw SIP bars stay in a gitignored local cache.
+- **Reporting a problem:** please use GitHub's private vulnerability reporting (Security tab, "Report a vulnerability") rather than a public issue.
+
 ## Evaluation
 `npm run eval` replays the eval set through the full pipeline on a local mongod, from recorded model answers, and writes [docs/EVALS.md](docs/EVALS.md) with every table and the tuning proposals. No provider is called, and CI runs the same replay. The numbers as of T16:
 
@@ -113,3 +123,6 @@ It checks health, the web shell, closed development routes, sign in and sockets 
 - **Passing mentions:** on 4 market wraps, today's start node rule agrees on 3 of 12 pairs and tagged only on 4 of 12. EVALS.md proposes a rule for companies an item only mentions.
 - **Graph review:** 22 of 28 relationships proposed from 10-K sentences were accepted.
 - **Cost and latency per event:** a median extraction of 812 tokens (p95 915) in 687 ms (p95 2,242 ms), one injection screen call of 205 ms, and 3 ms of pipeline code. Every call is on a free tier, so $0.
+
+## License
+[MIT](LICENSE)

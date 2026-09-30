@@ -2,7 +2,9 @@ node_modules/
 dist/
 coverage/
 .env
-.env.local
+# Any other env file, such as .env.production; only the template is committed.
+.env.*
+!.env.example
 .claude/settings.local.json
 .claude/worktrees/
 spike/output/

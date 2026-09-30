@@ -9,6 +9,7 @@ A five minute demo from the recorded TSMC event, on the deployed app, with the a
   - resets the demo event: its FeedItems are deleted for every user, research state included, until the replay pushes the card back;
   - stores the research gate's skipped runs in the Agent runs list.
   It calls no model once the item is extracted, and it cannot start new research within 24 hours of the last run on that card. After that, the daily budget bounds it. A cooldown of 15 seconds separates replays.
+- **The feed carries a library of real events.** `npm run demo:library` loaded the 30 real items of the eval set into `kesher` (T23), so A and B see 25 cards each and C sees 5 (KO, JNJ and XOM), with the rest under Hidden for you. The feed is in order of arrival: until someone presses Replay, the demo card is the oldest arrival and sits at the bottom; the replay makes it a new arrival on top. The load ran no research gate and stored no runs. Run it again after a database reset; a run on a loaded database writes nothing.
 - **`npm run smoke` does the same, against the deployed URL or a development server.** It resets the demo event, signs in all three personas and, with Investigate, spends one run of the shared daily budget. Do not run it while someone is presenting or rehearsing, or while another session is working.
 
 ## Database
@@ -46,7 +47,7 @@ These are reused from development, because they identify free provider accounts 
 - [ ] The research budget has room: research_budget in `kesher` shows the UTC day's count well under 30; development runs count too. It resets at 00:00 UTC, which is 03:00 in Israel.
 - [ ] Groq and Gemini quotas are not near their daily limits (docs/SPIKE.md).
 - [ ] The feed, report and run screens render on the deployed URL at 1440px and at 1279px.
-- [ ] The demo feed holds the demo event only: no FeedItems of other events in `kesher` from development replays or live ingestion (Shared use, above).
+- [ ] The feed holds the demo event and the event library only: `npm run demo:library` prints 25, 25 and 5 cards for A, B and C and loads nothing new, and no FeedItems of other events are in `kesher` from development replays or live ingestion (Shared use, above).
 - [ ] Check the Agent runs tab for replays or runs you did not start (Shared use, above).
 - [ ] The local fallback works: `git pull`, `npm install`, `npm run dev`, then sign in as A, Replay, and Investigate on localhost:5173.
 

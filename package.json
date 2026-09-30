@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @kesher/api\" \"npm run dev -w @kesher/web\"",
     "build": "npm run build -w @kesher/web",
+    "brand": "npm run brand -w @kesher/web",
     "start": "npm run start -w @kesher/api",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -36,7 +37,8 @@
     "smoke": "npm run smoke -w @kesher/api --",
     "eval:label": "npm run eval:label -w @kesher/api --",
     "eval:materiality": "npm run eval:materiality -w @kesher/api --",
-    "eval": "npm run eval -w @kesher/api --"
+    "eval": "npm run eval -w @kesher/api --",
+    "demo:library": "npm run demo:library -w @kesher/api"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

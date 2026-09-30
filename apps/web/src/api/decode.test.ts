@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEMO_CARDS, DEMO_EXPLAINS, DEMO_REPORT_DETAIL } from '../fixtures';
-import { decodeExplain, decodeFeed, decodeFeedCard, decodeReport, reviveDates } from './decode';
+import { decodeFeed, decodeFeedCard, decodeHidden, decodeReport, reviveDates } from './decode';
 
 // What JSON.stringify makes of a card on the wire: every Date becomes an ISO string.
 const overTheWire = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
@@ -16,8 +16,9 @@ describe('decoding api responses', () => {
     expect(decodeReport(overTheWire(DEMO_REPORT_DETAIL))).toEqual(DEMO_REPORT_DETAIL);
   });
 
-  it('decodes an explanation', () => {
-    expect(decodeExplain(overTheWire(DEMO_EXPLAINS.C))).toEqual(DEMO_EXPLAINS.C);
+  it('decodes the hidden items with their explanations and count', () => {
+    const hidden = { recent: [DEMO_EXPLAINS.C], total: 25 };
+    expect(decodeHidden(overTheWire(hidden))).toEqual(hidden);
   });
 
   it('leaves plain dates, such as a filing date, as strings', () => {
