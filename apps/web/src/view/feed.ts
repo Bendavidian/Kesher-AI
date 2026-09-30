@@ -3,12 +3,12 @@ import {
   SHORT_NAME,
   type Confidence,
   type FeedResearch,
-  type EventExplain,
   type FeedCard,
   type FeedCardEvent,
   type FeedCardSource,
   type FeedEvidence,
   type FeedPath,
+  type HiddenFeed,
   type Importance,
   type RelevanceBand,
   type Tier,
@@ -68,8 +68,8 @@ export interface EvidenceView {
   url: string;
 }
 
-// What code decided for this investor: from the FeedItem, or from explain for an event that no
-// feed list carries.
+// What code decided for this investor: from the FeedItem, or from the explanation of a hidden
+// item, which no feed list carries.
 export interface Score {
   relevance: number;
   path: FeedPath | null;
@@ -98,16 +98,20 @@ export interface EventView extends FeedEntry {
 }
 
 export interface FeedView {
+  // Newest arrival first (SPEC.md decision log, T23).
   visible: FeedEntry[];
+  // The most recent hidden items, newest arrival first, as GET /feed/hidden sent them.
   hidden: FeedEntry[];
+  // Every hidden item of the user, the ones shown included.
+  hiddenTotal: number;
   selected: EventView | null;
 }
 
 // What the feed screen shows: the user's FeedCards (relevance above 0, from GET /feed and the
-// socket) and the explanations of scored events that stay out of the feed.
+// socket) and the most recent scored events that stay out of the feed (GET /feed/hidden).
 export interface FeedInput {
   cards: readonly FeedCard[];
-  explains: readonly EventExplain[];
+  hidden: HiddenFeed;
   replayedEventId: string | null;
 }
 
@@ -160,12 +164,18 @@ interface Candidate {
 
 export function buildFeedView(
   persona: Persona,
-  { cards, explains, replayedEventId }: FeedInput,
+  { cards, hidden: hiddenFeed, replayedEventId }: FeedInput,
   selectedEventId: string | null,
 ): FeedView {
   const carded = new Set(cards.map((card) => card.event._id));
+  // By arrival, as GET /feed orders them: a replayed card is a new FeedItem, so it lands on top.
+  const arrived = [...cards].sort(
+    (a, b) =>
+      b.item.createdAt.getTime() - a.item.createdAt.getTime() ||
+      (a.item._id < b.item._id ? -1 : a.item._id > b.item._id ? 1 : 0),
+  );
   const candidates: Candidate[] = [
-    ...cards.map((card) => ({
+    ...arrived.map((card) => ({
       key: card.item._id,
       score: card.item,
       event: card.event,
@@ -174,8 +184,8 @@ export function buildFeedView(
       research: card.item.research,
       reaction: card.priceReaction && priceReactionView(card.priceReaction),
     })),
-    // An explanation only fills in an event the feed does not carry.
-    ...explains
+    // A hidden item only fills in an event the feed does not carry.
+    ...hiddenFeed.recent
       .filter((explain) => !carded.has(explain.event._id))
       .map((explain) => ({
         key: explain.event._id,
@@ -189,25 +199,23 @@ export function buildFeedView(
   ];
 
   const byKey = new Map(candidates.map((candidate) => [candidate.key, candidate]));
-  const entries = candidates
-    .flatMap((candidate): FeedEntry[] => {
-      const company = eventCompany(candidate.event, candidate.score.path);
-      if (!company) return [];
-      return [
-        {
-          key: candidate.key,
-          score: {
-            relevance: candidate.score.relevance,
-            path: candidate.score.path,
-            confidence: candidate.score.confidence,
-          },
-          event: candidate.event,
-          path: buildPathView(candidate.score.path, company, persona),
-          replayed: candidate.event._id === replayedEventId,
+  const entries = candidates.flatMap((candidate): FeedEntry[] => {
+    const company = eventCompany(candidate.event, candidate.score.path);
+    if (!company) return [];
+    return [
+      {
+        key: candidate.key,
+        score: {
+          relevance: candidate.score.relevance,
+          path: candidate.score.path,
+          confidence: candidate.score.confidence,
         },
-      ];
-    })
-    .sort((a, b) => b.event.publishedAt.getTime() - a.event.publishedAt.getTime());
+        event: candidate.event,
+        path: buildPathView(candidate.score.path, company, persona),
+        replayed: candidate.event._id === replayedEventId,
+      },
+    ];
+  });
 
   const visible = entries.filter((entry) => entry.score.relevance > 0);
   const hidden = entries.filter((entry) => entry.score.relevance === 0);
@@ -215,12 +223,14 @@ export function buildFeedView(
   const chosen =
     entries.find((entry) => entry.event._id === selectedEventId) ??
     entries.find((entry) => entry.replayed) ??
-    entries[0];
+    visible[0] ??
+    hidden[0];
   const candidate = chosen && byKey.get(chosen.key);
 
   return {
     visible,
     hidden,
+    hiddenTotal: Math.max(hiddenFeed.total, hidden.length),
     selected:
       chosen && candidate
         ? {

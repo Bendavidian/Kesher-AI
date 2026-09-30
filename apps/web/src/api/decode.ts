@@ -1,7 +1,7 @@
 import {
-  EventExplain,
   EventScored,
   FeedCard,
+  HiddenFeed,
   PublicUser,
   ReportDetail,
   RunDetail,
@@ -30,7 +30,7 @@ export function decodeFeed(json: unknown): FeedCard[] {
   if (!Array.isArray(json)) throw new Error('the feed is not a list');
   return json.map(decodeFeedCard);
 }
-export const decodeExplain = (json: unknown): EventExplain => EventExplain.parse(reviveDates(json));
+export const decodeHidden = (json: unknown): HiddenFeed => HiddenFeed.parse(reviveDates(json));
 export const decodeUser = (json: unknown): PublicUser => PublicUser.parse(json);
 export const decodeScored = (json: unknown): EventScored => EventScored.parse(json);
 // A step's input is free form JSON: an ISO string in it stays a string, as the tool received it.

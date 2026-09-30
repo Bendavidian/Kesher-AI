@@ -30,7 +30,7 @@ function fakeDeps({
     signInAs: vi.fn(() => Promise.resolve(PUBLIC_USERS.A)),
     me: vi.fn(() => Promise.resolve(PUBLIC_USERS.A)),
     feed: vi.fn(() => Promise.resolve([])),
-    explain: vi.fn(() => Promise.reject(new Error('not used'))),
+    hidden: vi.fn(() => Promise.reject(new Error('not used'))),
     investigate: vi.fn(() => Promise.reject(new Error('not used'))),
     report: vi.fn(() => Promise.reject(new Error('not used'))),
     run: vi.fn((runId: string) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EventExplain, FeedCard, relevanceBand } from './feed';
+import { EventExplain, FeedCard, HIDDEN_RECENT, HiddenFeed, relevanceBand } from './feed';
 
 describe('relevanceBand', () => {
   it('is none at 0, high only for a direct holding and medium for anything else', () => {
@@ -125,5 +125,62 @@ describe('EventExplain', () => {
     expect(
       EventExplain.safeParse({ ...none, event: { ...none.event, embedding: null } }).success,
     ).toBe(false);
+  });
+});
+
+describe('HiddenFeed', () => {
+  const at = new Date('2026-09-28T12:00:00Z');
+  const id = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
+  const hidden = (n: number) => ({
+    event: {
+      _id: id(n),
+      sourceIds: [id(9)],
+      headline: 'Coca-Cola Q4 Adj. EPS Beats Estimate',
+      publishedAt: at,
+      status: 'confirmed',
+      extraction: null,
+      createdAt: at,
+    },
+    source: {
+      _id: id(9),
+      provider: 'alpaca',
+      kind: 'news',
+      tier: 2,
+      externalId: '43618741',
+      url: 'https://www.benzinga.com/news/25/02/43618741',
+      publisher: 'Benzinga',
+      title: 'Coca-Cola Q4 Adj. EPS Beats Estimate',
+      publishedAt: at,
+      injectionScreen: null,
+    },
+    relevance: 0,
+    path: null,
+    confidence: 'medium',
+    evidence: [],
+  });
+
+  it('carries at most three recent items and the total they come from', () => {
+    expect(HIDDEN_RECENT).toBe(3);
+    const feed = { recent: [hidden(1), hidden(2), hidden(3)], total: 25 };
+    expect(HiddenFeed.parse(feed)).toEqual(feed);
+    expect(HiddenFeed.parse({ recent: [], total: 0 })).toEqual({ recent: [], total: 0 });
+    expect(
+      HiddenFeed.safeParse({ recent: [hidden(1), hidden(2), hidden(3), hidden(4)], total: 25 })
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects a total below the items it carries', () => {
+    expect(HiddenFeed.safeParse({ recent: [hidden(1), hidden(2)], total: 1 }).success).toBe(false);
+    expect(HiddenFeed.safeParse({ recent: [], total: -1 }).success).toBe(false);
+  });
+
+  it('carries only relevance 0 items', () => {
+    const direct = {
+      ...hidden(1),
+      relevance: 1,
+      path: { eventCompany: 'KO', holding: 'KO', hops: [] },
+    };
+    expect(HiddenFeed.safeParse({ recent: [direct], total: 1 }).success).toBe(false);
   });
 });

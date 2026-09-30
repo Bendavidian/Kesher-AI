@@ -36,7 +36,8 @@
     "record:xbrl": "npm run record:xbrl -w @kesher/api --",
     "smoke": "npm run smoke -w @kesher/api --",
     "eval:label": "npm run eval:label -w @kesher/api --",
-    "eval": "npm run eval -w @kesher/api --"
+    "eval": "npm run eval -w @kesher/api --",
+    "demo:library": "npm run demo:library -w @kesher/api"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
