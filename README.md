@@ -104,6 +104,19 @@ npm run smoke -- --url https://<service>.onrender.com
 It checks health, the web shell, closed development routes, sign in and sockets for all three personas, the demo replay and its live pushes, the three relevance levels, the price reaction, and one Investigate with its run and report. `--no-investigate` leaves out the research run.
 
 ## Evaluation
-The eval numbers come in T18 part 2, after T16: label agreement over 20 recorded events × 3 personas, the verifier catch rate on planted errors, injection success with and without the screen, and cost and latency per event.
+`npm run eval` replays 30 recorded news items for all three personas (90 labels) on a local mongod, from recorded model answers, so no provider is called. The full tables are in [docs/EVALS.md](docs/EVALS.md).
 
-Verification is proven so far on a fixture of 17 planted errors: the real verifier and the deterministic checks caught all 17, and every clean claim was supported (T14).
+**Relevance.** The reviewed labels (high, medium or none) are compared with the bands code assigns under the decided rule: high only for a direct holding, medium for any other relevance above 0.
+
+| Persona | Agreement |
+|---|---|
+| A, AI investor | 29 of 30 (97%) |
+| B, semiconductor investor | 19 of 30 (63%) |
+| C, unrelated investor | 30 of 30 (100%) |
+| **All** | **78 of 90 (87%)** |
+
+- Every disagreement sits on a graph path.
+- The graph misses no pair the labels call relevant.
+- Every miss is a hop the band shows as medium where the label says high or none; direct holdings and pairs with no path agree every time.
+
+**Verification.** On a fixture of 17 planted errors, the deterministic checks and the real verifier caught all 17, and every clean claim was supported (T14).
