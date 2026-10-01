@@ -16,7 +16,7 @@ import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import { loadModelRecording, type ModelRecording } from '../llm/recordings';
 import { runSeed } from '../seed/seed';
 import { recordedModels, signIn, startApi, type TestApi } from '../test/api';
-import { mockModel, rateLimitError, resolveMocks } from '../test/models';
+import { mockModel, rateLimitError, resolveMocks, schemaFailureError } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import type { WebSocketLike } from './alpacaStream';
 import { submissionsUrl } from './edgar';
@@ -506,6 +506,106 @@ describe('live ingestion end to end, on mongod', () => {
     await live.stop();
     live = undefined;
   }, 15_000);
+
+  it('a restart hands over no processed filing again and resumes one that failed, once', async () => {
+    const filing = (accession: string, accepted: string) => [accession, accepted] as const;
+    const done = filing('0001045810-26-000086', '2026-09-29T12:10:00.000Z');
+    const failed = filing('0001045810-26-000087', '2026-09-29T12:20:00.000Z');
+    const submissions = {
+      filings: {
+        recent: {
+          accessionNumber: [done[0], failed[0]],
+          form: ['8-K', '8-K'],
+          filingDate: ['2026-09-29', '2026-09-29'],
+          acceptanceDateTime: [done[1], failed[1]],
+          primaryDocument: ['a.htm', 'b.htm'],
+          items: ['8.01', '8.01'],
+        },
+      },
+    };
+    let requests = 0;
+    const fetch: typeof globalThis.fetch = (url) => {
+      requests += 1;
+      const nvidia = url === submissionsUrl('0001045810');
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(
+            nvidia
+              ? submissions
+              : {
+                  filings: {
+                    recent: {
+                      accessionNumber: [],
+                      form: [],
+                      filingDate: [],
+                      acceptanceDateTime: [],
+                      primaryDocument: [],
+                      items: [],
+                    },
+                  },
+                },
+          ),
+        ),
+      );
+    };
+    const extraction = JSON.stringify({
+      companies: [{ symbol: 'NVDA', impact: 'neutral' }],
+      eventType: 'other',
+      importance: 2,
+      themes: [],
+    });
+    // Each process gets its own models; groq answers in call order.
+    const modelsFor = (groqReplies: (string | Error)[]) => {
+      const guard = mockModel(MODELS.screen.model, ['0.001']);
+      const groq = mockModel(MODELS.extraction.model, groqReplies);
+      const gemini = mockModel(MODELS.fallback.model, ['{"themes":3}']);
+      const models = () =>
+        createModelClient({
+          resolve: resolveMocks({
+            [guard.modelId]: guard,
+            [groq.modelId]: groq,
+            [gemini.modelId]: gemini,
+          }),
+        });
+      return { groq, models };
+    };
+    const run = async (groqReplies: (string | Error)[]) => {
+      const { groq, models } = modelsFor(groqReplies);
+      const polled = requests + 17;
+      live = start(models, { edgar: { userAgent: 'Kesher test', fetch, intervalMs: 3_600_000 } });
+      await until(() => requests >= polled, 10_000);
+      await live.idle();
+      await live.stop();
+      live = undefined;
+      return groq.doGenerateCalls.length;
+    };
+    const extracted = async (accession: string) => {
+      const source = await collection(mongo.db, 'sources').findOne({ externalId: accession });
+      const event =
+        source && (await collection(mongo.db, 'market_events').findOne({ sourceIds: source._id }));
+      return Boolean(event?.extraction);
+    };
+
+    // First process: the first filing is extracted, the second fails its schema everywhere.
+    expect(await run([extraction, schemaFailureError()])).toBe(3);
+    expect(await extracted(done[0])).toBe(true);
+    expect(await extracted(failed[0])).toBe(false);
+    expect(await counter('extraction_failed')).toMatchObject({ count: 1 });
+    const duplicates = (await counter('duplicate'))?.count ?? 0;
+
+    // After a restart only the failed filing comes again, and is extracted once.
+    expect(await run([extraction])).toBe(1);
+    expect(await extracted(failed[0])).toBe(true);
+
+    // A third start hands over nothing and counts nothing.
+    expect(await run([])).toBe(0);
+    expect((await counter('duplicate'))?.count ?? 0).toBe(duplicates);
+    expect(
+      await collection(mongo.db, 'recordings').countDocuments({
+        externalId: { $in: [done[0], failed[0]] },
+      }),
+    ).toBe(2);
+  }, 20_000);
 
   it('a new EDGAR filing of a universe company reaches its holder', async () => {
     // A synthetic extraction naming NVIDIA, for a synthetic 8-K.
