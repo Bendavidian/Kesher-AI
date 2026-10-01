@@ -1,9 +1,23 @@
 # State
 
-Updated: 30 Sep 2026, T20 done, merged with main after T16 part 1
+Updated: 1 Oct 2026, T19 done on its branch, PR to main open
 
 ## Where we are
-T00 to T14, T20 and T21 are done; T16 part 1 is done and T16 stays [~] until part 2. T20, the deterministic report core, has merged main after T16 part 1, so point 5 of the MVP definition of done now holds in every report the model completes.
+T00 to T14, T19, T20, T21 and T25 are done. T16 part 1 is done and T16 stays [~] until part 2, which sits on the unpushed local branch claude/t16-kickoff-513afb (it holds T26 and T27 too). T18 part 1 is deployed on Render and T18 stays [~] for part 2. T23 has loaded the event library into `kesher` and stays [~]. T24 is done on its own branch, not yet on main. STATE was not updated by the T18, T23 and T25 sessions; BACKLOG.md and the SPEC.md decision log hold their results.
+
+T19 hardened live ingestion so the public instance can run LIVE_INGEST all day (SPEC.md decision log, T19; docs/DEMO.md, Live ingestion on Render):
+- Decided with the user on 1 Oct 2026: the deployed instance runs live ingestion, set in the Render dashboard, superseding T18's replay only; both development machines keep LIVE_INGEST=false. render.yaml leaves LIVE_INGEST to the dashboard (`sync: false`). The switch itself is the user's, after the merge.
+- Extraction: an answer that fails the schema (Groq's 400 json_validate_failed, recognized by the parsed code, or the SDK's own schema errors) is asked once more on Groq, then on Gemini; at most three calls, pipeline only (generateSingle schemaRetry). A failure after that is counted as extraction_failed with its mode, logged with ids only (ExtractionFailedError keeps no article text), and the item resumes on the next try; replay answers 503 and the demo library stops with that reason.
+- Daily cap: 150 live news extractions a UTC day in the new ingest_budget collection (IngestBudgetDay, the research budget's atomic conditional $inc). Reserved once per item, after the pre filter and the duplicate check and before any write, only when the extraction is still to run; past the cap the item is counted as daily_cap and not stored, its recording kept for a replay. Filings, replay, the demo library and Investigate never reserve.
+- Queue: at most 50 waiting items; a full queue sheds the oldest waiting item (a filing only when no news waits), counted as queue_full.
+- Alpaca stream: no subscription within 30 seconds, or no message for 10 minutes once subscribed, drops the connection without waiting for its close and reconnects; the backoff starts over after a minute subscribed; a connect or close that throws never crashes the process. status() and onSubscribed({ since }).
+- Gap fill: after every subscription, the news history for the universe symbols from a minute before the last message of the previous connection (on a process's first subscription, before the newest Alpaca recording; none means no gap fill, and it says so), at most 60 minutes back; items this process accepted or anyone processed are skipped before the pipeline. fetchAlpacaNewsRange pages up to 20 times with a 10 second timeout, aborted on stop.
+- EDGAR: SecHttpError with the status; a 403 or 429 pauses the whole poller, 10 minutes doubling to an hour; failures log one line per poll. A live test restarts ingestion twice on one database: nothing processed twice, a failed filing resumes once.
+- GET /ingest/status for any signed in user (IngestStatus and LiveStatus in shared): the process's stream, poller and queue or null, the newest recording, the day's extractions and live counters; a recordedAt index on recordings. The web shows it in the ticker footer: one line next to "API ok", a details panel that opens upward (docs/UI.md); checked at 1440px and 1279px with live off and on.
+- describeErrorLine in config/redact.ts logs a repeating failure on one line.
+- Memory, one hour on Render's settings against Atlas, 05:05 to 06:05 ET on the Mac mini while Render's LIVE_INGEST was off: RSS 280 MB at startup, median 146 MB; footprint (resident plus compressed, the figure closer to Linux) at most 168 MB, median 149 MB. The stream stayed subscribed; 7 Benzinga items (the first 62098914) and a Micron 8-K were processed with no manual action, 32 items were outside the universe, one automatic run succeeded. Those items are in `kesher` and show on the public instance.
+- The reviewer ran four times before the api and shared commits and once on the last one. Fixed from its findings: a cap reserved again on each 429 retry, a shed filing that would not come back, the gap fill handing over items still in flight or capped, a race in the cap test (Investigate 409 against the gate's run), the error class keeping article text, the schema code searched in model text, and a committed launch configuration with LIVE_INGEST true, removed. Remaining notes are under T19 in BACKLOG.md.
+- 14 commits on claude/t19-kickoff-782c56, each concern checked on its own in a temporary worktree; 1,143 tests green, 1 skipped.
 
 T20 made the 10-K fact and the price metric code claims in every report (SPEC.md decision log, T20):
 - Before the model's first turn, code reads the price reaction for the path's event company and holding (Market data read) and writes, in a code step Code claims (CODE_CLAIMS_STEP):
@@ -331,35 +345,33 @@ From T01:
 Seed quotes and Source.text use the same normalization, and the T08 and T14 quote checks should compare with normalizeText too.
 
 ## Next
-1. Check that CI passes on Ubuntu and Windows for PR 23 "T20: deterministic report core", then merge it. Keep LIVE_INGEST false on both machines until T18 or T19.
-2. Any database a session on older code writes to needs `npm run seed` again after this merge, or its claims and reports fail the strict schema (origin, omitted). Atlas is repaired as of 30 Sep 2026.
-3. On each machine, once:
+1. Check that CI passes on Ubuntu and Windows for the T19 PR, then merge it. T24 (its own branch) and T16 part 2 (local branch claude/t16-kickoff-513afb, not pushed) are in flight too: whichever merges later merges main first. Expect conflicts in BACKLOG.md (the T19 entry; the T16 branch adds a note there that T19 resolves), the SPEC.md decision log tail, apps/api/src/server.ts and apps/api/src/app.ts (T24).
+2. After the merge, on Render, follow docs/DEMO.md, Live ingestion on Render:
+   - Manual Deploy of main, then `npm run smoke -- --url https://<service>.onrender.com`.
+   - Check that LIVE_INGEST is false in the .env of the Mac mini and of the Windows laptop, and that the keep-alive cron pings /health.
+   - Set LIVE_INGEST=true in the Render dashboard; check the log ("alpaca news stream subscribed", no "connection limit exceeded") and the footer ("Live · connected").
+   - Read memory in Render's Metrics during US market hours (16:30 to 23:00 in Israel): the T19 hour was before the open.
+   - The rollback is in the same section: LIVE_INGEST=false in the dashboard.
+3. Any database a session on older code writes to needs `npm run seed` again after a merge that adds fields, or its documents fail the strict schema. The ingest_budget collection and the recordings index are created at api start.
+4. On each machine, once:
    - `npm run record:bars -- --event 38062166 --symbols TSM,NVDA` fills the gitignored bar cache for the demo card and the local SPIKE.md test.
-   - The api loads the local embedding model at startup (about 90 MB into .cache/models, downloaded once); `npm run embed:events` embeds events stored before. `npm run eval` needs the same cache for its retrieval part.
-4. Pick the next task from BACKLOG.md:
-   - T22, a database per session: in T20 a parallel session's reset of the demo event on the shared Atlas database removed persona A's card mid-proof and wrote documents in the old schema.
-   - T16 part 2 (notes under T16):
-     - the verifier catch rate on the T14 planted fixture;
-     - claims reported by origin, and how often the model restates the code metric (notes from T20);
-     - retrieval on the hybrid search;
-     - injection on research;
-     - the research budgets (32,000 and 16,000), the gate and FLAG_THRESHOLD;
-     - the materiality flag per reviewed edge, set in graph:review (the likely case is AMD supplier_of MSFT);
-     - 3 to 5 items with passing mentions to measure tagged-only start nodes;
-     - the feed order (recency, or band then relevance), a GET /feed contract change;
-     - the README numbers.
-   - T19, live ingestion hardening, before LIVE_INGEST runs all day.
-5. On the Windows laptop:
+   - The api loads the local embedding model at startup (about 90 MB into .cache/models, downloaded once); `npm run embed:events` embeds events stored before, the T19 live items included. `npm run eval` needs the same cache for its retrieval part.
+5. Pick the next task from BACKLOG.md:
+   - T16 part 2, from its local branch: push it, open its PR, and drop its T19 note on merge.
+   - T18 part 2: the eval numbers in the README, the rehearsal, and the live Benzinga item, seen in the T19 hour and next on Render (notes under T18); also the README line on a separate public database (a task chip was offered).
+   - T22, a database per session: every session and machine shares `kesher`, and Render's live items now land there all day.
+   - The T19 notes: one line instead of a stack for search_news without an embedder, batching the gap fill's checks, the retry that runs next to a newer version.
+6. On the Windows laptop:
    - Pull and run npm install. Check that Node is at least 22.12 (.nvmrc says 26).
    - Start both servers from .claude/launch.json; it may need npm.cmd instead of npm.
    - The first npm run test downloads mongod 8.0.32, about 100 MB. The eval integration test starts mongod twice more.
    - That machine's .env needs GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY for replay, Investigate and research:dev, and MCP_TOKEN_SECRET and JWT_SECRET of at least 32 characters each, or the api does not start. It needs SEC_USER_AGENT for get_financial_facts.
    - Check that git keeps the committed JSON with LF line endings, so the Prettier check in npm run lint passes there too.
    - Run `npm run seed` once if that machine uses its own database, so older documents are backfilled; its search indexes need Atlas.
-   - Both machines share one daily research budget on Atlas (30 runs, automatic runs stop at 20). Set AUTO_RESEARCH=false in a machine's .env if it should not start automatic runs.
-   - Keep LIVE_INGEST=false there: the free Alpaca plan allows one live WebSocket.
+   - Both machines share one daily research budget on Atlas (30 runs, automatic runs stop at 20), and with live ingestion on, Render's automatic runs count there too. Set AUTO_RESEARCH=false in a machine's .env if it should not start automatic runs.
+   - Keep LIVE_INGEST=false there, always: Render holds the one live WebSocket the free Alpaca plan allows.
 
-Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. LIVE_INGEST is false on both machines except while proving T10; with it true the api also needs the Alpaca keys and SEC_USER_AGENT. AUTO_RESEARCH is optional (on when unset).
+Keys set in .env: SEC_USER_AGENT, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FINNHUB_API_KEY, MONGODB_URI, JWT_SECRET, MCP_TOKEN_SECRET, GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY. LIVE_INGEST is false on both machines; after the T19 merge it is on only on Render, set in its dashboard. With it true the api also needs the Alpaca keys and SEC_USER_AGENT. AUTO_RESEARCH is optional (on when unset).
 
 ## Open decisions
 From T16 part 1, each needing its own decision log entry: keep the edge weights; no theme overlap in relevance; the feed order; a materiality flag per edge; tagged-only start nodes. FLAG_THRESHOLD stays 0.5 for now.
@@ -368,6 +380,7 @@ The UI language is settled by docs/UI.md: English interface, with Hebrew summari
 
 ## Session log
 Newest first. One line per session: date, machine, task, result.
+- 1 Oct 2026, macOS (Mac mini), T19: live ingestion hardened for all day use on the public instance, with the user's added scope; extraction schema failures retried on Groq, then Gemini, and counted; a daily cap of 150 live news extractions (filings exempt) and a queue bound of 50, each counted; stream handshake and idle timers; a gap fill from the news history after every subscription, at most 60 minutes back; the EDGAR poller paused on 403 or 429 and a restart that processes nothing twice; GET /ingest/status and a footer line; docs/DEMO.md steps and rollback for LIVE_INGEST on Render, render.yaml leaving it to the dashboard; one hour on Render's settings measured 280 MB RSS at startup and a 149 MB median footprint, with 7 live Benzinga items and a Micron 8-K processed; the reviewer's majors fixed; 14 commits, 1,143 tests green, 1 skipped; T19 done, PR open.
 - 30 Sep 2026, macOS (Mac mini), T20: code writes the path's 10-K fact (e1, e2) and the price metric (m1) in every report from shared templates, before the model's first turn, listed in the brief; Claim.origin and Report.omitted with a seed backfill and a neutral report line per omission; FACT_VERB so customer_of passes no_advice; one reaction read for the path, missing symbols merged or left unverified; draft premises relaxed after a real run lost its report to source ids in premises, with unknownPremise counts in the run; three real Investigate runs in a row with both code claims supported, a fourth recorded and replayed; Atlas repaired after a parallel session's reset; T22 added and a T16 note; reviewer's blocker and majors fixed; merged main after T16 part 1; 1,003 tests green, 1 skipped; T20 done.
 - 30 Sep 2026, macOS (Mac mini), T16 part 1: T16 split in two; eval set of 30 recorded Alpaca items with 90 labels reviewed by the user (labeling CLI that hides the proposal; two rushed labelings reset), 5 synthetic poisoned items and 11 judged retrieval queries; npm run eval replays everything in a fresh kesher_eval on a local mongod from recordings and writes docs/EVALS.md, CI runs the same; recorders keep latency, record refusals and write formatted JSON; results under the decided bands: relevance 78 of 90, injection 2 of 5 (1 of 5 with the screen), screen 2 of 5 flagged and 0 false flags, tagged-only start nodes equal on clean items, retrieval precision at 3 70% and recall 46%; display bands decided and applied (high only for a direct holding, medium above 0); part 2 notes on materiality, passing mentions and feed order; T21 marked done from PR 19; reviewer ran on every api, shared and merge commit; merged main after T13 part 2, T14 and T21; 968 tests green; PR 21 open; T16 stays [~].
 - 29 Sep 2026, macOS (Mac mini), T13 part 2: agent tool sets with the verifier empty; get_my_portfolio, get_company_relationships, search_filings, get_financial_facts from recorded SEC XBRL, hybrid search_news with the sources_text index and rank fusion; event embeddings at extraction with a backfill; 8 KB tool output cap; filing quotes checked against the text tools returned; budgets 32,000 and 16,000; sample_mflix dropped on Atlas to free the third search index; seven real runs proved the 10-K fact and the price metric in separate reports (T20 makes them code claims); merged main after T10 and T14 with T14's market_data writer kept; T20 and T21 added; 902 tests green, 1 skipped; T13 done.
