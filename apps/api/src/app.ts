@@ -1,5 +1,5 @@
 import type { CompanyConceptSource, SearchBackend } from '@kesher/mcp';
-import { HealthResponse, type ToolName } from '@kesher/shared';
+import { HealthResponse, type LiveStatus, type ToolName } from '@kesher/shared';
 import express, { type ErrorRequestHandler, type Express } from 'express';
 import type { Db } from 'mongodb';
 import type { LazyEmbedder } from './embed/event';
@@ -14,6 +14,7 @@ import { demoRouter, type DemoOptions } from './routes/demo';
 import { devRouter } from './routes/dev';
 import { feedRouter } from './routes/feed';
 import { guestRouter, type GuestOptions } from './routes/guest';
+import { ingestRouter } from './routes/ingest';
 import { mcpRouter } from './routes/mcp';
 import { researchRouter } from './routes/research';
 import { atlasSearch } from './search/atlas';
@@ -31,8 +32,8 @@ export interface AppDeps {
   web?: string;
   // Mounts POST /mcp when set. The secret verifies run tokens (MCP_TOKEN_SECRET).
   mcp?: { secret: string };
-  // Mounts sign in, GET /me, GET /feed, explain and the guest routes when set. The secret is
-  // JWT_SECRET.
+  // Mounts sign in, GET /me, GET /feed, explain, the guest routes and GET /ingest/status when
+  // set. The secret is JWT_SECRET.
   auth?: AuthOptions;
   // The clock and limits of the guest routes (SPEC.md decision log, T24). For tests.
   guest?: GuestOptions;
@@ -76,6 +77,9 @@ export interface AppDeps {
   // SEC XBRL values for get_financial_facts (sec/xbrl.ts). Without it the tool answers that SEC
   // data is unavailable.
   companyConcept?: CompanyConceptSource;
+  // The live ingester's own status for GET /ingest/status, null while it is not running. The
+  // server starts it after listening, so this is read on each request.
+  liveStatus?: () => LiveStatus | null;
 }
 
 // The Express app, and what runs after each scoring run: the Socket.IO pushes, then the research
@@ -118,6 +122,7 @@ export function createApi({
   priceReactions,
   search,
   companyConcept,
+  liveStatus,
 }: AppDeps): Api {
   const app = express();
   app.disable('x-powered-by');
@@ -151,6 +156,7 @@ export function createApi({
     // Every card the api sends carries the same price reaction.
     const market = priceReactions && { priceReaction: priceReactions, logError };
     app.use(feedRouter(db, auth.secret, market));
+    app.use(ingestRouter(db, auth.secret, liveStatus));
     if (mcp && research) {
       const deps: InvestigateDeps = {
         db,

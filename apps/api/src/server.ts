@@ -109,6 +109,7 @@ const { app, afterScoring } = createApi({
   onRunEnd: (userId, ended) => realtime.publishRunEnd(userId, ended),
   priceReactions,
   companyConcept,
+  liveStatus: () => liveIngest?.status() ?? null,
 });
 const server = createServer(app);
 const realtime = createRealtime(server, {

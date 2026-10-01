@@ -1,5 +1,6 @@
 import { EdgarFiling, FilingItemCode, type Company } from '@kesher/shared';
 import { z } from 'zod';
+import { SecHttpError } from '../sec/fetch';
 import type { IncomingItem } from './item';
 
 // The forms the live poller ingests: current reports and periodic reports, the same forms
@@ -52,7 +53,7 @@ export async function fetchRecentFilings(
     headers: { 'User-Agent': userAgent, Accept: 'application/json' },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
-  if (!response.ok) throw new Error(`EDGAR submissions for CIK ${cik} answered ${response.status}`);
+  if (!response.ok) throw new SecHttpError(response.status, submissionsUrl(cik));
   const { recent } = Submissions.parse(await response.json()).filings;
   const filings: EdgarFiling[] = [];
   recent.accessionNumber.forEach((accessionNumber, i) => {

@@ -66,7 +66,7 @@ Define these once in the Tailwind theme. Components never hardcode hex values.
 - **Scores panel:** relevance (by code, orange value), importance (by the model, amber), confidence (by code, teal), and one line on which scores change per investor.
 - **Evidence:** the verbatim quote, the filing, a tier chip and a reviewed mark.
 - **Actions:** Investigate this event (primary orange) and View agent run (secondary).
-- **Ticker footer:** the replayed session's closing moves, and the data delay.
+- **Ticker footer:** the replayed session's closing moves, the api status, and the data delay. Next to the api status, one line in text-3 on live ingestion (GET /ingest/status, read at sign in and every minute): "Live ingest off" with the last live item in ET where the api does not ingest, or "Live", the stream state (connected, connecting, reconnecting, stream stopped), the last item in ET, the queue length and today's extractions of the cap. The line is the summary of a details element, a 44px target that overlaps the 34px footer's edges; it opens upward a panel, "Live ingestion today", with the extractions, the queue, the EDGAR poller and each of today's counters by name, values in code color, since code counted them.
 
 ## Connection path
 The signature component.

@@ -1,4 +1,4 @@
-import { UniverseSymbol } from '@kesher/shared';
+import { UniverseSymbol, type IngestStatus } from '@kesher/shared';
 import { useEffect, useState } from 'react';
 import { fetchHealth, type ApiStatus } from '../api/health';
 import { EventDetail } from '../components/EventDetail';
@@ -15,6 +15,9 @@ import { labelsFor, personaFrom, SWITCHER_LABELS } from '../view/personas';
 import type { Viewer, ViewerKey } from '../view/types';
 
 const IDLE: InvestigateRequest = { busy: false, error: null };
+
+// How often the ticker footer reads the live ingestion status.
+export const INGEST_STATUS_MS = 60_000;
 
 interface InvestigateState extends InvestigateRequest {
   viewerId: string;
@@ -77,6 +80,8 @@ export function FeedScreen({ viewer, onViewerChange, lastScoredEventId, onScored
   });
   const live = useLiveFeed(viewer, onScored);
   const guest = viewerKey === 'guest';
+  const [ingest, setIngest] = useState<IngestStatus | null>(null);
+  const signedIn = live.status === 'ready';
 
   useEffect(() => {
     let active = true;
@@ -89,6 +94,26 @@ export function FeedScreen({ viewer, onViewerChange, lastScoredEventId, onScored
       active = false;
     };
   }, []);
+
+  // Once signed in, and again every minute. A failed read keeps the footer as it was.
+  useEffect(() => {
+    if (!signedIn) return;
+    let active = true;
+    const read = () => {
+      api.ingestStatus().then(
+        (status) => {
+          if (active) setIngest(status);
+        },
+        () => undefined,
+      );
+    };
+    read();
+    const timer = setInterval(read, INGEST_STATUS_MS);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [api, signedIn]);
 
   const onReplay = () => {
     setReplay({ busy: true, error: null });
@@ -222,7 +247,7 @@ export function FeedScreen({ viewer, onViewerChange, lastScoredEventId, onScored
           className="xl:w-[340px] xl:shrink-0"
         />
       </main>
-      <TickerFooter reaction={selected?.reaction ?? null} apiStatus={apiStatus} />
+      <TickerFooter reaction={selected?.reaction ?? null} apiStatus={apiStatus} ingest={ingest} />
       {picker.open && (
         <GuestPicker
           initial={

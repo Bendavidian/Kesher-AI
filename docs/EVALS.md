@@ -59,7 +59,7 @@ Agreement 30 of 30 (100%).
 | 40152477 | Nvidia Upcoming Chip Launch Faces Delay Due To Design Flaws  | B       | high  | 0.8       | medium | MSFT customer_of AMD                      |
 | 39854612 | Windows PCs Crash Worldwide With Users Experiencing Blue Scr | B       | none  | 0.8       | medium | MSFT customer_of AMD                      |
 | 48297781 | 'Major AWS Outage Takes Down Fortnite, Alexa, Snapchat, And  | B       | none  | 0.336     | medium | AMZN competitor_of INTC customer_of ASML  |
-| 42563518 | Micron Sees Q2 Revenue $7.7B-$8.1B vs $9.00B Est; Adj. EPS $ | B       | high  | 0.448     | medium | MU customer_of LRCX supplier_of TSM       |
+| 42563518 | Micron Sees Q2 Revenue $7.7B-$8.1B vs $9.00B Est; Adj. EPS $ | B       | high  | 0.448     | medium | MU supplier_of NVDA customer_of TSM       |
 | 40113523 | Intel Q2 Adj $0.02 Misses $0.10 Estimate, Sales $12.83B Miss | B       | high  | 0.8       | medium | INTC customer_of ASML                     |
 | 44828104 | The U.S. Government Informed Nvidia That The USG Requires A  | B       | none  | 0.8       | medium | NVDA customer_of TSM                      |
 | 42276889 | Lam Research Corporation Comments On Newly Announced Export  | B       | high  | 0.8       | medium | LRCX supplier_of TSM                      |
@@ -226,7 +226,7 @@ Real items only. Tokens and model latency come from the recordings (latency with
 | Screen calls             | 30  | 1      | 1     | 30     |
 | Screen latency, ms       | 29  | 205    | 233   | 6,017  |
 | Extraction latency, ms   | 29  | 687    | 2,242 | 26,084 |
-| Pipeline code, ms        | 30  | 3      | 6     | 129    |
+| Pipeline code, ms        | 30  | 3      | 6     | 122    |
 
 ## Edge extractor (T11)
 
@@ -279,7 +279,7 @@ Written on 1 Oct 2026, from the run above: the 90 labels of part 1, 12 labels on
 
 #### Proposals
 
-Decided on 1 Oct 2026: proposal 1 became T27 (BACKLOG.md) and is applied (SPEC.md decision log, T27), proposals 2, 3 and 4 are in the SPEC.md decision log (T16), and proposal 5 stays a note under T19.
+Decided on 1 Oct 2026: proposal 1 became T27 (BACKLOG.md) and is applied (SPEC.md decision log, T27), proposals 2, 3 and 4 are in the SPEC.md decision log (T16), and proposal 5 stays a note under T19, resolved in T19 (an extraction that fails the schema is asked once more on Groq, then on Gemini).
 
 1. The mention rule, in place of tagged only: start the graph from every tagged universe company, as tagged only does, but read a holding as high only when the extraction also names it; a holding the item only mentions reads medium.
    - On the wraps it agrees on 9 of 12, against 3 today and 4 under tagged only: the 6 missing cards appear as medium and the two pairs labeled none stay none. The 3 misses left are the named holdings above.

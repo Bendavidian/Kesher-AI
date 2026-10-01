@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { COLLECTION_NAMES, collection } from '../db/collections';
 import { loadEvents, type EvalEvent } from '../eval/dataset';
 import { replayModels, seedEvalDb } from '../eval/runner';
-import { createModelClient, resolveFromKeys } from '../llm/client';
+import { createModelClient, MODELS, resolveFromKeys } from '../llm/client';
 import { loadModelRecording } from '../llm/recordings';
+import { mockModel, resolveMocks, schemaFailureError } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import {
   libraryEvents,
@@ -164,5 +165,39 @@ describe('an interrupted library load on mongod', () => {
       skipped: [events[0]!.id, events[1]!.id],
       stopped: null,
     });
+  }, 60_000);
+
+  it('stops at an item whose extraction fails its schema on every provider, and counts it', async () => {
+    const events = libraryOrder(await loadEvents()).slice(4, 6);
+    const recorded = await recordedDeps(events);
+    const recording = (await loadModelRecording(events[0]!.id))!;
+    const unusable = () => {
+      const guard = mockModel(MODELS.screen.model, recording.screen.chunks);
+      const groq = mockModel(MODELS.extraction.model, [schemaFailureError()]);
+      const gemini = mockModel(MODELS.fallback.model, ['{"themes":3}']);
+      return createModelClient({
+        resolve: resolveMocks({
+          [guard.modelId]: guard,
+          [groq.modelId]: groq,
+          [gemini.modelId]: gemini,
+        }),
+      });
+    };
+
+    const first = await loadLibrary(mongo.db, events, {
+      ...recorded,
+      modelsFor: (id) => (id === events[0]!.id ? unusable : recorded.modelsFor(id)),
+    });
+
+    expect(first).toEqual({
+      loaded: [],
+      skipped: [],
+      stopped: { id: events[0]!.id, reason: 'extraction_failed' },
+    });
+    expect(
+      await collection(mongo.db, 'ingest_counters').findOne({ reason: 'extraction_failed' }),
+    ).toMatchObject({ mode: 'replay', count: 1 });
+    const second = await loadLibrary(mongo.db, events, recorded);
+    expect(second.loaded).toEqual([events[0]!.id, events[1]!.id]);
   }, 60_000);
 });

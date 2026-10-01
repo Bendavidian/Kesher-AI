@@ -6,7 +6,9 @@ import {
   ReplayResponse,
   SOCKET_EVENTS,
   type AlpacaNewsItem,
+  type DropReason,
 } from '@kesher/shared';
+import { randomUUID } from 'node:crypto';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { collection } from '../db/collections';
@@ -14,10 +16,11 @@ import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import { loadModelRecording, type ModelRecording } from '../llm/recordings';
 import { runSeed } from '../seed/seed';
 import { recordedModels, signIn, startApi, type TestApi } from '../test/api';
-import { mockModel, resolveMocks } from '../test/models';
+import { mockModel, rateLimitError, resolveMocks, schemaFailureError } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import type { WebSocketLike } from './alpacaStream';
 import { submissionsUrl } from './edgar';
+import { LIVE_EXTRACTION_DAILY_LIMIT } from './extractionBudget';
 import { startLiveIngest, type LiveIngest } from './live';
 import { loadRecording } from './recordings';
 
@@ -63,7 +66,7 @@ describe('live ingestion end to end, on mongod', () => {
 
   const start = (
     models: () => ModelClient,
-    sources: Pick<Parameters<typeof startLiveIngest>[0], 'alpaca' | 'edgar'>,
+    sources: Pick<Parameters<typeof startLiveIngest>[0], 'alpaca' | 'edgar' | 'queue'>,
   ) =>
     startLiveIngest({
       db: mongo.db,
@@ -102,8 +105,10 @@ describe('live ingestion end to end, on mongod', () => {
   });
 
   // The runs the gate starts fail in the background; none may still be going in the next test.
+  // A test that spends the day's extractions gives them back.
   afterEach(async () => {
     await api.idle();
+    await collection(mongo.db, 'ingest_budget').deleteMany({});
   });
 
   afterAll(async () => {
@@ -205,6 +210,403 @@ describe('live ingestion end to end, on mongod', () => {
     live = undefined;
   });
 
+  // The recorded answers, from one client whose extraction calls are counted. hold makes the
+  // first extraction wait until released, to fill the queue behind it.
+  const counted = (hold?: Promise<void>) => {
+    const guard = mockModel(MODELS.screen.model, recorded.screen.chunks);
+    const groq = mockModel(
+      MODELS.extraction.model,
+      [recorded.extraction.text],
+      undefined,
+      (call) => (call === 0 ? hold : undefined),
+    );
+    const client = createModelClient({
+      resolve: resolveMocks({ [guard.modelId]: guard, [groq.modelId]: groq }),
+    });
+    return { groq, models: () => client };
+  };
+  const counter = (reason: DropReason) =>
+    collection(mongo.db, 'ingest_counters').findOne({ mode: 'live', reason });
+
+  it('the daily cap stops live news extraction without touching replay, Investigate or filings', async () => {
+    // Every extraction of the day is taken, by this process or another machine.
+    await collection(mongo.db, 'ingest_budget').updateOne(
+      { day: now.toISOString().slice(0, 10) },
+      {
+        $set: { extractions: LIVE_EXTRACTION_DAILY_LIMIT, updatedAt: now },
+        $setOnInsert: { _id: randomUUID() },
+      },
+      { upsert: true },
+    );
+    const { groq, models } = counted();
+    live = start(models, {});
+    const id = LIVE_ID + 20;
+
+    await live.handleNews({ ...demo, id });
+    await live.idle();
+
+    // Counted and recorded, never stored or extracted.
+    expect(await counter('daily_cap')).toMatchObject({ count: 1 });
+    expect(groq.doGenerateCalls).toHaveLength(0);
+    expect(await collection(mongo.db, 'sources').countDocuments({ externalId: String(id) })).toBe(
+      0,
+    );
+    expect(
+      await collection(mongo.db, 'recordings').countDocuments({ externalId: String(id) }),
+    ).toBe(1);
+    expect(logs).toContain(`live alpaca ${id} is past today's extraction cap`);
+
+    // Replay of the same item extracts it: the cap is live only.
+    const replay = await fetch(`${api.url}/dev/replay/${id}`, { method: 'POST' });
+    expect(replay.status).toBe(200);
+    const replayed = ReplayResponse.parse(await replay.json());
+    expect(replayed).toMatchObject({ outcome: 'processed', sourceCreated: true });
+    if (replayed.outcome !== 'processed') throw new Error('not processed');
+
+    // Investigate on its card is untouched: the research budget is its own. The gate queued an
+    // automatic run for the replayed card first; once it has ended, Investigate may start one.
+    await api.idle();
+    const cookie = await signIn(api.url, 'A');
+    const investigate = await fetch(`${api.url}/events/${replayed.eventId}/investigate`, {
+      method: 'POST',
+      headers: { cookie },
+    });
+    expect(investigate.status).toBe(202);
+
+    // A filing never waits on the cap.
+    await live.handleFiling(
+      {
+        cik: '0001045810',
+        accessionNumber: '0001045810-26-000091',
+        form: '8-K',
+        filingDate: '2026-09-29',
+        acceptanceDateTime: '2026-09-29T12:03:56.000Z',
+        primaryDocument: 'nvda-8k.htm',
+        items: '8.01',
+      },
+      { symbol: 'NVDA', cik: '0001045810', name: 'NVIDIA Corp' },
+    );
+    await live.idle();
+    const filing = await collection(mongo.db, 'sources').findOne({
+      externalId: '0001045810-26-000091',
+    });
+    const filingEvent = await collection(mongo.db, 'market_events').findOne({
+      sourceIds: filing!._id,
+    });
+    expect(filingEvent?.extraction).not.toBeNull();
+    expect(await counter('daily_cap')).toMatchObject({ count: 1 });
+
+    await live.stop();
+    live = undefined;
+  }, 15_000);
+
+  it('a live item retried after a 429 takes one extraction of the day, not one per try', async () => {
+    const guard = mockModel(MODELS.screen.model, recorded.screen.chunks);
+    const groq = mockModel(MODELS.extraction.model, [rateLimitError(), recorded.extraction.text]);
+    const gemini = mockModel(MODELS.fallback.model, [rateLimitError()]);
+    // A client per call, as each has its own limiter: a shared one would block the retry for the
+    // 60 seconds a 429 without retry-after holds a model.
+    const models = () =>
+      createModelClient({
+        resolve: resolveMocks({
+          [guard.modelId]: guard,
+          [groq.modelId]: groq,
+          [gemini.modelId]: gemini,
+        }),
+      });
+    live = start(models, { queue: { retryDelayMs: 10 } });
+    const id = LIVE_ID + 25;
+
+    await live.handleNews({ ...demo, id });
+    await until(async () => {
+      await live!.idle();
+      return groq.doGenerateCalls.length === 2;
+    });
+    await live.idle();
+
+    const source = await collection(mongo.db, 'sources').findOne({ externalId: String(id) });
+    const event = await collection(mongo.db, 'market_events').findOne({ sourceIds: source!._id });
+    expect(event?.extraction).not.toBeNull();
+    const budget = await collection(mongo.db, 'ingest_budget').findOne({
+      day: now.toISOString().slice(0, 10),
+    });
+    expect(budget?.extractions).toBe(1);
+
+    await live.stop();
+    live = undefined;
+  }, 15_000);
+
+  it('a full live queue sheds its oldest waiting item and counts it', async () => {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    const { models } = counted(hold);
+    live = start(models, { queue: { limit: 1 } });
+    const [first, shed, last] = [LIVE_ID + 30, LIVE_ID + 31, LIVE_ID + 32];
+
+    await live.handleNews({ ...demo, id: first });
+    await live.handleNews({ ...demo, id: shed });
+    await live.handleNews({ ...demo, id: last });
+    await until(async () => (await counter('queue_full')) !== null);
+    release();
+    await live.idle();
+
+    expect(await counter('queue_full')).toMatchObject({ count: 1 });
+    expect(logs).toContain(`live queue full (1 waiting); dropped alpaca ${shed}`);
+    const stored = await collection(mongo.db, 'sources')
+      .find({ externalId: { $in: [first, shed, last].map(String) } })
+      .toArray();
+    expect(stored.map((source) => source.externalId).sort()).toEqual([String(first), String(last)]);
+    // The shed item stays recorded for a replay.
+    expect(
+      await collection(mongo.db, 'recordings').countDocuments({ externalId: String(shed) }),
+    ).toBe(1);
+
+    await live.stop();
+    live = undefined;
+  }, 15_000);
+
+  it('after a drop, items published while the stream was down arrive from the history, each once', async () => {
+    const { groq, models } = counted();
+    const sockets: FakeSocket[] = [];
+    // The news history endpoint, played by the test: what it returns, and what it was asked.
+    let history: AlpacaNewsItem[] = [];
+    const asked: URL[] = [];
+    const fetch: typeof globalThis.fetch = (url) => {
+      asked.push(new URL(url instanceof Request ? url.url : url));
+      return Promise.resolve(
+        new Response(JSON.stringify({ news: history, next_page_token: null }), { status: 200 }),
+      );
+    };
+    live = start(models, {
+      alpaca: {
+        keys: { keyId: 'key-id', secretKey: 'secret-key' },
+        connect: () => {
+          const fake = new FakeSocket();
+          sockets.push(fake);
+          return fake;
+        },
+        fetch,
+        minBackoffMs: 10,
+      },
+    });
+    const subscribe = (socket: FakeSocket) => {
+      socket.receive({ T: 'success', msg: 'connected' });
+      socket.receive({ T: 'success', msg: 'authenticated' });
+      socket.receive({ T: 'subscription', news: ['*'] });
+    };
+    const [streamed, missed, alsoMissed] = [LIVE_ID + 40, LIVE_ID + 41, LIVE_ID + 42];
+    const item = (id: number) => ({ ...demo, id });
+    const duplicates = async () => (await counter('duplicate'))?.count ?? 0;
+
+    // First subscription of the process: the gap from the newest recording is empty.
+    subscribe(sockets[0]!);
+    await live.idle();
+    sockets[0]!.receive({ T: 'n', ...item(streamed) });
+    await until(async () => {
+      await live!.idle();
+      return groq.doGenerateCalls.length === 1;
+    });
+    const before = { calls: groq.doGenerateCalls.length, duplicates: await duplicates() };
+
+    // The stream drops; two items are published while it is down, which only the history has.
+    sockets[0]!.close();
+    history = [item(streamed), item(missed), item(alsoMissed)];
+    await until(() => sockets.length === 2);
+    subscribe(sockets[1]!);
+    await until(async () => {
+      await live!.idle();
+      return groq.doGenerateCalls.length === before.calls + 2;
+    });
+
+    // The gap ran from a minute before the last streamed message, for the universe symbols.
+    const gap = asked.at(-1)!;
+    expect(gap.searchParams.get('start')).toBe('2026-09-29T13:59:00.000Z');
+    expect(gap.searchParams.get('end')).toBe('2026-09-29T14:00:00.000Z');
+    expect(gap.searchParams.get('symbols')!.split(',')).toEqual(
+      expect.arrayContaining(['NVDA', 'TSM', 'KO']),
+    );
+    for (const id of [missed, alsoMissed]) {
+      const source = await collection(mongo.db, 'sources').findOne({ externalId: String(id) });
+      const event = await collection(mongo.db, 'market_events').findOne({
+        sourceIds: source!._id,
+      });
+      expect(event?.extraction).not.toBeNull();
+      expect(
+        await collection(mongo.db, 'recordings').countDocuments({ externalId: String(id) }),
+      ).toBe(1);
+    }
+    // The streamed item came back in the history and was skipped before the pipeline.
+    expect(await duplicates()).toBe(before.duplicates);
+
+    // A second drop with the same history brings nothing new: no model call, no counter.
+    sockets[1]!.close();
+    await until(() => sockets.length === 3);
+    subscribe(sockets[2]!);
+    await until(() => asked.length === 3);
+    await live.idle();
+    expect(groq.doGenerateCalls).toHaveLength(before.calls + 2);
+    expect(await duplicates()).toBe(before.duplicates);
+
+    await live.stop();
+    live = undefined;
+  }, 15_000);
+
+  it('the gap fill never hands over an item this process accepted, a capped one included', async () => {
+    await collection(mongo.db, 'ingest_budget').updateOne(
+      { day: now.toISOString().slice(0, 10) },
+      {
+        $set: { extractions: LIVE_EXTRACTION_DAILY_LIMIT, updatedAt: now },
+        $setOnInsert: { _id: randomUUID() },
+      },
+      { upsert: true },
+    );
+    const { groq, models } = counted();
+    const sockets: FakeSocket[] = [];
+    const capped = { ...demo, id: LIVE_ID + 50 };
+    let history: AlpacaNewsItem[] = [];
+    let asked = 0;
+    const fetch: typeof globalThis.fetch = () => {
+      asked += 1;
+      return Promise.resolve(
+        new Response(JSON.stringify({ news: history, next_page_token: null }), { status: 200 }),
+      );
+    };
+    live = start(models, {
+      alpaca: {
+        keys: { keyId: 'key-id', secretKey: 'secret-key' },
+        connect: () => {
+          const fake = new FakeSocket();
+          sockets.push(fake);
+          return fake;
+        },
+        fetch,
+        minBackoffMs: 10,
+      },
+    });
+    const subscribe = (socket: FakeSocket) => {
+      socket.receive({ T: 'success', msg: 'connected' });
+      socket.receive({ T: 'success', msg: 'authenticated' });
+      socket.receive({ T: 'subscription', news: ['*'] });
+    };
+    const capCount = ((await counter('daily_cap'))?.count ?? 0) + 1;
+    subscribe(sockets[0]!);
+    sockets[0]!.receive({ T: 'n', ...capped });
+    await until(async () => (await counter('daily_cap'))?.count === capCount);
+
+    sockets[0]!.close();
+    history = [capped];
+    await until(() => sockets.length === 2);
+    subscribe(sockets[1]!);
+    await until(() => asked === 2);
+    await live.idle();
+
+    expect((await counter('daily_cap'))!.count).toBe(capCount);
+    expect(groq.doGenerateCalls).toHaveLength(0);
+
+    await live.stop();
+    live = undefined;
+  }, 15_000);
+
+  it('a restart hands over no processed filing again and resumes one that failed, once', async () => {
+    const filing = (accession: string, accepted: string) => [accession, accepted] as const;
+    const done = filing('0001045810-26-000086', '2026-09-29T12:10:00.000Z');
+    const failed = filing('0001045810-26-000087', '2026-09-29T12:20:00.000Z');
+    const submissions = {
+      filings: {
+        recent: {
+          accessionNumber: [done[0], failed[0]],
+          form: ['8-K', '8-K'],
+          filingDate: ['2026-09-29', '2026-09-29'],
+          acceptanceDateTime: [done[1], failed[1]],
+          primaryDocument: ['a.htm', 'b.htm'],
+          items: ['8.01', '8.01'],
+        },
+      },
+    };
+    let requests = 0;
+    const fetch: typeof globalThis.fetch = (url) => {
+      requests += 1;
+      const nvidia = url === submissionsUrl('0001045810');
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(
+            nvidia
+              ? submissions
+              : {
+                  filings: {
+                    recent: {
+                      accessionNumber: [],
+                      form: [],
+                      filingDate: [],
+                      acceptanceDateTime: [],
+                      primaryDocument: [],
+                      items: [],
+                    },
+                  },
+                },
+          ),
+        ),
+      );
+    };
+    const extraction = JSON.stringify({
+      companies: [{ symbol: 'NVDA', impact: 'neutral' }],
+      eventType: 'other',
+      importance: 2,
+      themes: [],
+    });
+    // Each process gets its own models; groq answers in call order.
+    const modelsFor = (groqReplies: (string | Error)[]) => {
+      const guard = mockModel(MODELS.screen.model, ['0.001']);
+      const groq = mockModel(MODELS.extraction.model, groqReplies);
+      const gemini = mockModel(MODELS.fallback.model, ['{"themes":3}']);
+      const models = () =>
+        createModelClient({
+          resolve: resolveMocks({
+            [guard.modelId]: guard,
+            [groq.modelId]: groq,
+            [gemini.modelId]: gemini,
+          }),
+        });
+      return { groq, models };
+    };
+    const run = async (groqReplies: (string | Error)[]) => {
+      const { groq, models } = modelsFor(groqReplies);
+      const polled = requests + 17;
+      live = start(models, { edgar: { userAgent: 'Kesher test', fetch, intervalMs: 3_600_000 } });
+      await until(() => requests >= polled, 10_000);
+      await live.idle();
+      await live.stop();
+      live = undefined;
+      return groq.doGenerateCalls.length;
+    };
+    const extracted = async (accession: string) => {
+      const source = await collection(mongo.db, 'sources').findOne({ externalId: accession });
+      const event =
+        source && (await collection(mongo.db, 'market_events').findOne({ sourceIds: source._id }));
+      return Boolean(event?.extraction);
+    };
+
+    // First process: the first filing is extracted, the second fails its schema everywhere.
+    expect(await run([extraction, schemaFailureError()])).toBe(3);
+    expect(await extracted(done[0])).toBe(true);
+    expect(await extracted(failed[0])).toBe(false);
+    expect(await counter('extraction_failed')).toMatchObject({ count: 1 });
+    const duplicates = (await counter('duplicate'))?.count ?? 0;
+
+    // After a restart only the failed filing comes again, and is extracted once.
+    expect(await run([extraction])).toBe(1);
+    expect(await extracted(failed[0])).toBe(true);
+
+    // A third start hands over nothing and counts nothing.
+    expect(await run([])).toBe(0);
+    expect((await counter('duplicate'))?.count ?? 0).toBe(duplicates);
+    expect(
+      await collection(mongo.db, 'recordings').countDocuments({
+        externalId: { $in: [done[0], failed[0]] },
+      }),
+    ).toBe(2);
+  }, 20_000);
+
   it('a new EDGAR filing of a universe company reaches its holder', async () => {
     // A synthetic extraction naming NVIDIA, for a synthetic 8-K.
     const guard = mockModel(MODELS.screen.model, ['0.001']);
@@ -266,11 +668,44 @@ describe('live ingestion end to end, on mongod', () => {
         'NVIDIA Corp 8-K: Results of Operations and Financial Condition; Financial Statements and Exhibits',
     });
     expect(cards[0]!.item.relevance).toBe(1);
-    expect(await collection(mongo.db, 'recordings').countDocuments({ provider: 'sec_edgar' })).toBe(
-      1,
-    );
+    expect(
+      await collection(mongo.db, 'recordings').countDocuments({
+        provider: 'sec_edgar',
+        externalId: '0001045810-26-000080',
+      }),
+    ).toBe(1);
 
     await live.stop();
     live = undefined;
   }, 15_000);
+  it('a first start with no Alpaca recording says there is no gap, and asks no history', async () => {
+    await collection(mongo.db, 'recordings').deleteMany({ provider: 'alpaca' });
+    const sockets: FakeSocket[] = [];
+    let asked = 0;
+    const fetch: typeof globalThis.fetch = () => {
+      asked += 1;
+      return Promise.resolve(new Response(JSON.stringify({ news: [], next_page_token: null })));
+    };
+    live = start(counted().models, {
+      alpaca: {
+        keys: { keyId: 'key-id', secretKey: 'secret-key' },
+        connect: () => {
+          const fake = new FakeSocket();
+          sockets.push(fake);
+          return fake;
+        },
+        fetch,
+      },
+    });
+    sockets[0]!.receive({ T: 'success', msg: 'connected' });
+    sockets[0]!.receive({ T: 'success', msg: 'authenticated' });
+    sockets[0]!.receive({ T: 'subscription', news: ['*'] });
+    await live.idle();
+
+    expect(logs).toContain('alpaca gap: no Alpaca item recorded yet, so there is no gap to fill');
+    expect(asked).toBe(0);
+
+    await live.stop();
+    live = undefined;
+  });
 });

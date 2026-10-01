@@ -4,6 +4,7 @@ import {
   DEMO_PASSWORD,
   DEMO_PERSONAS,
   type FeedItem,
+  type LiveStatus,
   type PersonaKey,
   type RunEnded,
   type RunStepPushed,
@@ -66,6 +67,7 @@ export async function startApi(
     priceReactions,
     guest,
     trustProxy,
+    liveStatus,
   }: {
     models?: () => ModelClient;
     devRoutes?: boolean;
@@ -82,6 +84,8 @@ export async function startApi(
     guest?: GuestOptions;
     // Proxy hops, as server.ts passes 1 in production; tests set X-Forwarded-For with it.
     trustProxy?: number;
+    // The live ingester's status, as server.ts passes it where LIVE_INGEST is on.
+    liveStatus?: () => LiveStatus | null;
   } = {},
 ): Promise<TestApi> {
   let url = '';
@@ -102,6 +106,7 @@ export async function startApi(
     log: quiet,
     logError: quiet,
     ...(priceReactions ? { priceReactions } : {}),
+    ...(liveStatus ? { liveStatus } : {}),
     ...(research
       ? {
           mcp: { secret: TEST_MCP_SECRET },
