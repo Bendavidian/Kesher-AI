@@ -678,4 +678,34 @@ describe('live ingestion end to end, on mongod', () => {
     await live.stop();
     live = undefined;
   }, 15_000);
+  it('a first start with no Alpaca recording says there is no gap, and asks no history', async () => {
+    await collection(mongo.db, 'recordings').deleteMany({ provider: 'alpaca' });
+    const sockets: FakeSocket[] = [];
+    let asked = 0;
+    const fetch: typeof globalThis.fetch = () => {
+      asked += 1;
+      return Promise.resolve(new Response(JSON.stringify({ news: [], next_page_token: null })));
+    };
+    live = start(counted().models, {
+      alpaca: {
+        keys: { keyId: 'key-id', secretKey: 'secret-key' },
+        connect: () => {
+          const fake = new FakeSocket();
+          sockets.push(fake);
+          return fake;
+        },
+        fetch,
+      },
+    });
+    sockets[0]!.receive({ T: 'success', msg: 'connected' });
+    sockets[0]!.receive({ T: 'success', msg: 'authenticated' });
+    sockets[0]!.receive({ T: 'subscription', news: ['*'] });
+    await live.idle();
+
+    expect(logs).toContain('alpaca gap: no Alpaca item recorded yet, so there is no gap to fill');
+    expect(asked).toBe(0);
+
+    await live.stop();
+    live = undefined;
+  });
 });

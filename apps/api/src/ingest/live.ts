@@ -146,7 +146,10 @@ export function startLiveIngest({
         .sort({ recordedAt: -1 })
         .limit(1)
         .toArray();
-      if (!newest) return null;
+      if (!newest) {
+        log('alpaca gap: no Alpaca item recorded yet, so there is no gap to fill');
+        return null;
+      }
       from = newest.recordedAt;
     }
     const floor = now().getTime() - GAP_MAX_MS;
