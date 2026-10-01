@@ -88,7 +88,8 @@ The web runs on http://localhost:5173 and the api on 3001. **Replay demo event**
 
 ## Deploy
 The deployed instance is a Render free web service described by [render.yaml](render.yaml). It needs no card, and deploys are manual.
-- It is **replay only** (`LIVE_INGEST=false`) with `DEMO_MODE=true`. The Replay control then resets and replays the pinned demo item for a signed in persona, and nothing else. Development routes are off in production.
+- It runs with `DEMO_MODE=true`: the Replay control resets and replays the pinned demo item for a signed in persona, and nothing else. Development routes are off in production.
+- It is the one live ingester: `LIVE_INGEST` is set in its dashboard, the development machines keep it false, and the feed's footer shows the stream and today's counts. The steps and the rollback are in [docs/DEMO.md](docs/DEMO.md) (Live ingestion on Render).
 - The api serves the web build on the same origin, with its routes under `/api`.
 - The free instance has 512 MB, so `LOCAL_EMBEDDINGS=false` keeps the embedding model off. Research then runs without filing search, and the NVIDIA 10-K quote comes from the reviewed graph edge.
 - Secrets are set in the Render dashboard.
