@@ -13,9 +13,13 @@ export interface TestMongo {
   stop(): Promise<void>;
 }
 
-// A throwaway mongod for integration tests. Tests never touch Atlas.
-export async function startTestMongo(dbName: string): Promise<TestMongo> {
-  const server = await MongoMemoryServer.create({ binary: { version: MONGOD_VERSION } });
+// A throwaway mongod for integration tests. Tests never touch Atlas. args go to mongod, such as
+// a short TTL monitor interval.
+export async function startTestMongo(dbName: string, args: string[] = []): Promise<TestMongo> {
+  const server = await MongoMemoryServer.create({
+    binary: { version: MONGOD_VERSION },
+    ...(args.length > 0 ? { instance: { args } } : {}),
+  });
   const client = await MongoClient.connect(server.getUri());
   return {
     db: client.db(dbName),

@@ -77,6 +77,8 @@ export async function autoResearch(
         startedAt: null,
         finishedAt: now,
         createdAt: now,
+        // A guest's skipped run expires with the guest (T24).
+        ...(item.expiresAt ? { expiresAt: item.expiresAt } : {}),
       }),
     );
   };
@@ -123,6 +125,7 @@ export async function autoResearch(
     const recentRun = recentRuns[0] ?? null;
     const check = checkGate({
       autoResearch: enabled,
+      guest: item.expiresAt !== undefined,
       relevance: item.relevance,
       importance,
       researchState: item.research.state,

@@ -133,6 +133,8 @@ export const AgentRun = z
     startedAt: z.date().nullable(),
     finishedAt: z.date().nullable(),
     createdAt: z.date(),
+    // A guest's runs expire with the guest (SPEC.md decision log, T24).
+    expiresAt: z.date().optional(),
   })
   .refine((run) => (run.failureReason === null) === (run.status !== 'failed'), {
     error: 'a run names a failure reason exactly when it failed',
@@ -146,6 +148,8 @@ export const ResearchBudgetDay = z.strictObject({
   _id: Id,
   day: z.iso.date(),
   runs: z.int().min(0),
+  // Of those, the runs guests reserved (T24); missing on days stored before it.
+  guestRuns: z.int().min(0).optional(),
   updatedAt: z.date(),
 });
 export type ResearchBudgetDay = z.infer<typeof ResearchBudgetDay>;
@@ -171,6 +175,8 @@ export const Report = z.strictObject({
   // At most one per hop and one price metric.
   omitted: z.array(CodeClaimOmission).max(3),
   createdAt: z.date(),
+  // A guest's reports expire with the guest (T24).
+  expiresAt: z.date().optional(),
 });
 export type Report = z.infer<typeof Report>;
 
@@ -224,6 +230,8 @@ const claimFields = {
   status: ClaimStatus,
   checks: z.array(CheckResult),
   createdAt: z.date(),
+  // A guest's claims expire with the guest (T24).
+  expiresAt: z.date().optional(),
 };
 
 // Typed claims, SPEC.md Claims and verification. Code sets the status: removed when a check

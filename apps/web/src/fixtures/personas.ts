@@ -41,7 +41,7 @@ export const PUBLIC_USERS: Record<PersonaKey, PublicUser> = {
   },
 };
 
-export const PERSONAS: Persona[] = (['A', 'B', 'C'] as const).map((key) => {
+export const PERSONAS: (Persona & { key: PersonaKey })[] = (['A', 'B', 'C'] as const).map((key) => {
   const { _id, displayName, holdings } = PUBLIC_USERS[key];
-  return { ...labelsFor(key), _id, displayName, holdings };
+  return { ...labelsFor(key), key, _id, displayName, holdings };
 });

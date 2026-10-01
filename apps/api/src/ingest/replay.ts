@@ -28,16 +28,20 @@ export function parseSourceId(raw: string): ReplayTarget | null {
 export const describeTarget = ({ provider, externalId }: ReplayTarget) =>
   `${provider === 'alpaca' ? 'Alpaca news' : 'EDGAR filing'} ${externalId}`;
 
-// Deletes the FeedItems of a replayed item's event and nothing else: the Source, the event and
-// its extraction stay. The next replay then scores the event again with no model call and pushes
-// it as a new arrival, as live ingestion would. A replay without a reset stays a duplicate.
-// null when the item was never replayed.
+// Deletes the personas' FeedItems of a replayed item's event and nothing else: the Source, the
+// event, its extraction and the guests' items stay, so no visitor can take another guest's card
+// and its research away (T24). The next replay then scores the event again with no model call and
+// pushes it as a new arrival to the personas, and as an update to the guests, as live ingestion
+// would. A replay without a reset stays a duplicate. null when the item was never replayed.
 export async function resetItem(db: Db, target: ReplayTarget): Promise<ResetResponse | null> {
   const source = await collection(db, 'sources').findOne(target);
   const event =
     source && (await collection(db, 'market_events').findOne({ sourceIds: source._id }));
   if (!source || !event) return null;
-  const { deletedCount } = await collection(db, 'feed_items').deleteMany({ eventId: event._id });
+  const { deletedCount } = await collection(db, 'feed_items').deleteMany({
+    eventId: event._id,
+    expiresAt: { $exists: false },
+  });
   return ResetResponse.parse({ sourceId: source._id, eventId: event._id, deleted: deletedCount });
 }
 

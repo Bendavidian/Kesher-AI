@@ -1,7 +1,8 @@
 import { DEMO_SOURCE_ID, DemoReplayResponse } from '@kesher/shared';
 import { Router } from 'express';
 import type { Db } from 'mongodb';
-import { requireUser } from '../auth/session';
+import { currentUser, requireUser } from '../auth/session';
+import { collection } from '../db/collections';
 import { describeTarget, replayItem, resetItem, type ReplayDeps } from '../ingest/replay';
 import { sendReplayOutcome } from './dev';
 
@@ -67,6 +68,15 @@ export function demoRouter(
   const limiter = createDemoLimiter(options);
 
   router.post('/demo/replay', requireUser(secret), async (_req, res) => {
+    // The Replay control belongs to the personas; a guest's feed already holds the event (T24).
+    const user = await collection(db, 'users').findOne(
+      { _id: currentUser(res) },
+      { projection: { expiresAt: 1 } },
+    );
+    if (user?.expiresAt) {
+      res.status(403).json({ error: 'the demo replay is for the personas' });
+      return;
+    }
     const start = limiter.tryStart();
     if (!start.ok) {
       if (start.status === 409) {

@@ -37,6 +37,8 @@ export interface ResearchJob {
   trigger: AgentRun['trigger'];
   // The gate reason stored on the AgentRun, written by code once the run is reserved.
   reason: (reservation: Reservation) => string;
+  // How the run is reserved: reserveRun for the trigger unless set, as for a guest (T24).
+  reserve?: (now: Date) => Promise<Reservation>;
 }
 
 export type EnqueueResult =
@@ -85,7 +87,7 @@ export async function enqueueResearch(
     );
   let reservation: Reservation;
   try {
-    reservation = await reserveRun(db, job.trigger, queuedAt);
+    reservation = await (job.reserve ?? ((at) => reserveRun(db, job.trigger, at)))(queuedAt);
   } catch (error) {
     await restore().catch(logError);
     throw error;

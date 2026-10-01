@@ -160,6 +160,8 @@ export async function runResearch(
   if (!user || !event) throw new ResearchInputError('unknown user or event');
   if (!item?.path) throw new ResearchInputError('the event has no path to this user');
   const path = item.path;
+  // A guest's run, report and claims expire with the guest (SPEC.md decision log, T24).
+  const expiry = user.expiresAt ? { expiresAt: user.expiresAt } : {};
 
   const stepBudget = STEP_BUDGET[request.mode];
   const tokenBudget = TOKEN_BUDGET[request.mode];
@@ -186,6 +188,7 @@ export async function runResearch(
       startedAt: createdAt,
       finishedAt: null,
       createdAt,
+      ...expiry,
     }),
   );
 
@@ -855,7 +858,9 @@ export async function runResearch(
 
     // Claims first, then the report that lists them. Claims left without a report are removed.
     const claims = collection(db, 'claims');
-    if (finalClaims.length > 0) await claims.insertMany(finalClaims);
+    if (finalClaims.length > 0) {
+      await claims.insertMany(finalClaims.map((claim) => ({ ...claim, ...expiry })));
+    }
     try {
       await collection(db, 'reports').insertOne(
         Report.parse({
@@ -868,6 +873,7 @@ export async function runResearch(
           openQuestions: checked.openQuestions,
           omitted: core.omitted,
           createdAt: new Date(now()),
+          ...expiry,
         }),
       );
     } catch (error) {
