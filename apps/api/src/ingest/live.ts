@@ -4,6 +4,7 @@ import { describeError } from '../config/redact';
 import type { ModelClient } from '../llm/client';
 import { toIncomingItem, type AlpacaKeys } from './alpaca';
 import { startAlpacaNews, type AlpacaNewsStream, type ConnectWebSocket } from './alpacaStream';
+import { countDrop } from './counters';
 import { toIncomingFiling, type FilerRef } from './edgar';
 import { createEdgarPoller, type EdgarPoller } from './edgarPoller';
 import type { IncomingItem } from './item';
@@ -50,7 +51,12 @@ export function startLiveIngest({
   edgar,
   queue: queueOptions,
 }: LiveIngestDeps): LiveIngest {
-  const queue: IngestQueue = createIngestQueue({ log, ...queueOptions });
+  // A shed item stays recorded, so a replay can still process it (SPEC.md decision log, T19).
+  const queue: IngestQueue = createIngestQueue({
+    ...queueOptions,
+    log,
+    onShed: () => countDrop(db, 'queue_full', 'live', now()),
+  });
   const deps: ProcessDeps = {
     mode: 'live',
     models,
@@ -75,10 +81,14 @@ export function startLiveIngest({
     } catch (error) {
       log(`recording ${key} failed: ${describeError(error)}`);
     }
-    queue.push(key, async () => {
-      const result = await processItem(db, incoming, deps);
-      if (result.outcome === 'processed') log(`live ${key} processed, event ${result.eventId}`);
-    });
+    queue.push(
+      key,
+      async () => {
+        const result = await processItem(db, incoming, deps);
+        if (result.outcome === 'processed') log(`live ${key} processed, event ${result.eventId}`);
+      },
+      { shedLast: live.provider === 'sec_edgar' },
+    );
   }
 
   const handleNews = (item: AlpacaNewsItem) =>

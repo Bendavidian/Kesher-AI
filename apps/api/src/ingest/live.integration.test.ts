@@ -6,6 +6,7 @@ import {
   ReplayResponse,
   SOCKET_EVENTS,
   type AlpacaNewsItem,
+  type DropReason,
 } from '@kesher/shared';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -63,7 +64,7 @@ describe('live ingestion end to end, on mongod', () => {
 
   const start = (
     models: () => ModelClient,
-    sources: Pick<Parameters<typeof startLiveIngest>[0], 'alpaca' | 'edgar'>,
+    sources: Pick<Parameters<typeof startLiveIngest>[0], 'alpaca' | 'edgar' | 'queue'>,
   ) =>
     startLiveIngest({
       db: mongo.db,
@@ -204,6 +205,53 @@ describe('live ingestion end to end, on mongod', () => {
     await live.stop();
     live = undefined;
   });
+
+  // The recorded answers, from one client whose extraction calls are counted. hold makes the
+  // first extraction wait until released, to fill the queue behind it.
+  const counted = (hold?: Promise<void>) => {
+    const guard = mockModel(MODELS.screen.model, recorded.screen.chunks);
+    const groq = mockModel(
+      MODELS.extraction.model,
+      [recorded.extraction.text],
+      undefined,
+      (call) => (call === 0 ? hold : undefined),
+    );
+    const client = createModelClient({
+      resolve: resolveMocks({ [guard.modelId]: guard, [groq.modelId]: groq }),
+    });
+    return { groq, models: () => client };
+  };
+  const counter = (reason: DropReason) =>
+    collection(mongo.db, 'ingest_counters').findOne({ mode: 'live', reason });
+
+  it('a full live queue sheds its oldest waiting item and counts it', async () => {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    const { models } = counted(hold);
+    live = start(models, { queue: { limit: 1 } });
+    const [first, shed, last] = [LIVE_ID + 30, LIVE_ID + 31, LIVE_ID + 32];
+
+    await live.handleNews({ ...demo, id: first });
+    await live.handleNews({ ...demo, id: shed });
+    await live.handleNews({ ...demo, id: last });
+    await until(async () => (await counter('queue_full')) !== null);
+    release();
+    await live.idle();
+
+    expect(await counter('queue_full')).toMatchObject({ count: 1 });
+    expect(logs).toContain(`live queue full (1 waiting); dropped alpaca ${shed}`);
+    const stored = await collection(mongo.db, 'sources')
+      .find({ externalId: { $in: [first, shed, last].map(String) } })
+      .toArray();
+    expect(stored.map((source) => source.externalId).sort()).toEqual([String(first), String(last)]);
+    // The shed item stays recorded for a replay.
+    expect(
+      await collection(mongo.db, 'recordings').countDocuments({ externalId: String(shed) }),
+    ).toBe(1);
+
+    await live.stop();
+    live = undefined;
+  }, 15_000);
 
   it('a new EDGAR filing of a universe company reaches its holder', async () => {
     // A synthetic extraction naming NVIDIA, for a synthetic 8-K.
