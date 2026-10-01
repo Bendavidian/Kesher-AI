@@ -1,4 +1,5 @@
 import {
+  onlyMentioned,
   relevanceBand,
   SHORT_NAME,
   type Confidence,
@@ -136,9 +137,16 @@ function eventCompany(event: FeedCardEvent, path: FeedPath | null): UniverseSymb
 
 function relevanceNote(score: Score): string {
   const band = relevanceLabel(score.relevance);
-  if (!score.path) return `${band}. No path to your holdings.`;
-  if (score.path.hops.length === 0) return `${band}. You hold the company.`;
-  return `${band}. Measured along the path.`;
+  const { path } = score;
+  if (!path) return `${band}. No path to your holdings.`;
+  if (path.hops.length === 0) {
+    return onlyMentioned(path)
+      ? `${band}. You hold the company; the item only mentions it.`
+      : `${band}. You hold the company.`;
+  }
+  return onlyMentioned(path)
+    ? `${band}. Measured along the path from a company the item only mentions.`
+    : `${band}. Measured along the path.`;
 }
 
 // The server sends only reviewed evidence (no evidence, no edge); this only labels it.

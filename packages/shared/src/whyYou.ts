@@ -1,4 +1,4 @@
-import type { FeedPath } from './domain/event';
+import { onlyMentioned, type FeedPath } from './domain/event';
 import type { RelationshipType } from './domain/graph';
 import type { UniverseSymbol } from './domain/universe';
 
@@ -45,6 +45,9 @@ export interface WhyYou {
   // The sentence for the full path, and a short one for a feed row.
   label: string;
   rowLabel: string;
+  // That the item only mentions the company the path starts from (T27); null when the extraction
+  // names it, and when nothing connects.
+  mention: string | null;
   // Why nothing connects; null when a path exists.
   explanation: string | null;
 }
@@ -61,16 +64,24 @@ export function whyYou(
       connected: false,
       label: `No connection from ${eventName} to your holdings`,
       rowLabel: 'No path to your holdings',
+      mention: null,
       explanation: `You hold ${joinList(held)}. Nothing in the graph links them to ${eventName} within two stops.`,
     };
   }
 
   const holdingName = SHORT_NAME[path.holding];
+  const mentioned = onlyMentioned(path);
+  const mention = mentioned ? `The item mentions ${eventName} only in passing.` : null;
   if (path.hops.length === 0) {
     return {
       connected: true,
-      label: `You hold ${holdingName} directly`,
-      rowLabel: `You hold ${holdingName}`,
+      label: mentioned
+        ? `You hold ${holdingName}, which the item mentions only in passing`
+        : `You hold ${holdingName} directly`,
+      rowLabel: mentioned
+        ? `You hold ${holdingName}, mentioned in passing`
+        : `You hold ${holdingName}`,
+      mention,
       explanation: null,
     };
   }
@@ -80,8 +91,13 @@ export function whyYou(
     .join(', ');
   return {
     connected: true,
-    label: `${clauses}, and ${holdingName} is in your portfolio`,
-    rowLabel: `${clauses}, which you hold`,
+    label: mentioned
+      ? `The item mentions ${eventName} only in passing; ${clauses}, and ${holdingName} is in your portfolio`
+      : `${clauses}, and ${holdingName} is in your portfolio`,
+    rowLabel: mentioned
+      ? `Mentioned in passing: ${clauses}, which you hold`
+      : `${clauses}, which you hold`,
+    mention,
     explanation: null,
   };
 }

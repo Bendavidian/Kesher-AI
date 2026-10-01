@@ -35,6 +35,8 @@ export type PathView =
       // The accessible sentence for the full path, and a short one for the feed row.
       label: string;
       rowLabel: string;
+      // That the item only mentions the company the path starts from; null when it names it.
+      mention: string | null;
     }
   | {
       kind: 'none';
@@ -94,6 +96,7 @@ export function buildPathView(
       lines: [HOLDING_LINE],
       label: why.label,
       rowLabel: why.rowLabel,
+      mention: why.mention,
     };
   }
 
@@ -119,5 +122,6 @@ export function buildPathView(
     lines,
     label: why.label,
     rowLabel: why.rowLabel,
+    mention: why.mention,
   };
 }

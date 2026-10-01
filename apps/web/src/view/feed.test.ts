@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EventExplain, FeedCard } from '@kesher/shared';
+import type { EventExplain, FeedCard, FeedPath } from '@kesher/shared';
 import { DEMO_CARDS, DEMO_EXPLAINS, PERSONAS } from '../fixtures';
 import { DEMO_EVENT } from '../fixtures/demoEvent';
 import { buildFeedView } from './feed';
@@ -94,5 +94,54 @@ describe('buildFeedView', () => {
     expect(view.hidden.map((entry) => entry.key)).toEqual(recent.map((e) => e.event._id));
     expect(view.hiddenTotal).toBe(25);
     expect(view.selected?.key).toBe(recent[0]!.event._id);
+  });
+
+  it('says when the path starts from a company the item only mentions in passing', () => {
+    const demo = DEMO_CARDS.A[0]!;
+    const selected = (relevance: number, path: FeedPath) =>
+      buildFeedView(
+        A!,
+        {
+          cards: [{ ...demo, item: { ...demo.item, relevance, path } }],
+          hidden: NONE_HIDDEN,
+          replayedEventId: null,
+        },
+        null,
+      ).selected;
+
+    const direct = selected(0.5, {
+      eventCompany: 'NVDA',
+      named: false,
+      holding: 'NVDA',
+      hops: [],
+    });
+    expect(direct?.relevanceNote).toBe('Medium. You hold the company; the item only mentions it.');
+    expect(direct?.path).toMatchObject({
+      kind: 'connected',
+      direct: true,
+      label: 'You hold NVIDIA, which the item mentions only in passing',
+      mention: 'The item mentions NVIDIA only in passing.',
+    });
+
+    const hop = selected(0.4, { ...demo.item.path!, named: false });
+    expect(hop?.relevanceNote).toBe(
+      'Medium. Measured along the path from a company the item only mentions.',
+    );
+    expect(hop?.path).toMatchObject({
+      kind: 'connected',
+      direct: false,
+      rowLabel: 'Mentioned in passing: TSMC supplies NVIDIA, which you hold',
+      mention: 'The item mentions TSMC only in passing.',
+    });
+  });
+
+  it('adds no mention note for a path from a company the item names', () => {
+    const view = buildFeedView(
+      A!,
+      { cards: DEMO_CARDS.A, hidden: NONE_HIDDEN, replayedEventId: null },
+      null,
+    );
+    expect(view.selected?.relevanceNote).toBe('Medium. Measured along the path.');
+    expect(view.selected?.path).toMatchObject({ kind: 'connected', mention: null });
   });
 });

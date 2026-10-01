@@ -27,12 +27,17 @@ function WhyYou({ view, replayKey }: { view: EventView; replayKey: string }) {
       </p>
     );
   } else {
-    footnote = evidence.map((item) => (
-      <p key={item.filingLabel} className="flex items-center gap-2 text-xs text-text-2">
-        <CheckIcon size={14} />
-        Edge evidence from the {item.filingLabel}. {item.reviewed ? 'Reviewed.' : ''}
-      </p>
-    ));
+    footnote = (
+      <>
+        {path.mention && <p className="text-xs text-text-2">{path.mention}</p>}
+        {evidence.map((item) => (
+          <p key={item.filingLabel} className="flex items-center gap-2 text-xs text-text-2">
+            <CheckIcon size={14} />
+            Edge evidence from the {item.filingLabel}. {item.reviewed ? 'Reviewed.' : ''}
+          </p>
+        ))}
+      </>
+    );
   }
 
   return (
