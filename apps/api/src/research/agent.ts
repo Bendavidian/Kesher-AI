@@ -3,6 +3,7 @@ import {
   AgentRun,
   AgentStep,
   CODE_CLAIMS_STEP,
+  FeedPath,
   PriceReactionError,
   Report,
   type PriceReaction,
@@ -159,7 +160,8 @@ export async function runResearch(
   ]);
   if (!user || !event) throw new ResearchInputError('unknown user or event');
   if (!item?.path) throw new ResearchInputError('the event has no path to this user');
-  const path = item.path;
+  // Parsed, so a path stored before T27 gets its named flag (true) like every other read.
+  const path = FeedPath.parse(item.path);
   // A guest's run, report and claims expire with the guest (SPEC.md decision log, T24).
   const expiry = user.expiresAt ? { expiresAt: user.expiresAt } : {};
 

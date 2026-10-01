@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FeedItem, MarketEvent } from './event';
+import { FeedItem, MarketEvent, onlyMentioned, type FeedPath } from './event';
 import { FilingChunk } from './filing';
 import { IngestBudgetDay, IngestCounter } from './ingest';
 import { AgentRun, Claim, MAX_STEP_OUTPUT_BYTES, Report, ResearchBudgetDay } from './research';
@@ -148,7 +148,12 @@ describe('FeedItem', () => {
     userId: id(1),
     eventId: id(3),
     relevance: 0.8,
-    path: { eventCompany: 'TSM', holding: 'NVDA', hops: [hop('TSM', 'NVDA', 'supplier_of', 10)] },
+    path: {
+      eventCompany: 'TSM',
+      named: true,
+      holding: 'NVDA',
+      hops: [hop('TSM', 'NVDA', 'supplier_of', 10)],
+    },
     confidence: 'medium',
     status: 'confirmed',
     research: { state: 'none', runId: null, reportId: null },
@@ -158,8 +163,25 @@ describe('FeedItem', () => {
 
   it('accepts a supplier path and a direct holding', () => {
     expect(FeedItem.parse(item)).toEqual(item);
-    const direct = { eventCompany: 'TSM', holding: 'TSM', hops: [] };
+    const direct = { eventCompany: 'TSM', named: true, holding: 'TSM', hops: [] };
     expect(FeedItem.safeParse({ ...item, relevance: 1, path: direct }).success).toBe(true);
+  });
+
+  it('accepts a path from a company the item only mentions', () => {
+    const mention = { eventCompany: 'NVDA', named: false, holding: 'NVDA', hops: [] };
+    expect(FeedItem.parse({ ...item, relevance: 0.5, path: mention }).path).toEqual(mention);
+    expect(FeedItem.safeParse({ ...item, path: { ...item.path, named: 'no' } }).success).toBe(
+      false,
+    );
+  });
+
+  it('reads a path stored before T27, which has no named flag, as named', () => {
+    // T05 started the graph only from companies the extraction named.
+    const stored = { eventCompany: 'TSM', holding: 'NVDA', hops: item.path.hops };
+    expect(FeedItem.parse({ ...item, path: stored }).path).toEqual(item.path);
+    // Read raw, without the schema's default, it is no mention either.
+    expect(onlyMentioned(stored as unknown as FeedPath)).toBe(false);
+    expect(onlyMentioned({ ...item.path, named: false } as FeedPath)).toBe(true);
   });
 
   it('rejects more than 2 hops', () => {

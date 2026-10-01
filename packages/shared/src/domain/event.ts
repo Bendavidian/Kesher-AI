@@ -70,10 +70,14 @@ export const PathHop = z.strictObject({
 export type PathHop = z.infer<typeof PathHop>;
 
 // The exact graph path behind a relevance score. "Why you" is rendered from it with templates
-// and never stored. A direct holding has no hops.
+// and never stored. A direct holding has no hops. named: the extraction names the event company;
+// false when only the provider tagged it, a passing mention that scores half (SPEC.md decision
+// log, T27). A path stored before T27 has no flag and reads as named, since T05 started the graph
+// only from named companies.
 export const FeedPath = z
   .strictObject({
     eventCompany: UniverseSymbol,
+    named: z.boolean().default(true),
     holding: UniverseSymbol,
     hops: z.array(PathHop).max(2),
   })
@@ -89,6 +93,11 @@ export const FeedPath = z
     { error: 'hops must lead from the event company to the holding' },
   );
 export type FeedPath = z.infer<typeof FeedPath>;
+
+// Whether the path starts from a company the item only mentions (T27). Only an explicit false is a
+// mention: a path stored before T27 and read without the schema has no flag, and T05 started the
+// graph only from companies the extraction named.
+export const onlyMentioned = (path: FeedPath): boolean => path.named === false;
 
 export const ResearchState = z.enum(['none', 'queued', 'running', 'done', 'failed']);
 export type ResearchState = z.infer<typeof ResearchState>;

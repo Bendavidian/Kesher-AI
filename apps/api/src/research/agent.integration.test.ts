@@ -91,6 +91,7 @@ const feedItem: FeedItem = {
   relevance: 0.8,
   path: {
     eventCompany: 'TSM',
+    named: true,
     holding: 'NVDA',
     hops: [
       { from: 'TSM', to: 'NVDA', type: 'supplier_of', weight: 0.8, relationshipId: randomUUID() },
@@ -916,6 +917,7 @@ describe('runResearch', () => {
       userId: personaA._id,
       path: {
         eventCompany: 'TSM',
+        named: true,
         holding: 'NVDA',
         hops: [
           {

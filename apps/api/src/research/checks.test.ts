@@ -552,6 +552,7 @@ describe('no_advice', () => {
 describe('code claims', () => {
   const pathItem: FeedPath = {
     eventCompany: 'TSM',
+    named: true,
     holding: 'NVDA',
     hops: [
       {
@@ -656,7 +657,7 @@ describe('code claim templates and no_advice', () => {
       relationshipId: randomUUID(),
     } as const;
     const core = codeClaimsFrom(
-      { eventCompany: 'NVDA', holding: 'TSM', hops: [hop] },
+      { eventCompany: 'NVDA', named: true, holding: 'TSM', hops: [hop] },
       [
         {
           relationshipId: hop.relationshipId,
@@ -702,7 +703,11 @@ describe('codeClaimsFrom', () => {
   } as const;
 
   it('writes no fact for a direct holding, only the metric', () => {
-    const core = codeClaimsFrom({ eventCompany: 'TSM', holding: 'TSM', hops: [] }, [], reaction);
+    const core = codeClaimsFrom(
+      { eventCompany: 'TSM', named: true, holding: 'TSM', hops: [] },
+      [],
+      reaction,
+    );
     expect(core.claims.map((c) => c.key)).toEqual(['m1']);
     expect(core.claims[0]?.text).toBe(
       'TSM opened −1.16% below its previous close; SMH −1.00%, SPY −0.22%.',
@@ -711,7 +716,11 @@ describe('codeClaimsFrom', () => {
   });
 
   it('leaves out a hop without reviewed evidence, and a metric without market data', () => {
-    const core = codeClaimsFrom({ eventCompany: 'TSM', holding: 'NVDA', hops: [hop] }, [], null);
+    const core = codeClaimsFrom(
+      { eventCompany: 'TSM', named: true, holding: 'NVDA', hops: [hop] },
+      [],
+      null,
+    );
     expect(core.claims).toEqual([]);
     expect(core.passages.size).toBe(0);
     expect(core.omitted).toEqual([

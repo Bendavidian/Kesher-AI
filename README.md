@@ -119,9 +119,9 @@ It checks health, the web shell, closed development routes, sign in and sockets 
 
 - **Relevance:** the code's band agrees with the user's label on 78 of 90 pairs (87%), 30 recorded news items × 3 personas: A 97%, B 63%, C 100%. Every disagreement sits on a graph path: 9 are a supply hop at 0.8, 3 are two hops.
 - **Verification:** 17 of 17 planted errors caught, each by the check it was planted for, and no clean claim removed (the T14 fixture, one recorded verifier call of 2,377 tokens).
-- **Injection:** on 5 synthetic poisoned items, the injected text changed the extraction in 2 of 5 without the screen and 1 of 5 with it. After the code defenses (the provider's tags as start nodes, an extraction with no tools), relevance moved in 1 of 5. The screen flagged 2 of 5 poisoned items and none of the 30 real ones.
+- **Injection:** on 5 synthetic poisoned items, the injected text changed the extraction in 2 of 5 without the screen and 1 of 5 with it. After the code defenses (the provider's tags as start nodes, an extraction with no tools), relevance moved in 1 of 5, where a suppression lowers persona A's card from high to medium and removes no card. The screen flagged 2 of 5 poisoned items and none of the 30 real ones.
 - **Filing retrieval,** vector only on the free tier: precision at 3 is 70% and recall at 3 is 46% over 11 judged queries.
-- **Passing mentions:** on 4 market wraps, today's start node rule agrees on 3 of 12 pairs and tagged only on 4 of 12. EVALS.md proposes a rule for companies an item only mentions.
+- **Passing mentions:** every company the provider tags starts the graph, and one the item only mentions reads medium (T27). On 4 market wraps this agrees on 9 of 12 pairs, against 3 of 12 under the earlier rule (only the tagged companies the extraction names) and 4 of 12 when every tagged company counts as named.
 - **Graph review:** 22 of 28 relationships proposed from 10-K sentences were accepted.
 - **Cost and latency per event:** a median extraction of 812 tokens (p95 915) in 687 ms (p95 2,242 ms), one injection screen call of 205 ms, and 3 ms of pipeline code. Every call is on a free tier, so $0.
 

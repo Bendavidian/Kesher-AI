@@ -51,11 +51,13 @@ const holdings: EvalRun['holdings'] = {
 
 const rel = (A: number, B: number, C: number): Record<PersonaKey, number> => ({ A, B, C });
 
+// relevance is the pipeline's (the mention rule, T27); the two counterfactual rules default to it.
 function itemRun(
   item: EvalItem,
   extracted: string[],
   relevance: Record<PersonaKey, number>,
   taggedOnly: Record<PersonaKey, number>,
+  extractedAndTagged: Record<PersonaKey, number> = relevance,
 ): ItemRun {
   return {
     item,
@@ -70,6 +72,7 @@ function itemRun(
     tagged: item.item.symbols,
     extraction: extraction(extracted, 3),
     relevance,
+    extractedAndTagged,
     taggedOnly,
     starts: [],
     graph: [],
@@ -111,8 +114,9 @@ const edges: EdgeExtractor = {
 };
 
 describe('summarizeRun, start node rules', () => {
-  // Item 1 tags NVDA and MSFT but the extraction named only MSFT: today NVDA is no start node,
-  // so the rules differ for B, which reaches NVDA through TSM. Item 2 is the same under both.
+  // Item 1 tags NVDA and MSFT but the extraction named only MSFT, so the rules differ for B, which
+  // reaches NVDA through TSM: half the hop from a mention today, nothing under T05 (no start
+  // node), the full hop under tagged only. Item 2 is the same under all three.
   const one = real(1, ['NVDA', 'MSFT']);
   const two = real(2, ['KO']);
   const poison: EvalItem = {
@@ -132,9 +136,10 @@ describe('summarizeRun, start node rules', () => {
     relationships: 0,
     holdings,
     items: [
-      itemRun(one, ['MSFT'], rel(1, 0, 0), rel(1, 0.8, 0)),
+      itemRun(one, ['MSFT'], rel(1, 0.4, 0), rel(1, 0.8, 0), rel(1, 0, 0)),
       itemRun(two, ['KO'], rel(0, 0, 1), rel(0, 0, 1)),
-      itemRun(poison, [], rel(0, 0, 0), rel(1, 0.8, 0)),
+      // The poisoned copy drops MSFT from the extraction: A's holding is only mentioned now.
+      itemRun(poison, [], rel(0.5, 0.4, 0), rel(1, 0.8, 0), rel(0, 0, 0)),
     ],
   };
   const labels = [
@@ -148,7 +153,8 @@ describe('summarizeRun, start node rules', () => {
   const summary = summarizeRun(run, labels, edges);
 
   it('scores each rule against the reviewed labels', () => {
-    expect(summary.startNodes.current.B).toMatchObject({ agree: 1, total: 2 });
+    expect(summary.startNodes.current.B).toMatchObject({ agree: 2, total: 2 });
+    expect(summary.startNodes.extractedAndTagged.B).toMatchObject({ agree: 1, total: 2 });
     expect(summary.startNodes.taggedOnly.B).toMatchObject({ agree: 2, total: 2 });
     expect(summary.startNodes.current.A.agree).toBe(summary.startNodes.taggedOnly.A.agree);
   });
@@ -160,25 +166,28 @@ describe('summarizeRun, start node rules', () => {
         headline: 'Headline 1',
         persona: 'B',
         label: 'medium',
-        current: 0,
+        current: 0.4,
+        extractedAndTagged: 0,
         taggedOnly: 0.8,
       },
     ]);
   });
 
-  it('compares a poisoned copy under both rules', () => {
+  it('compares a poisoned copy with its baseline, with each move in score and band', () => {
     expect(summary.injection[0]).toMatchObject({
       id: '9000000001',
       taggedOnlyMoved: [],
+      moves: [{ persona: 'A', from: 1, to: 0.5 }],
       outcome: { removedSymbols: ['MSFT'], relevanceChanged: ['A'] },
     });
   });
 
-  it('renders both rules and the differences', () => {
+  it('renders the three rules, the differences and the band of each move', () => {
     const report = renderReport(summary, { status: 'skipped', reason: 'test' });
     expect(report).toContain('### Start node rules');
-    expect(report).toContain('| B | 1 of 2 (50%) | 2 of 2 (100%) |');
-    expect(report).toContain('| 1 | Headline 1 | B | medium | 0 | 0.8 |');
+    expect(report).toContain('| B | 2 of 2 (100%) | 1 of 2 (50%) | 2 of 2 (100%) |');
+    expect(report).toContain('| 1 | Headline 1 | B | medium | 0.4 | 0 | 0.8 |');
+    expect(report).toContain('| A 1 (high) → 0.5 (medium) |');
   });
 });
 
@@ -229,8 +238,10 @@ describe('pathKindOf', () => {
       reviewed: true,
     },
   });
-  const path = (hops: ReturnType<typeof hop>[]) =>
-    ({ eventCompany: 'TSM', holding: 'NVDA', hops }) as unknown as Parameters<typeof pathKindOf>[0];
+  const path = (hops: ReturnType<typeof hop>[], named = true) =>
+    ({ eventCompany: 'TSM', named, holding: 'NVDA', hops }) as unknown as Parameters<
+      typeof pathKindOf
+    >[0];
 
   it('names no path, the holding itself, one hop by type and two hops', () => {
     expect(pathKindOf(null)).toBe('none');
@@ -238,6 +249,7 @@ describe('pathKindOf', () => {
     expect(pathKindOf(path([hop('supplier_of')]))).toBe('supplier_of');
     expect(pathKindOf(path([hop('competitor_of'), hop('customer_of')]))).toBe('two_hops');
     expect(pathText(path([hop('supplier_of')]))).toBe('TSM supplier_of NVDA');
+    expect(pathText(path([hop('supplier_of')], false))).toBe('TSM (mentioned) supplier_of NVDA');
     expect(pathText(null)).toBeNull();
   });
 });
@@ -294,8 +306,8 @@ describe('summarizeRun, labels by path and band sets', () => {
 });
 
 describe('summarizeRun, market wraps', () => {
-  // A wrap tagged NVDA and KO whose extraction names nobody: no card today, one per holder under
-  // tagged only.
+  // A wrap tagged NVDA and KO whose extraction names nobody: a medium card per holder today (T27),
+  // no card under T05, and high for every holding under tagged only.
   const wrap: EvalItem = {
     ...real(3, ['NVDA', 'KO']),
     event: { ...(real(3, ['NVDA', 'KO']) as { event: object }).event, type: 'market_wrap' },
@@ -306,14 +318,14 @@ describe('summarizeRun, market wraps', () => {
     holdings,
     items: [
       itemRun(real(1, ['KO']), ['KO'], rel(0, 0, 1), rel(0, 0, 1)),
-      itemRun(wrap, [], rel(0, 0, 0), rel(1, 0.8, 1)),
+      itemRun(wrap, [], rel(0.5, 0.4, 0.5), rel(1, 0.8, 1), rel(0, 0, 0)),
     ],
   };
   const labels = [
     reviewed('1', 'A', 'none'),
     reviewed('1', 'B', 'none'),
     reviewed('1', 'C', 'high'),
-    reviewed('3', 'A', 'none'),
+    reviewed('3', 'A', 'medium'),
     reviewed('3', 'B', 'none'),
     { sourceId: '3', persona: 'C', level: 'none', status: 'proposed', reason: 'x' } as Label,
   ];
@@ -330,20 +342,31 @@ describe('summarizeRun, market wraps', () => {
     expect(summary.wraps).toMatchObject({
       items: 1,
       labels: { reviewed: 2, proposed: 1 },
-      current: { cards: 0, cardsLabeledNone: 0, agreement: { agree: 2, total: 2 } },
-      taggedOnly: { cards: 3, cardsLabeledNone: 2, agreement: { agree: 0, total: 2 } },
+      current: { cards: 3, cardsLabeledNone: 1, agreement: { agree: 1, total: 2 } },
+      extractedAndTagged: { cards: 0, cardsLabeledNone: 0, agreement: { agree: 1, total: 2 } },
+      taggedOnly: { cards: 3, cardsLabeledNone: 1, agreement: { agree: 0, total: 2 } },
     });
-    expect(summary.wraps.rows.map((r) => [r.persona, r.label, r.current, r.taggedOnly])).toEqual([
-      ['A', 'none', 0, 1],
-      ['B', 'none', 0, 0.8],
-      ['C', null, 0, 1],
+    expect(
+      summary.wraps.rows.map((r) => [
+        r.persona,
+        r.label,
+        r.current,
+        r.extractedAndTagged,
+        r.taggedOnly,
+      ]),
+    ).toEqual([
+      ['A', 'medium', 0.5, 0, 1],
+      ['B', 'none', 0.4, 0, 0.8],
+      ['C', null, 0.5, 0, 1],
     ]);
     expect(summary.wraps.rows[0]).toMatchObject({ tagged: ['NVDA', 'KO'], extracted: [] });
   });
 
   it('renders the wrap section', () => {
     const report = renderReport(summary, { status: 'skipped', reason: 'test' });
-    expect(report).toContain('| Tagged only | 3 | 2 | 0 of 2 (0%) |');
+    expect(report).toContain('| Mention rule (today, T27) | 3 | 1 | 1 of 2 (50%) |');
+    expect(report).toContain('| Extracted and tagged (T05) | 0 | 0 | 1 of 2 (50%) |');
+    expect(report).toContain('| Tagged only | 3 | 1 | 0 of 2 (0%) |');
   });
 });
 
@@ -367,12 +390,12 @@ describe('summarizeRun, materiality', () => {
   // Intel item reaches ASML holders through INTC customer_of ASML, labeled high.
   const msft = {
     ...itemRun(real(1, ['MSFT']), ['MSFT'], rel(1, 0.8, 0), rel(1, 0.8, 0)),
-    starts: ['MSFT' as const],
+    starts: [{ symbol: 'MSFT' as const, named: true }],
     graph: [edge('MSFT', 'customer_of', 'AMD')],
   };
   const intc = {
     ...itemRun(real(2, ['INTC']), ['INTC'], rel(0, 0.8, 0), rel(0, 0.8, 0)),
-    starts: ['INTC' as const],
+    starts: [{ symbol: 'INTC' as const, named: true }],
     graph: [edge('INTC', 'customer_of', 'ASML')],
   };
   const run: EvalRun = { startedAt: now, relationships: 0, holdings, items: [msft, intc] };

@@ -6,21 +6,21 @@ import {
   type Confidence,
   type Holding,
   type Relationship,
-  type UniverseSymbol,
 } from '@kesher/shared';
 import { MongoServerError, type Db } from 'mongodb';
 import { collection } from '../db/collections';
 import { confidenceFor, type SourceTier } from './confidence';
 import { loadEdges } from './graph';
-import { bestPath, eventCompanies, type Scored } from './score';
+import { bestPath, startNodes, type Scored, type StartNode } from './score';
 
 const DUPLICATE_KEY = 11000;
 
 // Everything relevance needs for one extracted event, read once: the provider tagged universe
-// companies it starts from, the reviewed edges around them and the confidence of its sources.
+// companies it starts from, each named or only mentioned by the extraction, the reviewed edges
+// around them and the confidence of its sources.
 export interface ScoringContext {
   event: MarketEvent;
-  companies: UniverseSymbol[];
+  starts: StartNode[];
   edges: Relationship[];
   confidence: Confidence;
 }
@@ -43,14 +43,17 @@ export async function loadScoringContext(db: Db, eventId: string): Promise<Scori
     .find({ _id: { $in: event.sourceIds } })
     .project<SourceTier & { symbols: string[] }>({ _id: 0, tier: 1, publisher: 1, symbols: 1 })
     .toArray();
-  const companies = eventCompanies(
+  const starts = startNodes(
     event.extraction.companies.map((company) => company.symbol),
     sources.flatMap((source) => source.symbols),
   );
   return {
     event,
-    companies,
-    edges: await loadEdges(db, companies),
+    starts,
+    edges: await loadEdges(
+      db,
+      starts.map((start) => start.symbol),
+    ),
     confidence: confidenceFor(sources),
   };
 }
@@ -58,7 +61,7 @@ export async function loadScoringContext(db: Db, eventId: string): Promise<Scori
 // One user's relevance and path for the event. Pure; the same call scores and explains.
 export function scoreFor(context: ScoringContext, holdings: readonly Holding[]): Scored {
   return bestPath(
-    context.companies,
+    context.starts,
     holdings.map((holding) => holding.symbol),
     context.edges,
   );

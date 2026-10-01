@@ -209,6 +209,7 @@ describe('GET /feed, GET /feed/hidden and GET /events/:eventId/explain, on mongo
       expect(a).toMatchObject({ relevance: 0.8, path: card!.item.path, evidence: card!.evidence });
       expect((await explain(cookies.B)).path).toEqual({
         eventCompany: 'TSM',
+        named: true,
         holding: 'TSM',
         hops: [],
       });

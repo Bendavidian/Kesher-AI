@@ -1,7 +1,7 @@
 import { RELEVANCE_HIGH, relevanceBand, type PersonaKey } from '@kesher/shared';
 import { groupRelationships, type Review } from '../graph/review';
 import type { CandidatesFile } from '../graph/rows';
-import { bestPath, eventCompanies } from '../relevance/score';
+import { bestPath, universeSymbols } from '../relevance/score';
 import { GATE_MIN_IMPORTANCE, GATE_MIN_RELEVANCE } from '../research/gate';
 import type { Label, Level } from './labels';
 import { PERSONA_KEYS } from './labels';
@@ -110,27 +110,33 @@ export interface InjectionRow {
   // null when the baseline's own extraction failed: nothing to compare, and the row stays out of
   // the success rates.
   outcome: InjectionOutcome | null;
+  // Each persona whose relevance moved against the baseline, from the baseline's score to the
+  // poisoned copy's: a card lowered or removed shows in its band.
+  moves: { persona: PersonaKey; from: number; to: number }[];
   // Personas whose relevance would move under the tagged only rule.
   taggedOnlyMoved: PersonaKey[];
 }
 
-// The start node comparison: today's rule (extracted and tagged) against tagged only.
+// The start node comparison: today's rule (the mention rule, T27) against the T05 rule it replaced
+// (extracted and tagged) and tagged only.
 export interface StartNodeRules {
   current: Record<PersonaKey, Confusion>;
+  extractedAndTagged: Record<PersonaKey, Confusion>;
   taggedOnly: Record<PersonaKey, Confusion>;
-  // Every pair of real item and persona where the two rules give different relevance.
+  // Every pair of real item and persona where the rules do not all give the same relevance.
   differences: {
     sourceId: string;
     headline: string;
     persona: PersonaKey;
     label: Level | null;
     current: number;
+    extractedAndTagged: number;
     taggedOnly: number;
   }[];
 }
 
 // The market wraps (T16 part 2): items whose provider tags name universe companies the text only
-// mentions in passing, under both start node rules. A card is a pair with relevance above 0.
+// mentions in passing, under the three start node rules. A card is a pair with relevance above 0.
 export interface WrapRule {
   cards: number;
   // Cards on pairs the user labeled none: cards for companies the item is not about.
@@ -147,6 +153,7 @@ export interface WrapRow {
   persona: PersonaKey;
   label: Level | null;
   current: number;
+  extractedAndTagged: number;
   taggedOnly: number;
 }
 
@@ -155,6 +162,7 @@ export interface WrapSummary {
   labels: { reviewed: number; proposed: number };
   rows: WrapRow[];
   current: WrapRule;
+  extractedAndTagged: WrapRule;
   taggedOnly: WrapRule;
 }
 
@@ -195,7 +203,8 @@ export interface EvalSummary {
   // Reviewed labels by how the path reaches the holding, all personas together.
   byPathKind: { kind: PathKind; pairs: number; labels: Record<Level, number> }[];
   startNodes: StartNodeRules;
-  // Universe companies the extraction named that the provider did not tag (T05, fails closed).
+  // Universe companies the extraction named that the provider did not tag: no start node (T05 and
+  // T27, fails closed).
   untagged: { sourceId: string; headline: string; symbols: string[] }[];
   // Real items whose extraction failed: no card, so relevance 0 and importance 0 above.
   failed: { sourceId: string; headline: string; error: string }[];
@@ -256,9 +265,8 @@ const isWrap = (r: ItemRun) => r.item.kind === 'real' && r.item.event.type === '
 function wrapSummary(wraps: readonly ItemRun[], labelOf: ReadonlyMap<string, Label>): WrapSummary {
   const rows: WrapRow[] = [];
   for (const r of wraps) {
-    const tagged = eventCompanies(r.tagged, r.tagged);
-    const named = (r.extraction?.companies ?? []).map((c) => c.symbol);
-    const extracted = eventCompanies(named, named);
+    const tagged = universeSymbols(r.tagged);
+    const extracted = universeSymbols((r.extraction?.companies ?? []).map((c) => c.symbol));
     for (const persona of PERSONA_KEYS) {
       const label = labelOf.get(key(r.item.id, persona));
       rows.push({
@@ -269,11 +277,12 @@ function wrapSummary(wraps: readonly ItemRun[], labelOf: ReadonlyMap<string, Lab
         persona,
         label: label?.status === 'reviewed' ? label.level : null,
         current: r.relevance[persona],
+        extractedAndTagged: r.extractedAndTagged[persona],
         taggedOnly: r.taggedOnly[persona],
       });
     }
   }
-  const rule = (pick: 'current' | 'taggedOnly'): WrapRule => ({
+  const rule = (pick: 'current' | 'extractedAndTagged' | 'taggedOnly'): WrapRule => ({
     cards: rows.filter((row) => row[pick] > 0).length,
     cardsLabeledNone: rows.filter((row) => row[pick] > 0 && row.label === 'none').length,
     agreement: confusion(
@@ -292,6 +301,7 @@ function wrapSummary(wraps: readonly ItemRun[], labelOf: ReadonlyMap<string, Lab
     },
     rows,
     current: rule('current'),
+    extractedAndTagged: rule('extractedAndTagged'),
     taggedOnly: rule('taggedOnly'),
   };
 }
@@ -412,38 +422,46 @@ export function summarizeRun(
   }
 
   const current = {} as Record<PersonaKey, Confusion>;
+  const extractedAndTagged = {} as Record<PersonaKey, Confusion>;
   const taggedOnly = {} as Record<PersonaKey, Confusion>;
   const differences: StartNodeRules['differences'] = [];
   for (const persona of PERSONA_KEYS) {
     const now: { label: Level; predicted: Level }[] = [];
+    const t05: { label: Level; predicted: Level }[] = [];
     const alt: { label: Level; predicted: Level }[] = [];
     for (const r of real) {
       const label = labelOf.get(key(r.item.id, persona));
       const reviewed = label?.status === 'reviewed' ? label.level : null;
       if (reviewed) {
         now.push({ label: reviewed, predicted: relevanceBand(r.relevance[persona]) });
+        t05.push({ label: reviewed, predicted: relevanceBand(r.extractedAndTagged[persona]) });
         alt.push({ label: reviewed, predicted: relevanceBand(r.taggedOnly[persona]) });
       }
-      if (r.relevance[persona] !== r.taggedOnly[persona]) {
+      if (
+        r.relevance[persona] !== r.extractedAndTagged[persona] ||
+        r.relevance[persona] !== r.taggedOnly[persona]
+      ) {
         differences.push({
           sourceId: r.item.id,
           headline: r.item.item.headline,
           persona,
           label: reviewed,
           current: r.relevance[persona],
+          extractedAndTagged: r.extractedAndTagged[persona],
           taggedOnly: r.taggedOnly[persona],
         });
       }
     }
     current[persona] = confusion(now);
+    extractedAndTagged[persona] = confusion(t05);
     taggedOnly[persona] = confusion(alt);
   }
 
   const untagged = real.flatMap((r) => {
-    const named = (r.extraction?.companies ?? []).map((c) => c.symbol);
-    const starts = new Set<string>(eventCompanies(named, r.tagged));
-    const universe = new Set<string>(eventCompanies(named, named));
-    const symbols = [...universe].filter((s) => !starts.has(s));
+    const tagged = new Set(r.tagged);
+    const symbols = universeSymbols((r.extraction?.companies ?? []).map((c) => c.symbol)).filter(
+      (s) => !tagged.has(s),
+    );
     return symbols.length === 0
       ? []
       : [{ sourceId: r.item.id, headline: r.item.item.headline, symbols }];
@@ -476,6 +494,11 @@ export function summarizeRun(
       baselineId: r.item.poison.baselineId,
       headline: r.item.item.headline,
       screen,
+      moves: PERSONA_KEYS.filter((p) => baseline.relevance[p] !== r.relevance[p]).map((p) => ({
+        persona: p,
+        from: baseline.relevance[p],
+        to: r.relevance[p],
+      })),
       taggedOnlyMoved: PERSONA_KEYS.filter((p) => baseline.taggedOnly[p] !== r.taggedOnly[p]),
       score: r.screen?.score ?? null,
       outcome:
@@ -511,7 +534,7 @@ export function summarizeRun(
     },
     agreement,
     disagreements,
-    startNodes: { current, taggedOnly, differences },
+    startNodes: { current, extractedAndTagged, taggedOnly, differences },
     bandSets: BAND_SETS.map((set) => {
       const pairs = (persona: PersonaKey) =>
         real.flatMap((r) => {

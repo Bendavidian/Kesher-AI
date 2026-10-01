@@ -1,5 +1,6 @@
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { relevanceBand } from '@kesher/shared';
 import { format, resolveConfig } from 'prettier';
 import { FLAG_THRESHOLD } from '../screen/injection';
 import { GATE_MIN_IMPORTANCE, GATE_MIN_RELEVANCE } from '../research/gate';
@@ -8,7 +9,7 @@ import { LEVELS } from './labels';
 import type { Confusion, Summary } from './metrics';
 import type { RetrievalResult } from './retrieval';
 import type { PathKind } from './runner';
-import type { EvalSummary } from './summary';
+import type { EvalSummary, InjectionRow } from './summary';
 import type { VerifierEval } from './verifier';
 
 // docs/EVALS.md: npm run eval writes only the block between the markers, so the hand written
@@ -42,6 +43,14 @@ const summaryRow = (name: string, s: Summary) =>
 
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 const agreed = (c: Confusion) => `${c.agree} of ${c.total} (${pct(c.agreement)})`;
+// "A 1 (high) → 0.5 (medium)": a persona's relevance on the baseline and on the poisoned copy,
+// each with its band, so a lowered card reads apart from a removed one.
+const moves = (list: InjectionRow['moves']) =>
+  list
+    .map(
+      (m) => `${m.persona} ${m.from} (${relevanceBand(m.from)}) → ${m.to} (${relevanceBand(m.to)})`,
+    )
+    .join(', ') || 'none';
 
 export function renderReport(
   summary: EvalSummary,
@@ -129,27 +138,27 @@ export function renderReport(
     '',
     '### Start node rules',
     '',
-    'Relevance from the extracted companies that the provider also tagged (today, T05) against every tagged universe company (tagged only), on the real items, with the same graph and best path. Agreement with the reviewed labels:',
+    'Relevance under the mention rule (today, T27: every tagged universe company starts the graph, and a path from a company the extraction does not name scores half), against the T05 rule it replaced (only the tagged companies the extraction names) and tagged only (every tagged company as if named), on the real items, with the same graph and best path. Agreement with the reviewed labels:',
     '',
-    '| Persona | Extracted and tagged | Tagged only |',
-    '|---|---|---|',
+    '| Persona | Mention rule (T27) | Extracted and tagged (T05) | Tagged only |',
+    '|---|---|---|---|',
     ...(['A', 'B', 'C'] as const).map(
       (p) =>
-        `| ${p} | ${s.startNodes.current[p].agree} of ${s.startNodes.current[p].total} (${pct(s.startNodes.current[p].agreement)}) | ${s.startNodes.taggedOnly[p].agree} of ${s.startNodes.taggedOnly[p].total} (${pct(s.startNodes.taggedOnly[p].agreement)}) |`,
+        `| ${p} | ${agreed(s.startNodes.current[p])} | ${agreed(s.startNodes.extractedAndTagged[p])} | ${agreed(s.startNodes.taggedOnly[p])} |`,
     ),
     '',
     s.startNodes.differences.length === 0
-      ? 'The two rules give the same relevance on every real item.'
+      ? 'The three rules give the same relevance on every real item.'
       : 'Pairs where the rules differ:',
   );
   if (s.startNodes.differences.length > 0) {
     out.push(
       '',
-      '| Item | Headline | Persona | Label | Extracted and tagged | Tagged only |',
-      '|---|---|---|---|---|---|',
+      '| Item | Headline | Persona | Label | Mention rule (T27) | Extracted and tagged (T05) | Tagged only |',
+      '|---|---|---|---|---|---|---|',
       ...s.startNodes.differences.map(
         (d) =>
-          `| ${d.sourceId} | ${cell(d.headline).slice(0, 80)} | ${d.persona} | ${d.label ?? 'n/a'} | ${d.current} | ${d.taggedOnly} |`,
+          `| ${d.sourceId} | ${cell(d.headline).slice(0, 80)} | ${d.persona} | ${d.label ?? 'n/a'} | ${d.current} | ${d.extractedAndTagged} | ${d.taggedOnly} |`,
       ),
     );
   }
@@ -158,18 +167,19 @@ export function renderReport(
     '',
     '### Market wraps: passing mentions',
     '',
-    `${w.items} market wraps whose provider tags name universe companies the text only mentions in passing, kept apart from the ${s.realItems} items above (labels: ${w.labels.reviewed} reviewed, ${w.labels.proposed} proposed). A card is a pair with relevance above 0; the cost of tagged only is the cards it adds for companies the item is not about.`,
+    `${w.items} market wraps whose provider tags name universe companies the text only mentions in passing, kept apart from the ${s.realItems} items above (labels: ${w.labels.reviewed} reviewed, ${w.labels.proposed} proposed). A card is a pair with relevance above 0; the cost of starting from every tagged company is the cards it adds for companies the item is not about.`,
     '',
     '| Rule | Cards | Cards labeled none | Agreement |',
     '|---|---|---|---|',
-    `| Extracted and tagged (today) | ${w.current.cards} | ${w.current.cardsLabeledNone} | ${agreed(w.current.agreement)} |`,
+    `| Mention rule (today, T27) | ${w.current.cards} | ${w.current.cardsLabeledNone} | ${agreed(w.current.agreement)} |`,
+    `| Extracted and tagged (T05) | ${w.extractedAndTagged.cards} | ${w.extractedAndTagged.cardsLabeledNone} | ${agreed(w.extractedAndTagged.agreement)} |`,
     `| Tagged only | ${w.taggedOnly.cards} | ${w.taggedOnly.cardsLabeledNone} | ${agreed(w.taggedOnly.agreement)} |`,
     '',
-    '| Item | Headline | Tagged | Extracted | Persona | Label | Extracted and tagged | Tagged only |',
-    '|---|---|---|---|---|---|---|---|',
+    '| Item | Headline | Tagged | Extracted | Persona | Label | Mention rule (T27) | Extracted and tagged (T05) | Tagged only |',
+    '|---|---|---|---|---|---|---|---|---|',
     ...w.rows.map(
       (r) =>
-        `| ${r.sourceId} | ${cell(r.headline).slice(0, 60)} | ${r.tagged.join(', ') || 'none'} | ${r.extracted.join(', ') || 'none'} | ${r.persona} | ${r.label ?? 'n/a'} | ${r.current} | ${r.taggedOnly} |`,
+        `| ${r.sourceId} | ${cell(r.headline).slice(0, 60)} | ${r.tagged.join(', ') || 'none'} | ${r.extracted.join(', ') || 'none'} | ${r.persona} | ${r.label ?? 'n/a'} | ${r.current} | ${r.extractedAndTagged} | ${r.taggedOnly} |`,
     ),
   );
 
@@ -192,7 +202,7 @@ export function renderReport(
     '',
     '### Untagged companies',
     '',
-    `Universe companies the extraction named but the provider did not tag, which T05 leaves out of the graph (fails closed): ${s.untagged.length === 0 ? 'none.' : ''}`,
+    `Universe companies the extraction named but the provider did not tag, which never start the graph (T05 and T27, fails closed): ${s.untagged.length === 0 ? 'none.' : ''}`,
   );
   for (const u of s.untagged) {
     out.push(`- ${u.sourceId} ${cell(u.headline).slice(0, 90)}: ${u.symbols.join(', ')}`);
@@ -228,7 +238,7 @@ export function renderReport(
     '',
     `- Success without the screen: ${successes} of ${inj.length} (${pct(inj.length ? successes / inj.length : null)}).`,
     `- Success with the screen: ${withScreen} of ${inj.length} (${pct(inj.length ? withScreen / inj.length : null)}).`,
-    `- Relevance moved for any persona, after the code defenses: ${moved} of ${inj.length}.`,
+    `- Relevance moved for any persona, after the code defenses: ${moved} of ${inj.length}. Each move is shown from the baseline's score and band to the poisoned copy's.`,
     ...(notComparable.length > 0
       ? [`- Not comparable, the baseline's extraction failed: ${notComparable.join(', ')}.`]
       : []),
@@ -252,7 +262,7 @@ export function renderReport(
         ) || 'same';
     const importance = o.importanceChange === null ? 'none' : change(o.importanceChange);
     out.push(
-      `| ${r.id} | ${r.kind} | ${r.baselineId} | ${r.screen}${r.score === null ? '' : ` (${r.score.toFixed(3)})`} | ${companies} | ${importance} | ${o.success ? 'yes' : 'no'} | ${o.successWithScreen ? 'yes' : 'no'} | ${o.relevanceChanged.join(', ') || 'none'} | ${r.taggedOnlyMoved.join(', ') || 'none'} |`,
+      `| ${r.id} | ${r.kind} | ${r.baselineId} | ${r.screen}${r.score === null ? '' : ` (${r.score.toFixed(3)})`} | ${companies} | ${importance} | ${o.success ? 'yes' : 'no'} | ${o.successWithScreen ? 'yes' : 'no'} | ${moves(r.moves)} | ${r.taggedOnlyMoved.join(', ') || 'none'} |`,
     );
   }
 

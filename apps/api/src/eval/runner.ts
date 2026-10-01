@@ -2,6 +2,7 @@ import { performance } from 'node:perf_hooks';
 import {
   DEMO_PERSONAS,
   MarketEvent,
+  onlyMentioned,
   Source,
   type Extraction,
   type FeedPath,
@@ -19,8 +20,9 @@ import { toIncomingItem } from '../ingest/alpaca';
 import { processItem, type ProcessResult } from '../ingest/process';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import type { ModelRecording } from '../llm/recordings';
+import { loadScoringContext } from '../relevance/feed';
 import { loadEdges } from '../relevance/graph';
-import { bestPath, eventCompanies } from '../relevance/score';
+import { bestPath, startNodes, type StartNode } from '../relevance/score';
 import { runSeed } from '../seed/seed';
 // Test doubles in a dev-only job: the api runs from source through tsx, mongodb-memory-server is
 // a devDependency and ai/test ships with ai, so nothing here reaches a production path.
@@ -41,14 +43,18 @@ export interface ItemRun {
   screen: InjectionScreen | null;
   tagged: string[];
   extraction: Extraction | null;
+  // What the pipeline stored: the mention rule (T27), every tagged universe company a start node
+  // and a mention scored half.
   relevance: Record<PersonaKey, number>;
-  // What relevance would be if every provider tagged universe company were a start node, whatever
-  // the extraction named: a counterfactual rule for the report, never written anywhere.
+  // Two counterfactual rules for the report, never written anywhere, with the same graph and best
+  // path: the T05 rule it replaced, only the tagged companies the extraction names, and tagged
+  // only, every tagged company as if named.
+  extractedAndTagged: Record<PersonaKey, number>;
   taggedOnly: Record<PersonaKey, number>;
-  // The start nodes of today's rule (extracted and tagged) and every reviewed edge within two hops
-  // of them, so the summary can score the same item again with other edge weights (the
-  // materiality experiment) without a database. Empty for an item the pipeline did not score.
-  starts: UniverseSymbol[];
+  // The pipeline's start nodes and every reviewed edge within two hops of them, so the summary can
+  // score the same item again with other edge weights (the materiality experiment) without a
+  // database. Empty for an item the pipeline did not score.
+  starts: StartNode[];
   graph: Relationship[];
   // The scored path per persona as text, for example "TSM supplier_of NVDA"; null at relevance 0.
   paths: Record<PersonaKey, string | null>;
@@ -77,9 +83,14 @@ export function pathKindOf(path: FeedPath | null): PathKind {
   return path.hops.length === 1 ? path.hops[0]!.type : 'two_hops';
 }
 
-// "TSM supplier_of NVDA": the event company, then each hop's type and the company it reaches.
+// "TSM supplier_of NVDA": the event company, marked when the item only mentions it, then each
+// hop's type and the company it reaches.
 export const pathText = (path: FeedPath | null): string | null =>
-  path && [path.eventCompany, ...path.hops.map((h) => `${h.type} ${h.to}`)].join(' ');
+  path &&
+  [
+    onlyMentioned(path) ? `${path.eventCompany} (mentioned)` : path.eventCompany,
+    ...path.hops.map((h) => `${h.type} ${h.to}`),
+  ].join(' ');
 
 export interface EvalRun {
   startedAt: Date;
@@ -147,15 +158,18 @@ async function personas(db: Db): Promise<Map<string, Persona>> {
 const zeros = () =>
   Object.fromEntries(PERSONA_KEYS.map((p) => [p, 0])) as Record<PersonaKey, number>;
 
-// The tagged only rule, with the same graph and the same best path as scoring. Each eval item is
-// its own event, so its tags are the event's tags; scoring unions them over a cluster.
-async function taggedOnlyRelevance(
+// Relevance under a counterfactual start node rule, with the same graph and the same best path as
+// scoring. Each eval item is its own event, so its tags are the event's tags; scoring unions them
+// over a cluster.
+async function relevanceUnder(
   db: Db,
-  tagged: readonly string[],
+  starts: readonly StartNode[],
   users: ReadonlyMap<string, Persona>,
 ): Promise<Record<PersonaKey, number>> {
-  const starts = eventCompanies(tagged, tagged);
-  const edges = await loadEdges(db, starts);
+  const edges = await loadEdges(
+    db,
+    starts.map((start) => start.symbol),
+  );
   const result = zeros();
   for (const { key, holdings } of users.values()) {
     result[key] = bestPath(starts, holdings, edges).relevance;
@@ -194,8 +208,10 @@ export async function runEval(
     const pathKinds: Record<PersonaKey, PathKind> = { A: 'none', B: 'none', C: 'none' };
     let screen: InjectionScreen | null = null;
     let extraction: Extraction | null = null;
-    let starts: UniverseSymbol[] = [];
+    let starts: StartNode[] = [];
     let graph: Relationship[] = [];
+    let extractedAndTagged = zeros();
+    let taggedOnly = zeros();
     if (outcome.outcome === 'failed') {
       const source = await collection(db, 'sources').findOne({
         provider: incoming.provider,
@@ -212,11 +228,14 @@ export async function runEval(
         await collection(db, 'market_events').findOne({ _id: outcome.eventId }),
       );
       extraction = event.extraction;
-      starts = eventCompanies(
-        (event.extraction?.companies ?? []).map((c) => c.symbol),
-        incoming.symbols,
+      ({ starts, edges: graph } = await loadScoringContext(db, outcome.eventId));
+      const named = (event.extraction?.companies ?? []).map((c) => c.symbol);
+      extractedAndTagged = await relevanceUnder(
+        db,
+        startNodes(named, incoming.symbols).filter((start) => start.named),
+        users,
       );
-      graph = await loadEdges(db, starts);
+      taggedOnly = await relevanceUnder(db, startNodes(incoming.symbols, incoming.symbols), users);
       for (const feed of await collection(db, 'feed_items')
         .find({ eventId: outcome.eventId })
         .toArray()) {
@@ -238,10 +257,8 @@ export async function runEval(
       pathKinds,
       // Like relevance, 0 for an item the pipeline did not score, so the rules compare on the same
       // items.
-      taggedOnly:
-        outcome.outcome === 'processed'
-          ? await taggedOnlyRelevance(db, incoming.symbols, users)
-          : zeros(),
+      extractedAndTagged,
+      taggedOnly,
       starts,
       graph,
       models,

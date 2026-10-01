@@ -15,6 +15,7 @@ describe('whyYou', () => {
       connected: true,
       label: 'TSMC supplies NVIDIA, and NVIDIA is in your portfolio',
       rowLabel: 'TSMC supplies NVIDIA, which you hold',
+      mention: null,
       explanation: null,
     });
   });
@@ -47,7 +48,45 @@ describe('whyYou', () => {
       connected: true,
       label: 'You hold TSMC directly',
       rowLabel: 'You hold TSMC',
+      mention: null,
       explanation: null,
+    });
+  });
+
+  it('says when the item only mentions a holding in passing', () => {
+    const path = FeedPath.parse({ eventCompany: 'NVDA', named: false, holding: 'NVDA', hops: [] });
+    expect(whyYou(path, 'NVDA', ['NVDA', 'MSFT', 'AMZN'])).toEqual({
+      connected: true,
+      label: 'You hold NVIDIA, which the item mentions only in passing',
+      rowLabel: 'You hold NVIDIA, mentioned in passing',
+      mention: 'The item mentions NVIDIA only in passing.',
+      explanation: null,
+    });
+  });
+
+  it('says when a path starts from a company the item only mentions in passing', () => {
+    const path = FeedPath.parse({
+      eventCompany: 'TSM',
+      named: false,
+      holding: 'NVDA',
+      hops: [{ from: 'TSM', to: 'NVDA', type: 'supplier_of', weight: 0.8, relationshipId }],
+    });
+    expect(whyYou(path, 'TSM', ['NVDA', 'MSFT', 'AMZN'])).toEqual({
+      connected: true,
+      label:
+        'The item mentions TSMC only in passing; TSMC supplies NVIDIA, and NVIDIA is in your portfolio',
+      rowLabel: 'Mentioned in passing: TSMC supplies NVIDIA, which you hold',
+      mention: 'The item mentions TSMC only in passing.',
+      explanation: null,
+    });
+  });
+
+  it('reads a path stored before T27, which has no named flag, as named', () => {
+    // A raw read from the database, without the schema's default.
+    const stored = { eventCompany: 'TSM', holding: 'TSM', hops: [] } as unknown as FeedPath;
+    expect(whyYou(stored, 'TSM', ['TSM'])).toMatchObject({
+      label: 'You hold TSMC directly',
+      mention: null,
     });
   });
 
@@ -56,6 +95,7 @@ describe('whyYou', () => {
       connected: false,
       label: 'No connection from TSMC to your holdings',
       rowLabel: 'No path to your holdings',
+      mention: null,
       explanation:
         'You hold KO, JNJ and XOM. Nothing in the graph links them to TSMC within two stops.',
     });

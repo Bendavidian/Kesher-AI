@@ -230,6 +230,31 @@ describe('feed screen, signed in through the persona switcher', () => {
     expect(within(scores).queryByText(/We utilize foundries/)).toBeNull();
   });
 
+  it('says when the path starts from a company the item only mentions in passing', async () => {
+    const demo = DEMO_CARDS.A[0]!;
+    const mention: FeedCard = {
+      ...demo,
+      item: { ...demo.item, relevance: 0.4, path: { ...demo.item.path!, named: false } },
+    };
+    render(<App deps={fakeLive({ feeds: { ...DEMO_CARDS, A: [mention] } }).deps} />);
+    await ready();
+    const { feed, event, scores } = regions();
+
+    expect(within(row(feed)).getByText('Medium 0.40')).toBeTruthy();
+    expect(
+      within(row(feed)).getByRole('img', {
+        name: 'Mentioned in passing: TSMC supplies NVIDIA, which you hold',
+      }),
+    ).toBeTruthy();
+    expect(within(event).getByText('Why this reached you')).toBeTruthy();
+    expect(within(event).getByText('The item mentions TSMC only in passing.')).toBeTruthy();
+    expect(
+      within(scores).getByText(
+        'Medium. Measured along the path from a company the item only mentions.',
+      ),
+    ).toBeTruthy();
+  });
+
   it('C: an empty feed until the event is scored, then None from the hidden items', async () => {
     const { api, deps, socket, hidden } = fakeLive();
     render(<App deps={deps} />);

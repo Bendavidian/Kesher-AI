@@ -6,6 +6,7 @@ import { buildBrief, quoteToolOutput, RESEARCH_SYSTEM, researchSystem } from './
 
 const path: FeedPath = {
   eventCompany: 'TSM',
+  named: true,
   holding: 'NVDA',
   hops: [
     { from: 'TSM', to: 'NVDA', type: 'supplier_of', weight: 0.8, relationshipId: randomUUID() },

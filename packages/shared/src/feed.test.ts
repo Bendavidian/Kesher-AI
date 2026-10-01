@@ -22,7 +22,7 @@ describe('FeedCard', () => {
       userId: id(2),
       eventId: id(3),
       relevance: 1,
-      path: { eventCompany: 'TSM', holding: 'TSM', hops: [] },
+      path: { eventCompany: 'TSM', named: true, holding: 'TSM', hops: [] },
       confidence: 'medium',
       status: 'confirmed',
       research: { state: 'none', runId: null, reportId: null },
@@ -105,7 +105,7 @@ describe('EventExplain', () => {
     const direct = {
       ...none,
       relevance: 1,
-      path: { eventCompany: 'TSM', holding: 'TSM', hops: [] },
+      path: { eventCompany: 'TSM', named: true, holding: 'TSM', hops: [] },
     };
     expect(EventExplain.parse(direct)).toEqual(direct);
   });
@@ -115,7 +115,7 @@ describe('EventExplain', () => {
     expect(
       EventExplain.safeParse({
         ...none,
-        path: { eventCompany: 'TSM', holding: 'TSM', hops: [] },
+        path: { eventCompany: 'TSM', named: true, holding: 'TSM', hops: [] },
       }).success,
     ).toBe(false);
   });
@@ -179,7 +179,7 @@ describe('HiddenFeed', () => {
     const direct = {
       ...hidden(1),
       relevance: 1,
-      path: { eventCompany: 'KO', holding: 'KO', hops: [] },
+      path: { eventCompany: 'KO', named: true, holding: 'KO', hops: [] },
     };
     expect(HiddenFeed.safeParse({ recent: [direct], total: 1 }).success).toBe(false);
   });

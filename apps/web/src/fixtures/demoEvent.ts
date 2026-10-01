@@ -118,6 +118,7 @@ export const FEED_ITEMS: Record<PersonaKey, FeedItem[]> = {
       relevance: 0.8,
       path: {
         eventCompany: 'TSM',
+        named: true,
         holding: 'NVDA',
         hops: [
           {
@@ -138,7 +139,7 @@ export const FEED_ITEMS: Record<PersonaKey, FeedItem[]> = {
       _id: '6c1d2e3f-4a5b-4c6d-8e7f-8a9b0c1d2e02',
       userId: userId('B'),
       relevance: 1,
-      path: { eventCompany: 'TSM', holding: 'TSM', hops: [] },
+      path: { eventCompany: 'TSM', named: true, holding: 'TSM', hops: [] },
     },
   ],
   // No path within two hops.
