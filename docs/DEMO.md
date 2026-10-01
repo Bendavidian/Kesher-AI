@@ -1,6 +1,6 @@
 # Demo and rehearsal
 
-A five minute demo from the recorded TSMC event, on the deployed app, with the app running locally as the fallback. T18 part 2 rehearses it after T16 and T20 (docs/BACKLOG.md).
+A five minute demo from the recorded TSMC event, on the deployed app at https://kesher-5ymr.onrender.com, with the app running locally as the fallback: the rehearsal checklist for the day before, the script, and the fallback plan.
 
 ## Shared use
 - **The public instance shares the development database.** Render uses the development Atlas cluster and its `kesher` database, through its own user (Database, below). Trade-off: nothing to seed or keep in step, but development and the public app change the same data and spend the same daily research budget.
@@ -41,45 +41,69 @@ These are reused from development, because they identify free provider accounts 
 - ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY, for SIP bars and the market calendar, and with LIVE_INGEST on for the news stream and its gap fill. Render then holds the one live WebSocket the free plan allows for these keys, so no development machine may turn LIVE_INGEST on.
 - SEC_USER_AGENT, a name and a contact rather than a secret, for get_financial_facts and the EDGAR poller.
 
-## The day before
-- [ ] The deployed service runs the latest main, and render.yaml matches its settings: DEMO_MODE true, LOCAL_EMBEDDINGS false. LIVE_INGEST is the dashboard's: the footer's live line says whether it is on and connected.
-- [ ] The keep-alive cron pinged /health in the last hour (its log shows 200).
-- [ ] `npm run smoke -- --url https://<service>.onrender.com` passes, Investigate included. That spends one research run of the day's 30.
-- [ ] The research budget has room: research_budget in `kesher` shows the UTC day's count well under 30; development runs count too. It resets at 00:00 UTC, which is 03:00 in Israel.
-- [ ] Groq and Gemini quotas are not near their daily limits (docs/SPIKE.md).
-- [ ] The feed, report and run screens render on the deployed URL at 1440px and at 1279px.
-- [ ] The feed holds the demo event, the event library and Render's live items only: `npm run demo:library` loads nothing new, and no FeedItems are in `kesher` from development replays (Shared use, above). With live ingestion on, A and B have more than 25 cards.
-- [ ] Live ingestion: the footer shows "Live · connected" and today's extractions well under 150 (Live ingestion on Render, below).
-- [ ] Check the Agent runs tab for replays or runs you did not start (Shared use, above).
-- [ ] The local fallback works: `git pull`, `npm install`, `npm run dev`, then sign in as A, Replay, and Investigate on localhost:5173.
+## The day before: rehearsal checklist
+Run it from top to bottom on the deployed URL, https://kesher-5ymr.onrender.com, less than 24 hours before the demo. The Investigate below then counts as the card's recent run, so the demo's Replay attaches its report instead of starting a new run.
+- [ ] **Deployed main.** The service runs the latest main (Manual Deploy), and render.yaml matches its settings: DEMO_MODE true, LOCAL_EMBEDDINGS false, LIVE_INGEST set in the dashboard.
+- [ ] **Wake the service.** Open the URL and wait for the feed. After a spin down the first request takes about a minute.
+- [ ] **Health.** `curl https://kesher-5ymr.onrender.com/health` answers 200 with `{"status":"ok","demoMode":true}`.
+- [ ] **Keep-alive history.** On cron-job.org, the job's History shows a 200 from /health every 10 minutes over the last day, with no gap. A gap means the instance slept, and with it the live stream.
+- [ ] **Live status.** The footer reads "Live · connected" and today's extractions are well under 150 ("41 of 150 extracted"); its details show the queue, the EDGAR poller and the counters. "Live ingest off" means LIVE_INGEST is false on Render (Live ingestion on Render, below). A footer with "API ok" and no live line means the deploy predates T19.
+- [ ] **Replay.** As AI investor, press Replay demo event. The TSMC card arrives on top within seconds, in every open window.
+- [ ] **The three personas.** AI investor: Medium 0.80, "TSMC supplies NVIDIA, which you hold", with the NVIDIA 10-K quote. Semiconductors: High 1.00, a direct TSM holding. Unrelated: the card is not in the feed.
+- [ ] **One Investigate.** On AI investor's card, Investigate (or Investigate again), then View agent run, until Completed. The run shows the Verifier step with tokens ("Verifier 2.2k of 6k", never 0), and Open research report lists supported claims, the 10-K fact and the open gap metric among them. A report that reads "N claims were not verified" with a Verifier failed step means the verifier could not reach Groq: read the step's error (an "Invalid API Key" means GROQ_API_KEY on Render) and fix it before the demo.
+- [ ] **The day's budget.** The newest run's Gate check names it ("research run 7 of 30 today"), or research_budget in `kesher` for the UTC day. Well under 30 is fine; development runs and `npm run smoke` count too. It resets at 00:00 UTC, 03:00 in Israel.
+- [ ] **A good report in a tab.** Bookmark the report from the Investigate above. It is the fallback if a run is slow on the day.
+- [ ] **Your portfolio.** Your portfolio, pick NVDA and TSM, Show my feed: cards in a few seconds. Then switch back to AI investor.
+- [ ] **Agent runs.** Check the Agent runs tab for replays or runs you did not start (Shared use, above).
+- [ ] **Screens.** The feed, report and run screens render at 1440px and at 1279px.
+- [ ] **Quotas.** Groq and Gemini are not near their daily limits (docs/SPIKE.md).
+- [ ] **Local fallback.** `git pull`, `npm install`, `npm run dev` with LIVE_INGEST false, then sign in as AI investor on localhost:5173 and open the same card.
+- [ ] `npm run smoke -- --url https://kesher-5ymr.onrender.com` passes, Investigate included, if anything was deployed since the last one. It spends one research run and resets the demo card, so never run it on the day itself.
 
 ## One hour before
-- [ ] Open the deployed URL once, so a sleeping instance wakes up. The first request takes about a minute after a spin down.
-- [ ] Sign in as A in one window, and B and C in two more (private windows, one persona each), to show the live push.
-- [ ] Keep a terminal ready with `npm run dev` for the fallback.
+- [ ] Open the deployed URL once, so a sleeping instance wakes up.
+- [ ] Sign in as AI investor in one window, and Semiconductors and Unrelated in two private windows, to show the live push.
+- [ ] Open the bookmarked report in a tab.
+- [ ] Keep a terminal with `npm run dev` running for the fallback.
+- [ ] No development machine runs research, a replay or the smoke test until the demo is over.
 
 ## The five minutes
-1. **The problem (30 s).** Investors drown in news, and the news that matters most can reach a holding indirectly.
-2. **Replay (60 s).** As persona A (AI investor, holds NVDA), press Replay demo event.
-   - The TSMC earthquake card arrives live in all three windows at once.
-   - Point at the "Why you" line: TSMC supplies NVIDIA, which A holds. It is rendered by code from the graph path, and the card shows the quote from NVIDIA's 10-K.
-3. **Three personas (45 s).** Switch to B: High through a direct TSM holding. Switch to C: None, and the card is not in the feed.
-   - Same event, three levels.
-   - Relevance is computed by code; the model only extracted TSMC and an importance of 4.
-4. **Price, not cause (30 s).** The market table shows TSM and NVDA next to SMH and SPY from the previous close, delayed 15 minutes, as timing only.
-5. **Investigate (60 s).** Press Investigate on A's card, then View agent run.
-   - The steps stream in: the run token and its scope, each MCP tool call with its latency, the checks, the verifier, and tokens against the budget.
-6. **The report (45 s).** Open the research report.
-   - It shows typed claims (fact, metric, inference), each with its sources.
-   - Only supported claims are shown. The removed block names the check that removed a claim.
-   - It is information, not advice.
-7. **Close (30 s).** Everything ran on free tiers.
+About 4:40 of script and 20 seconds of slack. Each step says what to click and what to say.
 
-## If something fails
-- **Deployed app down or slow to wake:** switch to the local fallback. It is the same code on the same database, and it additionally has filing search.
-- **Replay answers 429:** wait the seconds it names; the demo replay has a 15 second cooldown.
-- **Investigate answers 429:** the day's research budget is spent. Open the newest earlier run from the Agent runs tab instead.
-- **A run fails on a rate limit:** Investigate again, or show an earlier run.
+1. **The problem (0:20).**
+   - Click: nothing; the AI investor window is on screen.
+   - Say: "Investors drown in market news, and the news that matters most often reaches a holding indirectly, through a supplier or a customer. Kesher learns your portfolio and tells you which events reach it, and exactly why."
+2. **Replay (0:50).**
+   - Click: Replay demo event in the top bar, then the TSMC card when it lands on top.
+   - Say: "This is a real Benzinga headline from April 2024, replayed through the same pipeline as live news. The card has just arrived in all three windows at once." Point at Why this reached you: "This line is rendered by code from the graph path: TSMC supplies NVIDIA, and NVIDIA is in this portfolio. The edge comes from NVIDIA's own 10-K, quoted here and reviewed by hand. No evidence, no edge."
+3. **Three personas (0:45).**
+   - Click: Semiconductors, then Unrelated, then back to AI investor.
+   - Say, one line each: "The AI investor gets Medium 0.80, through the supplier." "The semiconductor investor holds TSMC itself: High 1.00." "The unrelated investor holds Coca-Cola, J&J and Exxon: the card never shows up." Then: "Same event, three answers. The model only extracted TSMC and an importance of 4 out of 5; relevance and confidence are computed by code."
+4. **Price, not cause (0:20).**
+   - Click: nothing; point at Market around the headline.
+   - Say: "TSM and NVDA next to SMH and SPY, from the previous close, delayed 15 minutes. It shows what moved at the same time, not why."
+5. **Investigate and the run (1:00).**
+   - Click: Investigate again on the card (Investigate this event if it has no report yet), then View agent run. If the button already reads Investigating…, the research gate has started a run on its own: click View agent run.
+   - Say, while the steps stream in: "The research agent runs with a token scoped to this user and seven read only tools, valid for five minutes; it never sees a user id it could change. Code writes the 10-K fact and the price metric first. Every tool call, its latency and its tokens are here, then the deterministic checks, then a separate verifier on another model with no tools. Everything ran on free tiers: cost zero."
+   - Click: the Run token issued step, to show the allowed tools.
+6. **The report (0:40).**
+   - Click: Research report in the breadcrumb (or Open research report on the card).
+   - Say: "Typed claims: facts quoted from a source, metrics checked against market data, inferences built on other claims. Only supported claims are shown; anything a check removed is counted, never shown. And it is information, not advice: a code check removes any buy or sell language."
+7. **Your portfolio (0:30).**
+   - Click: Your portfolio in the switcher, pick two or three companies (NVDA and TSM, or the audience's picks), Show my feed.
+   - Say: "Any visitor can try their own holdings. The same code scores every stored event against them in a few seconds, with no model call. The guest portfolio is deleted after 24 hours."
+8. **Close (0:15).**
+   - Click: nothing.
+   - Say: "Measured on 30 real items labeled by hand: relevance agrees on 78 of 90 pairs. The verifier caught 17 of 17 planted errors. With the injection screen, one of five poisoned items changed the extraction, and none removed a card. All of it on free tiers, for zero dollars." (docs/EVALS.md)
+
+## Fallback plan
+- **Gemini is slow or a run hangs.** Do not wait past a minute. Open the bookmarked report, or the existing report on AI investor's card (Open research report), and its run from View agent run there or from Agent runs, Recent runs. Say that research runs on a free model tier and an earlier run is shown. A run that fails on a rate limit leaves "The last research run ended without a report." on the card; the same fallback applies.
+- **Render is down or does not wake.** Switch to the local app, which is the same code on the same `kesher` database, so the same cards, runs and reports, plus filing search:
+  1. In the terminal kept ready, `npm run dev` is already running; otherwise start it (LIVE_INGEST false).
+  2. Open http://localhost:5173, choose AI investor, and continue the script from where it stopped. Replay demo event and Investigate work the same.
+- **The day's research budget is spent.** Investigate answers with "Today's research budget is spent (30 of 30 runs). It resets at 00:00 UTC." under the button, and changes nothing. Say that the daily budget is a guard that keeps every call on the free tier, then show the bookmarked report and its run instead of step 5. Your portfolio needs no budget. To keep it from happening, run nothing that researches from development on the day (Shared use, above).
+- **Replay answers 429.** Wait the seconds it names: replays have a 15 second cooldown.
+- **The card does not arrive in the other windows.** Reload them; the card is already in each feed.
 
 ## Live ingestion on Render
 Since T19 the deployed instance is the one live ingester (SPEC.md decision log, T19). The free Alpaca plan allows one live WebSocket per account and Render uses the development keys, so the Mac mini and the Windows laptop keep `LIVE_INGEST=false` in their .env, always.
