@@ -4,6 +4,7 @@ import {
   type FeedCard,
   type FeedResearch,
   type HiddenFeed,
+  type IngestStatus,
   type PersonaKey,
 } from '@kesher/shared';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -33,7 +34,21 @@ const NONE_HIDDEN: HiddenFeed = { recent: [], total: 0 };
 // A fake api and socket over the fixtures: the signed in persona decides every answer, like the
 // session cookie does on the real api. hidden is what GET /feed/hidden answers per persona; a
 // test changes it as scoring would.
-function fakeLive({ feeds = DEMO_CARDS }: { feeds?: Record<PersonaKey, FeedCard[]> } = {}) {
+// Live ingestion off on the api, with the day's counts from the shared database.
+const INGEST_OFF: IngestStatus = {
+  live: null,
+  lastItemAt: new Date('2026-10-01T14:02:00Z'),
+  today: {
+    day: '2026-10-01',
+    extractions: { used: 41, limit: 150 },
+    counters: [{ reason: 'not_in_universe', count: 812 }],
+  },
+};
+
+function fakeLive({
+  feeds = DEMO_CARDS,
+  ingest = INGEST_OFF,
+}: { feeds?: Record<PersonaKey, FeedCard[]>; ingest?: IngestStatus } = {}) {
   let signedIn: PersonaKey = 'A';
   const hidden: Record<PersonaKey, HiddenFeed> = { A: NONE_HIDDEN, B: NONE_HIDDEN, C: NONE_HIDDEN };
   const sockets: { handlers: FeedSocketHandlers; closed: boolean }[] = [];
@@ -51,6 +66,7 @@ function fakeLive({ feeds = DEMO_CARDS }: { feeds?: Record<PersonaKey, FeedCard[
     report: vi.fn(() => Promise.reject(new Error('no report in this test'))),
     run: vi.fn(() => Promise.reject(new Error('no run in this test'))),
     runs: vi.fn(() => Promise.resolve([])),
+    ingestStatus: vi.fn(() => Promise.resolve(ingest)),
     replayDemo: vi.fn(() =>
       Promise.resolve({
         reset: null,
@@ -455,6 +471,50 @@ describe('feed screen, signed in through the persona switcher', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Replay demo event' }));
     expect((await screen.findByRole('alert')).textContent).toBe('GROQ_API_KEY is not set');
+  });
+
+  it('shows live ingestion in the footer once signed in, with the day in its details', async () => {
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    const footer = screen.getByRole('contentinfo');
+    const summary = await within(footer).findByText('Live ingest off · last item Oct 1, 10:02 ET');
+
+    fireEvent.click(summary);
+    const details = summary.closest('details')!;
+    expect(details.open).toBe(true);
+    expect(within(details).getByText('Live ingestion today')).toBeTruthy();
+    expect(within(details).getByText('41 of 150')).toBeTruthy();
+    expect(within(details).getByText('Outside the universe')).toBeTruthy();
+    expect(within(details).getByText('812')).toBeTruthy();
+  });
+
+  it('reads live ingestion again every minute and keeps the last answer on a failure', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { api, deps } = fakeLive();
+      render(<App deps={deps} />);
+      await ready();
+      await screen.findByText(/^Live ingest off/);
+      const reads = api.ingestStatus.mock.calls.length;
+      api.ingestStatus.mockResolvedValueOnce({
+        ...INGEST_OFF,
+        live: {
+          stream: { state: 'reconnecting', since: new Date(), lastMessageAt: null },
+          edgar: null,
+          queue: { waiting: 0, running: false, limit: 50 },
+        },
+      });
+
+      await act(() => vi.advanceTimersByTimeAsync(60_000));
+      expect(api.ingestStatus.mock.calls.length).toBe(reads + 1);
+      expect(await screen.findByText(/^Live · reconnecting · last item/)).toBeTruthy();
+
+      api.ingestStatus.mockRejectedValueOnce(new Error('offline'));
+      await act(() => vi.advanceTimersByTimeAsync(60_000));
+      expect(screen.getByText(/^Live · reconnecting/)).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('says so when the feed cannot load', async () => {

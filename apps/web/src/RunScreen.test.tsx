@@ -41,6 +41,7 @@ function fakeDeps({
     }),
     runs: vi.fn(() => Promise.resolve(list)),
     replayDemo: vi.fn(() => Promise.reject(new Error('not used'))),
+    ingestStatus: vi.fn(() => Promise.reject(new Error('not used'))),
   };
   const deps: LiveDeps = {
     api,

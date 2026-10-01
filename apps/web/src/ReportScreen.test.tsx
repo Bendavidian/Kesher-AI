@@ -31,6 +31,7 @@ function fakeDeps(report = () => Promise.resolve(DEMO_REPORT_DETAIL)) {
     run: vi.fn(() => Promise.resolve(DEMO_RUN_DETAIL)),
     runs: vi.fn(() => Promise.resolve(DEMO_RUN_SUMMARIES)),
     replayDemo: vi.fn(() => Promise.reject(new Error('not used'))),
+    ingestStatus: vi.fn(() => Promise.reject(new Error('not used'))),
   };
   const deps: LiveDeps = { api, connectFeed: () => ({ close: () => undefined }) };
   return { api, deps };

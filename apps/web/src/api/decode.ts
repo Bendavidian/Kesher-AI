@@ -2,6 +2,7 @@ import {
   EventScored,
   FeedCard,
   HiddenFeed,
+  IngestStatus,
   PublicUser,
   ReportDetail,
   RunDetail,
@@ -31,6 +32,8 @@ export function decodeFeed(json: unknown): FeedCard[] {
   return json.map(decodeFeedCard);
 }
 export const decodeHidden = (json: unknown): HiddenFeed => HiddenFeed.parse(reviveDates(json));
+export const decodeIngestStatus = (json: unknown): IngestStatus =>
+  IngestStatus.parse(reviveDates(json));
 export const decodeUser = (json: unknown): PublicUser => PublicUser.parse(json);
 export const decodeScored = (json: unknown): EventScored => EventScored.parse(json);
 // A step's input is free form JSON: an ISO string in it stays a string, as the tool received it.

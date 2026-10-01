@@ -4,6 +4,7 @@ import {
   DemoReplayResponse,
   type FeedCard,
   type HiddenFeed,
+  type IngestStatus,
   type PersonaKey,
   type PublicUser,
   type ReportDetail,
@@ -14,6 +15,7 @@ import {
   decodeFeed,
   decodeFeedCard,
   decodeHidden,
+  decodeIngestStatus,
   decodeReport,
   decodeRun,
   decodeRuns,
@@ -41,6 +43,8 @@ export interface KesherApi {
   // Demo mode only: the api resets, then replays the pinned demo item, so every open session
   // sees it arrive.
   replayDemo(): Promise<DemoReplayResponse>;
+  // Live ingestion on the api and today's counts, the same for every user.
+  ingestStatus(): Promise<IngestStatus>;
 }
 
 export class ApiError extends Error {
@@ -100,5 +104,8 @@ export const httpApi: KesherApi = {
   },
   async replayDemo() {
     return DemoReplayResponse.parse(await post('/demo/replay'));
+  },
+  async ingestStatus() {
+    return decodeIngestStatus(await request('/ingest/status'));
   },
 };
