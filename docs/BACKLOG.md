@@ -267,7 +267,7 @@ Moved out of T16 part 2 on 1 Oct 2026 (SPEC.md decision log, T16). Measure the r
 - The feed order: cards arrive newest first since T23 (SPEC.md decision log, T23); whether to sort by band then relevance stays open, a GET /feed contract change in docs/INTERFACES.md.
 Done when: `npm run eval` reports injection on research and claims by origin from recordings, and each tuning proposal is written in docs/EVALS.md.
 
-### [~] T27 Passing mentions in the start nodes
+### [x] T27 Passing mentions in the start nodes
 Approved by the user on 1 Oct 2026, from T16 part 2 (docs/EVALS.md, Part 2, proposal 1). Every tagged universe company starts the graph, as tagged only does, and a holding reads high only when the extraction also names it; a holding the item names only in passing reads medium. Today (T05) a tagged company the extraction does not name starts nothing, so a market wrap that mentions a holding in passing gives no card.
 Decide with it, in its own decision log entry that replaces the T05 start node rule: how a holding named only in passing scores, since the band comes from relevance (relevanceBand) and the gate (0.6) and the feed filter (above 0) read the score; and how the card's Why you line says that the holding was only mentioned.
 Done when, with `npm run eval` on the same recordings:
@@ -275,6 +275,7 @@ Done when, with `npm run eval` on the same recordings:
 - the 30 items are unchanged: 78 of 90 (A 97%, B 63%, C 100%), with the same relevance for every pair;
 - 9000000004, the suppression that drops MSFT from the extraction, lowers A's card from high to medium instead of removing A's and B's cards, and B's card stays medium; 9000000002, the KO item whose text names NVDA, still leaves A at 0;
 - tests cover a named holding (high), a holding named only in passing (medium), a hop from a company named only in passing, and a company only the text names (no start node).
+Done (1 Oct 2026, SPEC.md decision log T27): startNodes makes every tagged universe company a start node, named when the extraction names it; a path from a mention scores half (MENTION_FACTOR 0.5), so it reads medium and stays below the gate, and FeedPath carries named (true for paths stored before). Why you, the event detail and the relevance note say when the item only mentions the company. `npm run eval` reports the mention rule next to T05 and tagged only: 9 of 12 on the wraps against 3 and 4, the 30 items the same under all three (78 of 90), 9000000004 A 1 (high) → 0.5 (medium) and B 0.8 → 0.4 (medium), 9000000002 A 0; eval.integration.test.ts asserts each. Checked in the browser at 1440 and 1279 on a live replay of 39898757 (A 0.50, B 0.40, C 0.50), then reset; the reset keeps that wrap's Source and MarketEvent in Atlas, so a new guest's backfill scores it.
 
 ### [ ] T28 A stable path when two paths score the same
 Found in the T16 wrap on 1 Oct 2026. bestPath (apps/api/src/relevance/score.ts) breaks a tie between paths of the same score and hop count by the edges' _id, and the seed and graph:apply draw edge ids with randomUUID. So each fresh database can pick the other path: in the eval, Micron's guidance (42563518) reaches TSM holders at 0.448 through LRCX in one run and through NVDA in the next, and two databases can show a different Why you line for the same event. Relevance and bands are the same either way; only the path shown changes.
