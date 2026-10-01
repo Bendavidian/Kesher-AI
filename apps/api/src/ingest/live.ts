@@ -7,6 +7,7 @@ import { startAlpacaNews, type AlpacaNewsStream, type ConnectWebSocket } from '.
 import { countDrop } from './counters';
 import { toIncomingFiling, type FilerRef } from './edgar';
 import { createEdgarPoller, type EdgarPoller } from './edgarPoller';
+import { reserveLiveExtraction } from './extractionBudget';
 import type { IncomingItem } from './item';
 import { passesUniverse } from './prefilter';
 import { processItem, type ProcessDeps } from './process';
@@ -65,15 +66,26 @@ export function startLiveIngest({
     ...(embedder ? { embedder } : {}),
     ...(onScored ? { onScored } : {}),
   };
+  // News takes one of the day's extractions; filings, a few a day and Tier 1, never wait on the
+  // cap (SPEC.md decision log, T19). One reservation per item: a retry after a 429 runs the same
+  // job again and keeps the extraction it reserved.
+  const newsDeps = (): ProcessDeps => {
+    let reserved = false;
+    return {
+      ...deps,
+      reserveExtraction: async () =>
+        (reserved ||= (await reserveLiveExtraction(db, now())).reserved),
+    };
+  };
 
   let stopped = false;
 
-  async function accept(live: LiveItem, incoming: IncomingItem): Promise<void> {
+  async function accept(live: LiveItem, incoming: IncomingItem, itemDeps: ProcessDeps) {
     // After stop, no new item starts while the database closes.
     if (stopped) return;
     const key = `${live.provider} ${externalIdOf(live)}`;
     if (!passesUniverse(incoming.symbols)) {
-      await processItem(db, incoming, deps);
+      await processItem(db, incoming, itemDeps);
       return;
     }
     try {
@@ -84,17 +96,18 @@ export function startLiveIngest({
     queue.push(
       key,
       async () => {
-        const result = await processItem(db, incoming, deps);
+        const result = await processItem(db, incoming, itemDeps);
         if (result.outcome === 'processed') log(`live ${key} processed, event ${result.eventId}`);
+        else if (result.reason === 'daily_cap') log(`live ${key} is past today's extraction cap`);
       },
       { shedLast: live.provider === 'sec_edgar' },
     );
   }
 
   const handleNews = (item: AlpacaNewsItem) =>
-    accept({ provider: 'alpaca', item }, toIncomingItem(item));
+    accept({ provider: 'alpaca', item }, toIncomingItem(item), newsDeps());
   const handleFiling = (filing: EdgarFiling, company: FilerRef) =>
-    accept({ provider: 'sec_edgar', item: filing }, toIncomingFiling(filing, company));
+    accept({ provider: 'sec_edgar', item: filing }, toIncomingFiling(filing, company), deps);
 
   const stream: AlpacaNewsStream | null = alpaca
     ? startAlpacaNews({

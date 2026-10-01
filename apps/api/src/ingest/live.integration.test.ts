@@ -8,6 +8,7 @@ import {
   type AlpacaNewsItem,
   type DropReason,
 } from '@kesher/shared';
+import { randomUUID } from 'node:crypto';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { collection } from '../db/collections';
@@ -15,10 +16,11 @@ import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import { loadModelRecording, type ModelRecording } from '../llm/recordings';
 import { runSeed } from '../seed/seed';
 import { recordedModels, signIn, startApi, type TestApi } from '../test/api';
-import { mockModel, resolveMocks } from '../test/models';
+import { mockModel, rateLimitError, resolveMocks } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import type { WebSocketLike } from './alpacaStream';
 import { submissionsUrl } from './edgar';
+import { LIVE_EXTRACTION_DAILY_LIMIT } from './extractionBudget';
 import { startLiveIngest, type LiveIngest } from './live';
 import { loadRecording } from './recordings';
 
@@ -103,8 +105,10 @@ describe('live ingestion end to end, on mongod', () => {
   });
 
   // The runs the gate starts fail in the background; none may still be going in the next test.
+  // A test that spends the day's extractions gives them back.
   afterEach(async () => {
     await api.idle();
+    await collection(mongo.db, 'ingest_budget').deleteMany({});
   });
 
   afterAll(async () => {
@@ -224,6 +228,112 @@ describe('live ingestion end to end, on mongod', () => {
   const counter = (reason: DropReason) =>
     collection(mongo.db, 'ingest_counters').findOne({ mode: 'live', reason });
 
+  it('the daily cap stops live news extraction without touching replay, Investigate or filings', async () => {
+    // Every extraction of the day is taken, by this process or another machine.
+    await collection(mongo.db, 'ingest_budget').updateOne(
+      { day: now.toISOString().slice(0, 10) },
+      {
+        $set: { extractions: LIVE_EXTRACTION_DAILY_LIMIT, updatedAt: now },
+        $setOnInsert: { _id: randomUUID() },
+      },
+      { upsert: true },
+    );
+    const { groq, models } = counted();
+    live = start(models, {});
+    const id = LIVE_ID + 20;
+
+    await live.handleNews({ ...demo, id });
+    await live.idle();
+
+    // Counted and recorded, never stored or extracted.
+    expect(await counter('daily_cap')).toMatchObject({ count: 1 });
+    expect(groq.doGenerateCalls).toHaveLength(0);
+    expect(await collection(mongo.db, 'sources').countDocuments({ externalId: String(id) })).toBe(
+      0,
+    );
+    expect(
+      await collection(mongo.db, 'recordings').countDocuments({ externalId: String(id) }),
+    ).toBe(1);
+    expect(logs).toContain(`live alpaca ${id} is past today's extraction cap`);
+
+    // Replay of the same item extracts it: the cap is live only.
+    const replay = await fetch(`${api.url}/dev/replay/${id}`, { method: 'POST' });
+    expect(replay.status).toBe(200);
+    const replayed = ReplayResponse.parse(await replay.json());
+    expect(replayed).toMatchObject({ outcome: 'processed', sourceCreated: true });
+    if (replayed.outcome !== 'processed') throw new Error('not processed');
+
+    // Investigate on its card is untouched: the research budget is its own.
+    const cookie = await signIn(api.url, 'A');
+    const investigate = await fetch(`${api.url}/events/${replayed.eventId}/investigate`, {
+      method: 'POST',
+      headers: { cookie },
+    });
+    expect(investigate.status).toBe(202);
+
+    // A filing never waits on the cap.
+    await live.handleFiling(
+      {
+        cik: '0001045810',
+        accessionNumber: '0001045810-26-000091',
+        form: '8-K',
+        filingDate: '2026-09-29',
+        acceptanceDateTime: '2026-09-29T12:03:56.000Z',
+        primaryDocument: 'nvda-8k.htm',
+        items: '8.01',
+      },
+      { symbol: 'NVDA', cik: '0001045810', name: 'NVIDIA Corp' },
+    );
+    await live.idle();
+    const filing = await collection(mongo.db, 'sources').findOne({
+      externalId: '0001045810-26-000091',
+    });
+    const filingEvent = await collection(mongo.db, 'market_events').findOne({
+      sourceIds: filing!._id,
+    });
+    expect(filingEvent?.extraction).not.toBeNull();
+    expect(await counter('daily_cap')).toMatchObject({ count: 1 });
+
+    await live.stop();
+    live = undefined;
+  }, 15_000);
+
+  it('a live item retried after a 429 takes one extraction of the day, not one per try', async () => {
+    const guard = mockModel(MODELS.screen.model, recorded.screen.chunks);
+    const groq = mockModel(MODELS.extraction.model, [rateLimitError(), recorded.extraction.text]);
+    const gemini = mockModel(MODELS.fallback.model, [rateLimitError()]);
+    // A client per call, as each has its own limiter: a shared one would block the retry for the
+    // 60 seconds a 429 without retry-after holds a model.
+    const models = () =>
+      createModelClient({
+        resolve: resolveMocks({
+          [guard.modelId]: guard,
+          [groq.modelId]: groq,
+          [gemini.modelId]: gemini,
+        }),
+      });
+    live = start(models, { queue: { retryDelayMs: 10 } });
+    const id = LIVE_ID + 25;
+
+    await live.handleNews({ ...demo, id });
+    await until(async () => {
+      await live!.idle();
+      return groq.doGenerateCalls.length === 2;
+    });
+    await live.idle();
+
+    const source = await collection(mongo.db, 'sources').findOne({ externalId: String(id) });
+    const event = await collection(mongo.db, 'market_events').findOne({ sourceIds: source!._id });
+    expect(event?.extraction).not.toBeNull();
+    const budget = await collection(mongo.db, 'ingest_budget').findOne({
+      day: now.toISOString().slice(0, 10),
+    });
+    expect(budget?.extractions).toBe(1);
+
+    await live.stop();
+    live = undefined;
+  }, 15_000);
+
   it('a full live queue sheds its oldest waiting item and counts it', async () => {
     let release!: () => void;
     const hold = new Promise<void>((resolve) => (release = resolve));
@@ -314,9 +424,12 @@ describe('live ingestion end to end, on mongod', () => {
         'NVIDIA Corp 8-K: Results of Operations and Financial Condition; Financial Statements and Exhibits',
     });
     expect(cards[0]!.item.relevance).toBe(1);
-    expect(await collection(mongo.db, 'recordings').countDocuments({ provider: 'sec_edgar' })).toBe(
-      1,
-    );
+    expect(
+      await collection(mongo.db, 'recordings').countDocuments({
+        provider: 'sec_edgar',
+        externalId: '0001045810-26-000080',
+      }),
+    ).toBe(1);
 
     await live.stop();
     live = undefined;

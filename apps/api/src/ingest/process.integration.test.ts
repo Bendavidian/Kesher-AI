@@ -291,6 +291,62 @@ describe('processItem on mongod', () => {
     });
   });
 
+  describe('daily extraction cap', () => {
+    it('counts a live item past the cap as daily_cap, stores nothing and asks for no model', async () => {
+      const capped: ProcessDeps = {
+        ...noModels('live'),
+        reserveExtraction: () => Promise.resolve(false),
+      };
+
+      expect(await processItem(mongo.db, item, capped)).toEqual({
+        outcome: 'dropped',
+        reason: 'daily_cap',
+      });
+
+      expect(await collection(mongo.db, 'sources').countDocuments({ provider: 'alpaca' })).toBe(0);
+      expect(await collection(mongo.db, 'market_events').countDocuments()).toBe(0);
+      expect(await counters()).toEqual([
+        { day: '2026-09-28', mode: 'live', reason: 'daily_cap', count: 1 },
+      ]);
+    });
+
+    it('never caps an extracted item that was not scored yet, which needs no model', async () => {
+      const { client } = models();
+      await processItem(mongo.db, item, deps(client, 'live'));
+      await collection(mongo.db, 'feed_items').deleteMany({});
+
+      const capped: ProcessDeps = {
+        ...noModels('live'),
+        reserveExtraction: () => Promise.reject(new Error('no reservation expected')),
+      };
+      expect(await processItem(mongo.db, item, capped)).toMatchObject({ outcome: 'processed' });
+      expect(await counters()).toEqual([]);
+    });
+
+    it('reserves only for an item that is not processed yet, after the pre filter', async () => {
+      let reservations = 0;
+      const reserveExtraction = () => {
+        reservations += 1;
+        return Promise.resolve(true);
+      };
+      const { client } = models();
+
+      await processItem(mongo.db, item, { ...deps(client, 'live'), reserveExtraction });
+      await processItem(mongo.db, item, { ...noModels('live'), reserveExtraction });
+      await processItem(
+        mongo.db,
+        { ...item, symbols: ['SPY'] },
+        {
+          ...noModels('live'),
+          reserveExtraction,
+        },
+      );
+
+      expect(reservations).toBe(1);
+      expect((await counters()).map((c) => c.reason)).toEqual(['duplicate', 'not_in_universe']);
+    });
+  });
+
   describe('injection screen', () => {
     it('labels a flagged item and still extracts it', async () => {
       const { client, groq } = models({ screen: ['0.99'] });
