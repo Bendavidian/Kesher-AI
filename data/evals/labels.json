@@ -719,6 +719,102 @@
       "status": "reviewed",
       "proposed": "high",
       "decidedAt": "2026-09-30T11:30:41.847Z"
+    },
+    {
+      "sourceId": "39898757",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T21:49:22.835Z"
+    },
+    {
+      "sourceId": "39898757",
+      "persona": "B",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T21:49:22.835Z"
+    },
+    {
+      "sourceId": "39898757",
+      "persona": "C",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T21:49:22.835Z"
+    },
+    {
+      "sourceId": "43615981",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T21:49:35.029Z"
+    },
+    {
+      "sourceId": "43615981",
+      "persona": "B",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "medium",
+      "decidedAt": "2026-09-30T21:49:35.029Z"
+    },
+    {
+      "sourceId": "43615981",
+      "persona": "C",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T21:49:35.029Z"
+    },
+    {
+      "sourceId": "48646917",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T21:49:51.111Z"
+    },
+    {
+      "sourceId": "48646917",
+      "persona": "B",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T21:49:51.111Z"
+    },
+    {
+      "sourceId": "48646917",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T21:49:51.111Z"
+    },
+    {
+      "sourceId": "50343948",
+      "persona": "A",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T21:50:09.037Z"
+    },
+    {
+      "sourceId": "50343948",
+      "persona": "B",
+      "level": "medium",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T21:50:09.037Z"
+    },
+    {
+      "sourceId": "50343948",
+      "persona": "C",
+      "level": "none",
+      "status": "reviewed",
+      "proposed": "none",
+      "decidedAt": "2026-09-30T21:50:09.037Z"
     }
   ]
 }

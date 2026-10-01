@@ -1,0 +1,30 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-30T21:29:49.570Z",
+  "item": {
+    "id": 48646917,
+    "headline": "Stock Market Today: Dow, S&P 500, Nasdaq Futures Slip But McDonald's Rises After Q3 Beat— AMD, Qualcomm, Robinhood In Focus (UPDATED)",
+    "summary": "(Editor’s note: The future prices of benchmark tracking ETFs and headlines were updated in the story.)\n\n\n\nU.S. stock futures declined on Wednesday after Dow Jones pared initial gains following Tuesday’s lower close. Futures of major benchmark indices were lower.",
+    "author": "Rishabh Mishra",
+    "created_at": "2025-11-05T13:44:26Z",
+    "updated_at": "2025-11-05T14:06:44Z",
+    "url": "https://www.benzinga.com/markets/equities/25/11/48646917/stock-market-today-sp-500-nasdaq-futures-slip-amid-mixed-trade-mcdonalds-amd-qualcomm-robinhood-in-focus",
+    "symbols": [
+      "AMD",
+      "BTCUSD",
+      "GOOG",
+      "GOOGL",
+      "HOOD",
+      "MCD",
+      "META",
+      "MSFT",
+      "NVDA",
+      "PINS",
+      "PLTR",
+      "QCOM",
+      "QQQ",
+      "SPY"
+    ],
+    "source": "benzinga"
+  }
+}

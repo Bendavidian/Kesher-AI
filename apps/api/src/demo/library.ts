@@ -14,6 +14,11 @@ import { isRateLimited, MissingModelKeyError, type ModelClient } from '../llm/cl
 // data load, not a live decision: no research gate runs, so no research starts and no skipped run
 // is stored, and nothing is pushed.
 
+// The 30 items of docs/research/eval-candidates.md. The market wraps that T16 part 2 added to the
+// eval set measure passing mentions for the eval only; they are not part of the library.
+export const libraryEvents = (events: readonly EvalEvent[]): EvalEvent[] =>
+  events.filter((event) => event.type !== 'market_wrap');
+
 // Oldest first, so the order of arrival (FeedItem.createdAt) matches the order of events.
 export function libraryOrder(events: readonly EvalEvent[]): EvalEvent[] {
   return [...events].sort(
@@ -48,7 +53,8 @@ export interface LibraryResult {
 
 // Loads the items oldest first, one at a time. An item already processed is skipped before the
 // pipeline, so a second run writes nothing, not even an ingest counter. The first item that fails
-// stops the run: loading a later one first would break the arrival order.
+// stops the run: loading a later one first would break the arrival order. Only library events load
+// (libraryEvents), whatever the caller passes, so the market wraps never reach the shared database.
 export async function loadLibrary(
   db: Db,
   events: readonly EvalEvent[],
@@ -56,7 +62,7 @@ export async function loadLibrary(
   recordingsDir = RECORDINGS_DIR,
 ): Promise<LibraryResult> {
   const result: LibraryResult = { loaded: [], skipped: [], stopped: null };
-  for (const event of libraryOrder(events)) {
+  for (const event of libraryOrder(libraryEvents(events))) {
     const recording = await loadRecording(event.id, recordingsDir);
     if (!recording) {
       result.stopped = { id: event.id, reason: 'no_recording' };
@@ -113,7 +119,7 @@ export interface PersonaLibrary {
 export async function unscreenedCount(db: Db, events: readonly EvalEvent[]): Promise<number> {
   return collection(db, 'sources').countDocuments({
     provider: 'alpaca',
-    externalId: { $in: events.map((event) => event.id) },
+    externalId: { $in: libraryEvents(events).map((event) => event.id) },
     injectionScreen: null,
   });
 }
@@ -124,7 +130,10 @@ export async function libraryReport(
   events: readonly EvalEvent[],
 ): Promise<PersonaLibrary[]> {
   const sources = await collection(db, 'sources')
-    .find({ provider: 'alpaca', externalId: { $in: events.map((event) => event.id) } })
+    .find({
+      provider: 'alpaca',
+      externalId: { $in: libraryEvents(events).map((event) => event.id) },
+    })
     .project<{ _id: string }>({ _id: 1 })
     .toArray();
   const eventIds = (

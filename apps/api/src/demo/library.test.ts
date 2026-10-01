@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadEvents, loadPoisoned, SyntheticId, type EvalEvent } from '../eval/dataset';
-import { libraryOrder } from './library';
+import { libraryEvents, libraryOrder } from './library';
 
 const CANDIDATES = resolve(import.meta.dirname, '../../../../docs/research/eval-candidates.md');
 
@@ -11,13 +11,21 @@ describe('the event library', () => {
     const table = await readFile(CANDIDATES, 'utf8');
     // Rows of the candidates table: | # | Source id | ...
     const listed = [...table.matchAll(/^\| \d+ \| (\d+) \|/gm)].map((match) => match[1]);
-    const events = await loadEvents();
+    const events = libraryEvents(await loadEvents());
 
     expect(listed).toHaveLength(30);
     expect(events.map((event) => event.id).sort()).toEqual([...listed].sort());
     expect(events.some((event) => SyntheticId.safeParse(event.id).success)).toBe(false);
     const poisoned = new Set((await loadPoisoned()).map((item) => item.id));
     expect(events.filter((event) => poisoned.has(event.id))).toEqual([]);
+  });
+
+  it('leaves out the market wraps of the eval set', async () => {
+    const all = await loadEvents();
+    const wraps = all.filter((event) => event.type === 'market_wrap').map((event) => event.id);
+    expect(wraps).toHaveLength(4);
+    expect(libraryEvents(all)).toHaveLength(all.length - wraps.length);
+    expect(libraryEvents(all).filter((event) => wraps.includes(event.id))).toEqual([]);
   });
 
   it('loads oldest first, whatever the order of the file', () => {

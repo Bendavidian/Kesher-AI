@@ -1,0 +1,164 @@
+{
+  "flags": [
+    {
+      "edge": "AMAT competitor_of ASML",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:02.691Z"
+    },
+    {
+      "edge": "AMAT competitor_of LRCX",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:24.750Z"
+    },
+    { "edge": "AMD competitor_of AVGO", "level": "major", "decidedAt": "2026-09-30T21:51:54.339Z" },
+    { "edge": "AMD competitor_of INTC", "level": "major", "decidedAt": "2026-09-30T21:51:55.233Z" },
+    { "edge": "AMD competitor_of NVDA", "level": "major", "decidedAt": "2026-09-30T21:51:55.749Z" },
+    { "edge": "AMD competitor_of QCOM", "level": "major", "decidedAt": "2026-09-30T21:51:56.216Z" },
+    { "edge": "AMD customer_of TSM", "level": "major", "decidedAt": "2026-09-30T21:54:31.760Z" },
+    { "edge": "AMD supplier_of MSFT", "level": "major", "decidedAt": "2026-09-30T21:54:29.011Z" },
+    {
+      "edge": "AMZN competitor_of INTC",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:56.683Z"
+    },
+    {
+      "edge": "AMZN competitor_of NVDA",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:57.605Z"
+    },
+    {
+      "edge": "ASML competitor_of AMAT",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:12.668Z"
+    },
+    { "edge": "ASML supplier_of INTC", "level": "major", "decidedAt": "2026-09-30T21:54:29.477Z" },
+    { "edge": "ASML supplier_of TSM", "level": "major", "decidedAt": "2026-09-30T21:54:29.960Z" },
+    { "edge": "AVGO competitor_of AMD", "level": "major", "decidedAt": "2026-09-30T21:51:54.906Z" },
+    {
+      "edge": "AVGO competitor_of INTC",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:58.191Z"
+    },
+    {
+      "edge": "AVGO competitor_of NVDA",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:58.732Z"
+    },
+    {
+      "edge": "AVGO competitor_of QCOM",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:52:08.571Z"
+    },
+    { "edge": "AVGO customer_of TSM", "level": "major", "decidedAt": "2026-09-30T21:54:32.223Z" },
+    {
+      "edge": "GOOGL competitor_of INTC",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:52:20.332Z"
+    },
+    {
+      "edge": "GOOGL competitor_of META",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:52:21.171Z"
+    },
+    {
+      "edge": "GOOGL competitor_of NVDA",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:52:21.983Z"
+    },
+    { "edge": "INTC competitor_of AMD", "level": "major", "decidedAt": "2026-09-30T21:51:55.483Z" },
+    {
+      "edge": "INTC competitor_of AMZN",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:56.982Z"
+    },
+    {
+      "edge": "INTC competitor_of AVGO",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:58.475Z"
+    },
+    {
+      "edge": "INTC competitor_of GOOGL",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:52:20.737Z"
+    },
+    {
+      "edge": "INTC competitor_of META",
+      "level": "minor",
+      "decidedAt": "2026-09-30T21:52:34.441Z"
+    },
+    {
+      "edge": "INTC competitor_of MSFT",
+      "level": "minor",
+      "decidedAt": "2026-09-30T21:53:05.618Z"
+    },
+    { "edge": "INTC customer_of ASML", "level": "major", "decidedAt": "2026-09-30T21:54:29.727Z" },
+    { "edge": "INTC customer_of TSM", "level": "major", "decidedAt": "2026-09-30T21:54:32.661Z" },
+    {
+      "edge": "LRCX competitor_of AMAT",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:45.687Z"
+    },
+    { "edge": "LRCX supplier_of MU", "level": "major", "decidedAt": "2026-09-30T21:54:30.393Z" },
+    { "edge": "LRCX supplier_of TSM", "level": "major", "decidedAt": "2026-09-30T21:54:30.841Z" },
+    {
+      "edge": "META competitor_of GOOGL",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:52:21.581Z"
+    },
+    {
+      "edge": "META competitor_of INTC",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:52:44.272Z"
+    },
+    {
+      "edge": "MSFT competitor_of INTC",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:53:31.903Z"
+    },
+    {
+      "edge": "MSFT competitor_of NVDA",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:54:28.232Z"
+    },
+    { "edge": "MSFT customer_of AMD", "level": "major", "decidedAt": "2026-09-30T21:54:29.244Z" },
+    { "edge": "MU customer_of LRCX", "level": "major", "decidedAt": "2026-09-30T21:54:30.609Z" },
+    { "edge": "MU supplier_of NVDA", "level": "major", "decidedAt": "2026-09-30T21:54:31.293Z" },
+    { "edge": "NVDA competitor_of AMD", "level": "major", "decidedAt": "2026-09-30T21:51:55.982Z" },
+    {
+      "edge": "NVDA competitor_of AMZN",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:57.876Z"
+    },
+    {
+      "edge": "NVDA competitor_of AVGO",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:51:59.002Z"
+    },
+    {
+      "edge": "NVDA competitor_of GOOGL",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:52:22.588Z"
+    },
+    {
+      "edge": "NVDA competitor_of MSFT",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:54:28.486Z"
+    },
+    { "edge": "NVDA customer_of MU", "level": "major", "decidedAt": "2026-09-30T21:54:31.545Z" },
+    { "edge": "NVDA customer_of TSM", "level": "major", "decidedAt": "2026-09-30T21:54:33.108Z" },
+    { "edge": "QCOM competitor_of AMD", "level": "major", "decidedAt": "2026-09-30T21:51:56.449Z" },
+    {
+      "edge": "QCOM competitor_of AVGO",
+      "level": "major",
+      "decidedAt": "2026-09-30T21:52:19.855Z"
+    },
+    { "edge": "QCOM customer_of TSM", "level": "major", "decidedAt": "2026-09-30T21:54:34.278Z" },
+    { "edge": "TSM customer_of ASML", "level": "major", "decidedAt": "2026-09-30T21:54:30.193Z" },
+    { "edge": "TSM customer_of LRCX", "level": "major", "decidedAt": "2026-09-30T21:54:31.061Z" },
+    { "edge": "TSM supplier_of AMD", "level": "major", "decidedAt": "2026-09-30T21:54:32.000Z" },
+    { "edge": "TSM supplier_of AVGO", "level": "major", "decidedAt": "2026-09-30T21:54:32.449Z" },
+    { "edge": "TSM supplier_of INTC", "level": "major", "decidedAt": "2026-09-30T21:54:32.883Z" },
+    { "edge": "TSM supplier_of NVDA", "level": "major", "decidedAt": "2026-09-30T21:54:33.412Z" },
+    { "edge": "TSM supplier_of QCOM", "level": "major", "decidedAt": "2026-09-30T21:54:35.733Z" }
+  ]
+}

@@ -6,6 +6,7 @@ import { createModelClient, resolveFromKeys } from '../llm/client';
 import { loadModelRecording } from '../llm/recordings';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import {
+  libraryEvents,
   libraryOrder,
   libraryReport,
   loadLibrary,
@@ -63,7 +64,7 @@ describe('the event library on mongod', () => {
   beforeAll(async () => {
     mongo = await startTestMongo('kesher_library_test');
     await seedEvalDb(mongo.db, start);
-    events = await loadEvents();
+    events = libraryEvents(await loadEvents());
   }, MONGO_START_TIMEOUT_MS);
 
   afterAll(async () => {
@@ -71,7 +72,9 @@ describe('the event library on mongod', () => {
   });
 
   it('loads the 30 items oldest first, and a second run changes nothing', async () => {
-    const first = await loadLibrary(mongo.db, events, await recordedDeps(events));
+    // Every event of the eval set goes in; only the 30 have model answers, so a market wrap that
+    // reached the pipeline would fail the load.
+    const first = await loadLibrary(mongo.db, await loadEvents(), await recordedDeps(events));
     expect(first.stopped).toBeNull();
     expect(first.skipped).toEqual([]);
     expect(first.loaded).toEqual(libraryOrder(events).map((event) => event.id));
@@ -137,7 +140,7 @@ describe('an interrupted library load on mongod', () => {
   });
 
   it('stops at the first item that fails and loads the rest, in order, on the next run', async () => {
-    const events = libraryOrder(await loadEvents()).slice(0, 4);
+    const events = libraryOrder(libraryEvents(await loadEvents())).slice(0, 4);
     const recorded = await recordedDeps(events);
     const third = events[2]!.id;
     const failing: LibraryDeps = {

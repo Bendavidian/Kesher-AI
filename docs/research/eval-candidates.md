@@ -78,6 +78,17 @@ Personas: A, AI investor: NVDA, MSFT, AMZN. B, Semiconductor investor: AMD, AVGO
 - #28, 40964871: A reported approach, not a deal.
 - #30, 47734379: Strategic equity investment and product partnership, not an acquisition.
 
+## Market wraps (T16 part 2)
+
+Four items added on 1 Oct 2026, type market_wrap, reported apart from the 30 above (SPEC.md decision log, T16). Each is tagged with universe companies that the text only mentions in passing, to price the tagged only start node rule.
+
+| Alpaca id | Created | Headline | Universe tags |
+| --- | --- | --- | --- |
+| 39898757 | 2024-07-23T06:28:20Z | S&P 500 Notches Best Day Since June As Investor Sentiment Improves: Fear Index Moves To 'Greed' Zone | GOOGL, KO, NVDA |
+| 43615981 | 2025-02-11T08:25:23Z | Nasdaq Gains 1% As Nvidia, Broadcom Surge: Investor Sentiment Improves, Fear & Greed Index Moves To 'Neutral' | AVGO, KO, MU, NVDA |
+| 48646917 | 2025-11-05T13:44:26Z | Stock Market Today: Dow, S&P 500, Nasdaq Futures Slip But McDonald's Rises After Q3 Beat (AMD, Qualcomm and others) | AMD, GOOGL, META, MSFT, NVDA, QCOM |
+| 50343948 | 2026-02-03T17:34:13Z | Walmart Hits Historic $1 Trillion Value, Joins Big Tech On Nasdaq As AI Takes Over | AMZN, GOOGL, NVDA |
+
 ## Points to review
 
 - B is high on every NVDA item through `NVDA customer_of TSM` at 0.8, the inverse of the supplier edge. SPEC.md wants NVDA news to reach TSM holders; whether a routine NVDA rating change should be high for them is a weight question for T16.

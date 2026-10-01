@@ -1,0 +1,15 @@
+{
+  "provider": "alpaca",
+  "recordedAt": "2026-09-30T21:29:49.730Z",
+  "item": {
+    "id": 50343948,
+    "headline": "Walmart Hits Historic $1 Trillion Value, Joins Big Tech On Nasdaq As AI Takes Over",
+    "summary": "Walmart Inc. (NASDAQ: WMT) surpasses $1 trillion market cap, fueled by e-commerce growth, AI integration and strategic investments.",
+    "author": "Anusuya Lahiri",
+    "created_at": "2026-02-03T17:34:13Z",
+    "updated_at": "2026-02-03T17:34:14Z",
+    "url": "https://www.benzinga.com/markets/large-cap/26/02/50343948/walmart-hits-historic-1-trillion-value-joins-big-tech-on-nasdaq-as-ai-takes-over",
+    "symbols": ["AMZN", "GOOGL", "NVDA", "WMT"],
+    "source": "benzinga"
+  }
+}

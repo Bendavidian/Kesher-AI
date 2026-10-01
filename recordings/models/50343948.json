@@ -1,0 +1,17 @@
+{
+  "externalId": "50343948",
+  "recordedAt": "2026-09-30T21:29:52.657Z",
+  "screen": {
+    "model": "meta-llama/llama-prompt-guard-2-86m",
+    "input": "Walmart Hits Historic $1 Trillion Value, Joins Big Tech On Nasdaq As AI Takes Over\n\nWalmart Inc. (NASDAQ: WMT) surpasses $1 trillion market cap, fueled by e-commerce growth, AI integration and strategic investments.",
+    "chunks": ["0.00040481265750713646"],
+    "latencyMs": [116]
+  },
+  "extraction": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "text": "{\n  \"companies\": [],\n  \"eventType\": \"macro\",\n  \"importance\": 1,\n  \"themes\": [\"ai_accelerators\"]\n}",
+    "usage": { "inputTokens": 685, "outputTokens": 136, "totalTokens": 821 },
+    "latencyMs": 964
+  }
+}

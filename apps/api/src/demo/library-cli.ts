@@ -5,7 +5,7 @@ import { collection } from '../db/collections';
 import { lazyLocalEmbedder, modelCached } from '../embed/local';
 import { loadEvents } from '../eval/dataset';
 import { createModelClient, resolveFromKeys, type ModelClient } from '../llm/client';
-import { libraryReport, loadLibrary, unscreenedCount } from './library';
+import { libraryEvents, libraryReport, loadLibrary, unscreenedCount } from './library';
 
 // npm run demo:library: loads the 30 real items of the eval set into the kesher database the
 // public instance shares, oldest first, through the normal pipeline, with no research gate
@@ -32,7 +32,7 @@ try {
   if ((await collection(db, 'users').countDocuments()) === 0) {
     throw new Error(`database ${DB_NAME} has no personas; run npm run seed first`);
   }
-  const events = await loadEvents();
+  const events = libraryEvents(await loadEvents());
 
   let models: ModelClient | undefined;
   const shared = () => (models ??= createModelClient({ resolve: resolveFromKeys(modelKeys) }));

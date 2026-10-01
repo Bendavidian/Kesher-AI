@@ -7,6 +7,7 @@ import {
   type FeedPath,
   type InjectionScreen,
   type PersonaKey,
+  type Relationship,
   type UniverseSymbol,
 } from '@kesher/shared';
 import { APICallError } from 'ai';
@@ -44,6 +45,11 @@ export interface ItemRun {
   // What relevance would be if every provider tagged universe company were a start node, whatever
   // the extraction named: a counterfactual rule for the report, never written anywhere.
   taggedOnly: Record<PersonaKey, number>;
+  // The start nodes of today's rule (extracted and tagged) and every reviewed edge within two hops
+  // of them, so the summary can score the same item again with other edge weights (the
+  // materiality experiment) without a database. Empty for an item the pipeline did not score.
+  starts: UniverseSymbol[];
+  graph: Relationship[];
   // The scored path per persona as text, for example "TSM supplier_of NVDA"; null at relevance 0.
   paths: Record<PersonaKey, string | null>;
   pathKinds: Record<PersonaKey, PathKind>;
@@ -78,6 +84,7 @@ export const pathText = (path: FeedPath | null): string | null =>
 export interface EvalRun {
   startedAt: Date;
   relationships: number;
+  holdings: Record<PersonaKey, UniverseSymbol[]>;
   items: ItemRun[];
 }
 
@@ -187,6 +194,8 @@ export async function runEval(
     const pathKinds: Record<PersonaKey, PathKind> = { A: 'none', B: 'none', C: 'none' };
     let screen: InjectionScreen | null = null;
     let extraction: Extraction | null = null;
+    let starts: UniverseSymbol[] = [];
+    let graph: Relationship[] = [];
     if (outcome.outcome === 'failed') {
       const source = await collection(db, 'sources').findOne({
         provider: incoming.provider,
@@ -203,6 +212,11 @@ export async function runEval(
         await collection(db, 'market_events').findOne({ _id: outcome.eventId }),
       );
       extraction = event.extraction;
+      starts = eventCompanies(
+        (event.extraction?.companies ?? []).map((c) => c.symbol),
+        incoming.symbols,
+      );
+      graph = await loadEdges(db, starts);
       for (const feed of await collection(db, 'feed_items')
         .find({ eventId: outcome.eventId })
         .toArray()) {
@@ -228,9 +242,14 @@ export async function runEval(
         outcome.outcome === 'processed'
           ? await taggedOnlyRelevance(db, incoming.symbols, users)
           : zeros(),
+      starts,
+      graph,
       models,
       codeMs,
     });
   }
-  return { startedAt: now, relationships, items: runs };
+  const holdings = Object.fromEntries(
+    [...users.values()].map(({ key, holdings }) => [key, holdings]),
+  ) as Record<PersonaKey, UniverseSymbol[]>;
+  return { startedAt: now, relationships, holdings, items: runs };
 }
