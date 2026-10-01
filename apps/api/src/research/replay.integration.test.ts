@@ -114,6 +114,7 @@ describe('research replay of the demo item', () => {
       relevance: 0.8,
       path: {
         eventCompany: 'TSM',
+        named: true,
         holding: 'NVDA',
         hops: [
           {

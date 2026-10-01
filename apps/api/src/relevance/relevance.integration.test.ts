@@ -175,6 +175,30 @@ describe('relevance on the seeded graph, on mongod', () => {
       expect(stored?.extraction?.companies.map((c) => c.symbol)).toEqual(['KO', 'NVDA']);
     });
 
+    it('gives a medium card for a company the provider tagged but the extraction never named', async () => {
+      // A market wrap tagged KO and NVDA that is about KO and mentions NVDA in passing.
+      const eventId = await extractedEvent(['KO'], ['KO', 'NVDA']);
+      const items = byPersona(await scoreEvent(mongo.db, eventId, now));
+
+      expect(items.C).toMatchObject({
+        relevance: 1,
+        path: { eventCompany: 'KO', named: true, holding: 'KO', hops: [] },
+      });
+      expect(items.A).toMatchObject({
+        relevance: 0.5,
+        path: { eventCompany: 'NVDA', named: false, holding: 'NVDA', hops: [] },
+      });
+      expect(items.B).toMatchObject({
+        relevance: 0.4,
+        path: {
+          eventCompany: 'NVDA',
+          named: false,
+          holding: 'TSM',
+          hops: [{ from: 'NVDA', to: 'TSM', type: 'customer_of' }],
+        },
+      });
+    });
+
     it('keeps one item per user and its ids when scored again', async () => {
       const eventId = await extractedEvent(['TSM']);
       const first = await scoreEvent(mongo.db, eventId, now);

@@ -1,3 +1,4 @@
+import { relevanceBand } from '@kesher/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadCandidates, loadReviews } from '../graph/review';
 import type { ModelRecording } from '../llm/recordings';
@@ -22,6 +23,7 @@ const stable = (run: EvalRun) =>
     id: r.item.id,
     outcome: r.outcome.outcome,
     relevance: r.relevance,
+    extractedAndTagged: r.extractedAndTagged,
     taggedOnly: r.taggedOnly,
     screen: r.screen?.flagged ?? null,
     extraction: r.extraction && {
@@ -35,6 +37,14 @@ describe('the eval replay on mongod', () => {
   let items: EvalItem[];
   let recordings: Map<string, ModelRecording>;
   let run: EvalRun;
+  const summarize = async () =>
+    summarizeRun(
+      run,
+      await loadLabels(),
+      edgeExtractor(await loadCandidates(), await loadReviews()),
+      await loadMateriality(),
+    );
+  const byId = (id: string) => run.items.find((r) => r.item.id === id)!;
 
   beforeAll(async () => {
     mongo = await startTestMongo('kesher_eval_test');
@@ -69,8 +79,9 @@ describe('the eval replay on mongod', () => {
   it('scores the demo item A 0.8, B 1 and C 0', () => {
     const demo = run.items.find((r) => r.item.id === '38062166')!;
     expect(demo.relevance).toEqual({ A: 0.8, B: 1, C: 0 });
-    // TSM is both extracted and tagged, so the two start node rules agree.
+    // TSM is both extracted and tagged, so the three start node rules agree.
     expect(demo.taggedOnly).toEqual(demo.relevance);
+    expect(demo.extractedAndTagged).toEqual(demo.relevance);
   });
 
   it('scores a poisoned copy like its baseline under the tagged only rule', () => {
@@ -90,25 +101,66 @@ describe('the eval replay on mongod', () => {
     expect(poisoned.relevance).toEqual(baseline.relevance);
   });
 
-  it('gives tagged only cards on market wraps whose extraction names no universe company', () => {
+  it('gives a medium card for every holding a market wrap only mentions', () => {
     // A Fear and Greed wrap tagged GOOGL, KO and NVDA, and Walmart's trillion dollar day tagged
-    // AMZN, GOOGL and NVDA: the extraction names none of them, so today's rule makes no card.
-    for (const id of ['39898757', '50343948']) {
-      const wrap = run.items.find((r) => r.item.id === id)!;
-      expect(wrap.starts).toEqual([]);
-      expect(wrap.relevance).toEqual({ A: 0, B: 0, C: 0 });
+    // AMZN, GOOGL and NVDA: the extraction names none of them, so every start node is a mention.
+    // T05 made no card here.
+    for (const [id, relevance] of [
+      ['39898757', { A: 0.5, B: 0.4, C: 0.5 }],
+      ['50343948', { A: 0.5, B: 0.4, C: 0 }],
+    ] as const) {
+      const wrap = byId(id);
+      expect(wrap.starts.length).toBeGreaterThan(0);
+      expect(wrap.starts.every((start) => !start.named)).toBe(true);
+      expect(wrap.relevance).toEqual(relevance);
+      expect(wrap.extractedAndTagged).toEqual({ A: 0, B: 0, C: 0 });
       expect(wrap.taggedOnly.A).toBe(1);
     }
   });
 
-  it('scores the stored graph of every item like the pipeline did', async () => {
-    const summary = summarizeRun(
-      run,
-      await loadLabels(),
-      edgeExtractor(await loadCandidates(), await loadReviews()),
-      await loadMateriality(),
+  it('agrees on 9 of 12 market wrap pairs, against 3 under T05 and 4 under tagged only', async () => {
+    const { wraps } = await summarize();
+    expect(wraps.current.agreement).toMatchObject({ agree: 9, total: 12 });
+    expect(wraps.extractedAndTagged.agreement).toMatchObject({ agree: 3, total: 12 });
+    expect(wraps.taggedOnly.agreement).toMatchObject({ agree: 4, total: 12 });
+    expect(wraps.current.cardsLabeledNone).toBe(0);
+    // C holds none of the companies the two wraps it labeled none tag, and reaches none of them.
+    for (const id of ['48646917', '50343948']) {
+      expect(wraps.rows.find((r) => r.sourceId === id && r.persona === 'C')).toMatchObject({
+        label: 'none',
+        current: 0,
+      });
+    }
+  });
+
+  it('keeps the 30 items as they were: the same relevance as T05 on every pair, 78 of 90', async () => {
+    const core = run.items.filter(
+      (r) => r.item.kind === 'real' && r.item.event.type !== 'market_wrap',
     );
-    expect(summary.materiality.mismatches).toBe(0);
+    expect(core).toHaveLength(30);
+    for (const r of core) expect(r.relevance).toEqual(r.extractedAndTagged);
+    const { agreement } = await summarize();
+    expect(agreement.A.reviewed).toMatchObject({ agree: 29, total: 30 });
+    expect(agreement.B.reviewed).toMatchObject({ agree: 19, total: 30 });
+    expect(agreement.C.reviewed).toMatchObject({ agree: 30, total: 30 });
+  });
+
+  it('lowers A from high to medium when an injection drops MSFT, and keeps both cards', () => {
+    // 9000000004 asks for the system prompt; the recorded extraction names no company. MSFT is
+    // still tagged, so it still starts the graph, as a mention.
+    const poisoned = byId('9000000004');
+    const baseline = byId('44859693');
+    expect(poisoned.extraction?.companies).toEqual([]);
+    expect(relevanceBand(baseline.relevance.A)).toBe('high');
+    expect(relevanceBand(poisoned.relevance.A)).toBe('medium');
+    expect(relevanceBand(baseline.relevance.B)).toBe('medium');
+    expect(relevanceBand(poisoned.relevance.B)).toBe('medium');
+    // Under T05 the same injection removed both cards.
+    expect(poisoned.extractedAndTagged).toMatchObject({ A: 0, B: 0 });
+  });
+
+  it('scores the stored graph of every item like the pipeline did', async () => {
+    expect((await summarize()).materiality.mismatches).toBe(0);
   });
 
   it('gives the same results on a second fresh run', async () => {
