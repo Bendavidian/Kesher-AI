@@ -4,6 +4,7 @@ import {
   Company,
   FeedItem,
   FilingChunk,
+  IngestBudgetDay,
   IngestCounter,
   LiveRecording,
   MarketEvent,
@@ -31,6 +32,7 @@ export const SCHEMA_BY_COLLECTION = {
   ingest_counters: IngestCounter,
   recordings: LiveRecording,
   research_budget: ResearchBudgetDay,
+  ingest_budget: IngestBudgetDay,
 } as const;
 
 export type CollectionName = keyof typeof SCHEMA_BY_COLLECTION;

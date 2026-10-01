@@ -3,8 +3,8 @@ import type { Db } from 'mongodb';
 import { describeError } from '../config/redact';
 import { collection } from '../db/collections';
 import { embedEvent, type LazyEmbedder } from '../embed/event';
-import { extractSource } from '../extract/extraction';
-import { MissingModelKeyError, type ModelClient } from '../llm/client';
+import { ExtractionFailedError, extractSource } from '../extract/extraction';
+import { isSchemaFailure, MissingModelKeyError, type ModelClient } from '../llm/client';
 import { isScored, scoreEvent, type ScoredItem } from '../relevance/feed';
 import { screenInput, screenText } from '../screen/injection';
 import { countDrop } from './counters';
@@ -21,12 +21,17 @@ export interface ProcessDeps {
   embedder?: LazyEmbedder;
   now?: () => Date;
   log?: (message: string) => void;
+  // Live news only (SPEC.md decision log, T19): takes one of the day's extractions, false past
+  // the cap. Replay, the demo library and filings pass none, so the cap never touches them.
+  reserveExtraction?: () => Promise<boolean>;
   // Gets what a scoring run wrote, for the socket pushes. Its failure is logged and never undoes
   // or repeats the processing.
   onScored?: (eventId: string, scored: ScoredItem[]) => Promise<void>;
 }
 
-export type ProcessResult = ReplayResponse;
+// A replay never passes reserveExtraction, so it never sees daily_cap and its contract stays
+// ReplayResponse.
+export type ProcessResult = ReplayResponse | { outcome: 'dropped'; reason: 'daily_cap' };
 
 // Processed means extracted and scored. Such an item is never extracted again; one stored
 // without either resumes when it comes again. null when the item is not processed.
@@ -41,6 +46,16 @@ export async function findProcessed(
   return { source: stored, eventId: event._id };
 }
 
+async function isExtracted(
+  db: Db,
+  { provider, externalId }: Pick<IncomingItem, 'provider' | 'externalId'>,
+): Promise<boolean> {
+  const stored = await collection(db, 'sources').findOne({ provider, externalId });
+  if (!stored) return false;
+  const event = await collection(db, 'market_events').findOne({ sourceIds: stored._id });
+  return Boolean(event?.extraction);
+}
+
 // The single entry for every item, replayed or live, in the SPEC.md order: pre filter, then the
 // injection screen, then extraction, then propagation and relevance. Every decision and write here
 // is deterministic code; the models only label and extract. A step that already ran is skipped, so
@@ -48,7 +63,15 @@ export async function findProcessed(
 export async function processItem(
   db: Db,
   item: IncomingItem,
-  { mode, models, embedder, now = () => new Date(), log = console.log, onScored }: ProcessDeps,
+  {
+    mode,
+    models,
+    embedder,
+    now = () => new Date(),
+    log = console.log,
+    reserveExtraction,
+    onScored,
+  }: ProcessDeps,
 ): Promise<ProcessResult> {
   if (!passesUniverse(item.symbols)) {
     await countDrop(db, 'not_in_universe', mode, now());
@@ -68,6 +91,15 @@ export async function processItem(
     }
     await countDrop(db, reason, mode, now());
     return { outcome: 'dropped', reason, sourceId: stored._id, eventId };
+  }
+
+  // Past the day's cap a live news item is counted and nothing is stored; its recording keeps it
+  // for a replay. Checked before any write, so a capped item leaves no Source or event behind,
+  // and only when the extraction is still to run: an extracted item that was never scored needs
+  // no model and is never capped.
+  if (reserveExtraction && !(await isExtracted(db, item)) && !(await reserveExtraction())) {
+    await countDrop(db, 'daily_cap', mode, now());
+    return { outcome: 'dropped', reason: 'daily_cap' };
   }
 
   const ingested = await ingestItem(db, item, now());
@@ -92,7 +124,22 @@ export async function processItem(
 
   const event = await events.findOne({ _id: ingested.eventId });
   if (!event?.extraction) {
-    const { extraction } = await extractSource(models(), source, now());
+    const { extraction } = await extractSource(models(), source, now(), {
+      schemaRetry: true,
+    }).catch(async (error: unknown) => {
+      if (!isSchemaFailure(error)) throw error;
+      // Counted, unlike a 429 or a missing key: the providers answered, and every answer was
+      // unusable (SPEC.md decision log, T19). A failed count must not hide the failure.
+      try {
+        await countDrop(db, 'extraction_failed', mode, now());
+      } catch (countError) {
+        log(`counting the failed extraction failed: ${describeError(countError)}`);
+      }
+      log(
+        `extraction of ${source.provider} ${source.externalId} failed its schema on every provider it reached; it resumes on the next try`,
+      );
+      throw new ExtractionFailedError(source);
+    });
     await events.updateOne({ _id: ingested.eventId, extraction: null }, { $set: { extraction } });
   }
 

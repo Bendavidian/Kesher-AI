@@ -1,10 +1,12 @@
 import { jsonSchema, tool } from 'ai';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { mockModel, rateLimitError, resolveMocks } from '../test/models';
+import { APICallError } from 'ai';
+import { mockModel, rateLimitError, resolveMocks, schemaFailureError } from '../test/models';
 import {
   createModelClient,
   isRateLimited,
+  isSchemaFailure,
   MissingModelKeyError,
   MODELS,
   resolveFromKeys,
@@ -113,6 +115,125 @@ describe('generateSingle', () => {
     const client = createModelClient({ resolve: resolveMocks({ [groq.modelId]: groq }) });
 
     await expect(client.generateSingle(request)).rejects.toThrow();
+  });
+});
+
+describe('generateSingle with schemaRetry', () => {
+  const both = (groqReplies: (string | Error)[], geminiReplies: (string | Error)[]) => {
+    const groq = mockModel(MODELS.extraction.model, groqReplies);
+    const gemini = mockModel(MODELS.fallback.model, geminiReplies);
+    const client = createModelClient({
+      resolve: resolveMocks({ [groq.modelId]: groq, [gemini.modelId]: gemini }),
+    });
+    return { groq, gemini, client };
+  };
+
+  it('asks Groq once more when its answer fails the schema check', async () => {
+    const { groq, gemini, client } = both([schemaFailureError(), '{"ok":true}'], ['{"ok":true}']);
+
+    const result = await client.generateSingle(request, { schemaRetry: true });
+
+    expect(result).toMatchObject({ output: { ok: true }, provider: 'groq' });
+    expect(groq.doGenerateCalls).toHaveLength(2);
+    expect(gemini.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('falls back to Gemini when Groq fails the schema check twice', async () => {
+    const { groq, gemini, client } = both([schemaFailureError()], ['{"ok":true}']);
+
+    const result = await client.generateSingle(request, { schemaRetry: true });
+
+    expect(result).toMatchObject({ output: { ok: true }, provider: 'google' });
+    expect(groq.doGenerateCalls).toHaveLength(2);
+    expect(gemini.doGenerateCalls).toHaveLength(1);
+  });
+
+  it('falls back to Gemini when the retry on Groq answers 429', async () => {
+    const { groq, gemini, client } = both(
+      [schemaFailureError(), rateLimitError(30)],
+      ['{"ok":true}'],
+    );
+
+    const result = await client.generateSingle(request, { schemaRetry: true });
+
+    expect(result.provider).toBe('google');
+    expect(groq.doGenerateCalls).toHaveLength(2);
+    expect(gemini.doGenerateCalls).toHaveLength(1);
+  });
+
+  it("treats an answer the SDK finds off schema like Groq's 400", async () => {
+    const { groq, gemini, client } = both(['{"ok":"yes"}'], ['{"ok":true}']);
+
+    const result = await client.generateSingle(request, { schemaRetry: true });
+
+    expect(result.provider).toBe('google');
+    expect(groq.doGenerateCalls).toHaveLength(2);
+    expect(gemini.doGenerateCalls).toHaveLength(1);
+  });
+
+  it('throws a schema failure when Gemini fails the schema too, after three calls', async () => {
+    const { groq, gemini, client } = both([schemaFailureError()], ['{"ok":"yes"}']);
+
+    const error: unknown = await client
+      .generateSingle(request, { schemaRetry: true })
+      .catch((e: unknown) => e);
+
+    expect(isSchemaFailure(error)).toBe(true);
+    expect(groq.doGenerateCalls).toHaveLength(2);
+    expect(gemini.doGenerateCalls).toHaveLength(1);
+  });
+
+  it('does not retry a 400 that is not a schema failure', async () => {
+    const tooLong = new APICallError({
+      message: 'Please reduce the length of the messages or completion.',
+      url: 'https://api.test/v1/chat/completions',
+      requestBodyValues: {},
+      statusCode: 400,
+      responseBody: '{"error":{"code":"context_length_exceeded"}}',
+      isRetryable: false,
+    });
+    const { groq, gemini, client } = both([tooLong], ['{"ok":true}']);
+
+    await expect(client.generateSingle(request, { schemaRetry: true })).rejects.toBe(tooLong);
+    expect(groq.doGenerateCalls).toHaveLength(1);
+    expect(gemini.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('keeps one call without the option, as the verifier and the recorders use it', async () => {
+    const { groq, gemini, client } = both([schemaFailureError()], ['{"ok":true}']);
+
+    const error: unknown = await client.generateSingle(request).catch((e: unknown) => e);
+
+    expect(isSchemaFailure(error)).toBe(true);
+    expect(groq.doGenerateCalls).toHaveLength(1);
+    expect(gemini.doGenerateCalls).toHaveLength(0);
+  });
+});
+
+describe('isSchemaFailure', () => {
+  it("is true for Groq's json_validate_failed and false for a 429 or a plain error", () => {
+    expect(isSchemaFailure(schemaFailureError())).toBe(true);
+    expect(isSchemaFailure(rateLimitError())).toBe(false);
+    expect(isSchemaFailure(new Error('Generated JSON does not match the expected schema'))).toBe(
+      false,
+    );
+  });
+
+  it('reads the code from the parsed body, not from text the model wrote', () => {
+    const quoted = schemaFailureError('json_validate_failed');
+    const parsed = JSON.parse(quoted.responseBody!) as { error: Record<string, unknown> };
+    const elsewhere = new APICallError({
+      message: 'Bad request',
+      url: 'https://api.test/v1/chat/completions',
+      requestBodyValues: {},
+      statusCode: 400,
+      responseBody: JSON.stringify({ error: { ...parsed.error, code: 'invalid_request' } }),
+      isRetryable: false,
+    });
+    expect(isSchemaFailure(elsewhere)).toBe(false);
+    expect(isSchemaFailure(new APICallError({ ...elsewhere, responseBody: 'not json' }))).toBe(
+      false,
+    );
   });
 });
 

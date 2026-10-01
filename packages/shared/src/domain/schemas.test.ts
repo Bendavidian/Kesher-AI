@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FeedItem, MarketEvent } from './event';
 import { FilingChunk } from './filing';
-import { IngestCounter } from './ingest';
+import { IngestBudgetDay, IngestCounter } from './ingest';
 import { AgentRun, Claim, MAX_STEP_OUTPUT_BYTES, Report, ResearchBudgetDay } from './research';
 import { Source } from './source';
 import { User } from './user';
@@ -393,6 +393,29 @@ describe('IngestCounter', () => {
     );
     expect(IngestCounter.safeParse({ ...counter, reason: 'spam' }).success).toBe(false);
     expect(IngestCounter.safeParse({ ...counter, count: 0 }).success).toBe(false);
+  });
+
+  it('accepts the live reasons from T19', () => {
+    for (const reason of ['queue_full', 'daily_cap', 'extraction_failed']) {
+      expect(IngestCounter.safeParse({ ...counter, mode: 'live', reason }).success).toBe(true);
+    }
+  });
+});
+
+describe('IngestBudgetDay', () => {
+  const budget = { _id: id(13), day: '2026-10-01', extractions: 0, updatedAt: at };
+
+  it('accepts the live extractions reserved on one UTC day, from 0', () => {
+    expect(IngestBudgetDay.safeParse(budget).success).toBe(true);
+    expect(IngestBudgetDay.safeParse({ ...budget, extractions: 150 }).success).toBe(true);
+  });
+
+  it('rejects a timestamp as the day, a negative count and an unknown field', () => {
+    expect(IngestBudgetDay.safeParse({ ...budget, day: '2026-10-01T00:00:00Z' }).success).toBe(
+      false,
+    );
+    expect(IngestBudgetDay.safeParse({ ...budget, extractions: -1 }).success).toBe(false);
+    expect(IngestBudgetDay.safeParse({ ...budget, runs: 0 }).success).toBe(false);
   });
 });
 

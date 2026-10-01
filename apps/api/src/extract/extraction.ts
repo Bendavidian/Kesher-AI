@@ -87,17 +87,38 @@ export interface ExtractionResult {
   usage: TokenUsage;
 }
 
-// One structured call with no tools (Groq, Gemini on a 429), then the code mapping.
+// An extraction whose answers failed the schema on every provider it reached (SPEC.md decision
+// log, T19). The item stays stored without an extraction and resumes on the next try. It keeps
+// the ids only, never the article or the provider's error, which quotes the prompt.
+export class ExtractionFailedError extends Error {
+  readonly provider: Source['provider'];
+  readonly externalId: string;
+
+  constructor({ provider, externalId }: Pick<Source, 'provider' | 'externalId'>) {
+    super(`extraction of ${provider} ${externalId} failed its schema`);
+    this.name = 'ExtractionFailedError';
+    this.provider = provider;
+    this.externalId = externalId;
+  }
+}
+
+// One structured call with no tools (Groq, Gemini on a 429), then the code mapping. With
+// schemaRetry, which the pipeline passes, an answer that fails the schema is asked again on Groq
+// once and then on Gemini; off by default, so a recording stays one draw of the extraction model.
 export async function extractSource(
   client: ModelClient,
   source: Pick<Source, 'title' | 'text' | 'symbols'>,
   now = new Date(),
+  { schemaRetry = false }: { schemaRetry?: boolean } = {},
 ): Promise<ExtractionResult> {
-  const result = await client.generateSingle({
-    ...buildExtractionPrompt(source),
-    schema: ExtractionOutput,
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
-  });
+  const result = await client.generateSingle(
+    {
+      ...buildExtractionPrompt(source),
+      schema: ExtractionOutput,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+    },
+    { schemaRetry },
+  );
   return {
     extraction: toExtraction(result.output, {
       provider: result.provider,

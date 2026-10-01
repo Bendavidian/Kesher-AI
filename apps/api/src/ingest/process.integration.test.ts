@@ -2,13 +2,14 @@ import { FeedItem, IngestCounter, MarketEvent, ReplayResponse, Source } from '@k
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { collection } from '../db/collections';
 import { backfillEventEmbeddings } from '../embed/event';
+import { ExtractionFailedError } from '../extract/extraction';
 import { createModelClient, MissingModelKeyError, MODELS, resolveFromKeys } from '../llm/client';
 import type { ModelClient } from '../llm/client';
 import { loadModelRecording, type ModelRecording } from '../llm/recordings';
 import { DEMO_SOURCE_ID, PERSONAS } from '../seed/config';
 import { runSeed } from '../seed/seed';
 import { fakeEmbedder, oneHot } from '../test/embedder';
-import { mockModel, rateLimitError, resolveMocks } from '../test/models';
+import { mockModel, rateLimitError, resolveMocks, schemaFailureError } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 import { toIncomingItem } from './alpaca';
 import type { IncomingItem } from './item';
@@ -25,17 +26,26 @@ describe('processItem on mongod', () => {
 
   // Replays the recorded answers for the demo item; overrides replace one model's replies.
   const models = (
-    replies: { screen?: (string | Error)[]; extraction?: (string | Error)[] } = {},
+    replies: {
+      screen?: (string | Error)[];
+      extraction?: (string | Error)[];
+      fallback?: (string | Error)[];
+    } = {},
   ) => {
     const guard = mockModel(MODELS.screen.model, replies.screen ?? recorded.screen.chunks);
     const groq = mockModel(
       MODELS.extraction.model,
       replies.extraction ?? [recorded.extraction.text],
     );
+    const gemini = mockModel(MODELS.fallback.model, replies.fallback ?? [new Error('no fallback')]);
     const client = createModelClient({
-      resolve: resolveMocks({ [guard.modelId]: guard, [groq.modelId]: groq }),
+      resolve: resolveMocks({
+        [guard.modelId]: guard,
+        [groq.modelId]: groq,
+        [gemini.modelId]: gemini,
+      }),
     });
-    return { guard, groq, client };
+    return { guard, groq, gemini, client };
   };
 
   const deps = (client: ModelClient, mode: ProcessDeps['mode'] = 'replay'): ProcessDeps => ({
@@ -281,6 +291,62 @@ describe('processItem on mongod', () => {
     });
   });
 
+  describe('daily extraction cap', () => {
+    it('counts a live item past the cap as daily_cap, stores nothing and asks for no model', async () => {
+      const capped: ProcessDeps = {
+        ...noModels('live'),
+        reserveExtraction: () => Promise.resolve(false),
+      };
+
+      expect(await processItem(mongo.db, item, capped)).toEqual({
+        outcome: 'dropped',
+        reason: 'daily_cap',
+      });
+
+      expect(await collection(mongo.db, 'sources').countDocuments({ provider: 'alpaca' })).toBe(0);
+      expect(await collection(mongo.db, 'market_events').countDocuments()).toBe(0);
+      expect(await counters()).toEqual([
+        { day: '2026-09-28', mode: 'live', reason: 'daily_cap', count: 1 },
+      ]);
+    });
+
+    it('never caps an extracted item that was not scored yet, which needs no model', async () => {
+      const { client } = models();
+      await processItem(mongo.db, item, deps(client, 'live'));
+      await collection(mongo.db, 'feed_items').deleteMany({});
+
+      const capped: ProcessDeps = {
+        ...noModels('live'),
+        reserveExtraction: () => Promise.reject(new Error('no reservation expected')),
+      };
+      expect(await processItem(mongo.db, item, capped)).toMatchObject({ outcome: 'processed' });
+      expect(await counters()).toEqual([]);
+    });
+
+    it('reserves only for an item that is not processed yet, after the pre filter', async () => {
+      let reservations = 0;
+      const reserveExtraction = () => {
+        reservations += 1;
+        return Promise.resolve(true);
+      };
+      const { client } = models();
+
+      await processItem(mongo.db, item, { ...deps(client, 'live'), reserveExtraction });
+      await processItem(mongo.db, item, { ...noModels('live'), reserveExtraction });
+      await processItem(
+        mongo.db,
+        { ...item, symbols: ['SPY'] },
+        {
+          ...noModels('live'),
+          reserveExtraction,
+        },
+      );
+
+      expect(reservations).toBe(1);
+      expect((await counters()).map((c) => c.reason)).toEqual(['duplicate', 'not_in_universe']);
+    });
+  });
+
   describe('injection screen', () => {
     it('labels a flagged item and still extracts it', async () => {
       const { client, groq } = models({ screen: ['0.99'] });
@@ -350,6 +416,46 @@ describe('processItem on mongod', () => {
       expect(guard.doGenerateCalls).toHaveLength(0);
       expect((await storedEvent()).extraction).not.toBeNull();
       expect(await counters()).toEqual([]);
+    });
+
+    it('retries an answer that fails the schema on Groq once and counts nothing', async () => {
+      const { groq, gemini, client } = models({
+        extraction: [schemaFailureError(), recorded.extraction.text],
+      });
+
+      const result = await processItem(mongo.db, item, deps(client, 'live'));
+
+      expect(result.outcome).toBe('processed');
+      expect(groq.doGenerateCalls).toHaveLength(2);
+      expect(gemini.doGenerateCalls).toHaveLength(0);
+      expect(await counters()).toEqual([]);
+    });
+
+    it('counts an extraction that fails its schema on both providers, and resumes', async () => {
+      const failing = models({ extraction: [schemaFailureError()], fallback: ['{"themes":3}'] });
+
+      await expect(processItem(mongo.db, item, deps(failing.client, 'live'))).rejects.toThrow(
+        ExtractionFailedError,
+      );
+
+      expect(failing.groq.doGenerateCalls).toHaveLength(2);
+      expect(failing.gemini.doGenerateCalls).toHaveLength(1);
+      expect((await storedEvent()).extraction).toBeNull();
+      expect(await counters()).toEqual([
+        { day: '2026-09-28', mode: 'live', reason: 'extraction_failed', count: 1 },
+      ]);
+      expect(logs).toEqual([
+        'extraction of alpaca 38062166 failed its schema on every provider it reached; it resumes on the next try',
+      ]);
+
+      const { guard, client } = models();
+      const result = await processItem(mongo.db, item, deps(client, 'live'));
+
+      expect(result).toMatchObject({ outcome: 'processed', sourceCreated: false });
+      expect(guard.doGenerateCalls).toHaveLength(0);
+      expect(await counters()).toEqual([
+        { day: '2026-09-28', mode: 'live', reason: 'extraction_failed', count: 1 },
+      ]);
     });
 
     it('asks for a model only when a step needs one, and names a missing key', async () => {

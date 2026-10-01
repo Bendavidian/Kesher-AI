@@ -1,5 +1,6 @@
 import { Source } from '@kesher/shared';
 import { describe, expect, it, vi } from 'vitest';
+import { SecHttpError } from '../sec/fetch';
 import { fetchRecentFilings, filingTitle, submissionsUrl, toIncomingFiling } from './edgar';
 
 const nvidia = { symbol: 'NVDA', cik: '0001045810', name: 'NVIDIA Corp' } as const;
@@ -78,10 +79,14 @@ describe('fetchRecentFilings', () => {
     expect(new Headers(init?.headers).get('User-Agent')).toBe('Kesher test');
   });
 
-  it('fails on an error status', async () => {
-    await expect(
-      fetchRecentFilings(nvidia.cik, since, { userAgent: 'x', fetch: fakeFetch({}, 403) }),
-    ).rejects.toThrow(/answered 403/);
+  it('fails on an error status, with the status on the error', async () => {
+    const error = await fetchRecentFilings(nvidia.cik, since, {
+      userAgent: 'Kesher ops@kesher.invalid',
+      fetch: fakeFetch({}, 403),
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SecHttpError);
+    expect(error).toMatchObject({ status: 403 });
+    expect((error as Error).message).not.toContain('kesher.invalid');
   });
 });
 

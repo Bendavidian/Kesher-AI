@@ -1,9 +1,9 @@
-import { normalizeText, Ticker, type AlpacaNewsItem } from '@kesher/shared';
+import { AlpacaNewsItem, normalizeText, Ticker } from '@kesher/shared';
 import { z } from 'zod';
 import type { IncomingItem } from './item';
 
 // The item schema lives in packages/shared with the LiveRecording that stores it.
-export { AlpacaNewsItem } from '@kesher/shared';
+export { AlpacaNewsItem };
 
 // Display names for the publishers Alpaca reports in lower case. Any other value is kept as sent.
 const PUBLISHER_NAMES: Record<string, string> = { benzinga: 'Benzinga' };
@@ -38,6 +38,7 @@ export function toIncomingItem(item: AlpacaNewsItem): IncomingItem {
 
 export const ALPACA_NEWS_URL = 'https://data.alpaca.markets/v1beta1/news';
 const MAX_PAGES = 20;
+const FETCH_TIMEOUT_MS = 10_000;
 
 const NewsPage = z.object({
   news: z.array(z.looseObject({ id: z.int() })),
@@ -96,4 +97,67 @@ export async function fetchAlpacaNewsById({
     if (!pageToken) break;
   }
   throw new Error(`Alpaca news ${id} not found for ${symbol} on ${date}`);
+}
+
+export interface FetchNewsRangeOptions {
+  start: Date;
+  end: Date;
+  symbols: readonly string[];
+  keys: AlpacaKeys;
+  fetch?: typeof globalThis.fetch;
+  // Aborts the fetch, as live ingestion does when it stops.
+  signal?: AbortSignal;
+}
+
+export interface NewsRange {
+  // Oldest first, as the stream would have delivered them, without content or images.
+  items: AlpacaNewsItem[];
+  // Items that failed AlpacaNewsItem, as the stream skips them.
+  skipped: number;
+  // false when the page limit ended the window early: what is past it is not fetched.
+  complete: boolean;
+}
+
+// The news published from start to end for the symbols, from the history endpoint: what the
+// stream missed while it was down (SPEC.md decision log, T19). Untrusted data, like the stream's.
+export async function fetchAlpacaNewsRange({
+  start,
+  end,
+  symbols,
+  keys,
+  fetch = globalThis.fetch,
+  signal,
+}: FetchNewsRangeOptions): Promise<NewsRange> {
+  const range: NewsRange = { items: [], skipped: 0, complete: false };
+  let pageToken: string | null | undefined;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const query = new URLSearchParams({
+      symbols: symbols.join(','),
+      start: start.toISOString(),
+      end: end.toISOString(),
+      limit: '50',
+      sort: 'asc',
+      include_content: 'false',
+    });
+    if (pageToken) query.set('page_token', pageToken);
+    const response = await fetch(`${ALPACA_NEWS_URL}?${query.toString()}`, {
+      headers: { 'APCA-API-KEY-ID': keys.keyId, 'APCA-API-SECRET-KEY': keys.secretKey },
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)])
+        : AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!response.ok) throw new Error(`Alpaca news answered ${response.status}`);
+    const body = NewsPage.parse(await response.json());
+    for (const raw of body.news) {
+      const item = AlpacaNewsItem.safeParse(raw);
+      if (item.success) range.items.push(item.data);
+      else range.skipped += 1;
+    }
+    pageToken = body.next_page_token;
+    if (!pageToken) {
+      range.complete = true;
+      break;
+    }
+  }
+  return range;
 }

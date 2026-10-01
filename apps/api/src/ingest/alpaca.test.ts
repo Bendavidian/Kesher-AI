@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AlpacaNewsItem, fetchAlpacaNewsById, toIncomingItem } from './alpaca';
+import {
+  AlpacaNewsItem,
+  fetchAlpacaNewsById,
+  fetchAlpacaNewsRange,
+  toIncomingItem,
+} from './alpaca';
 
 const raw = {
   id: 38062166,
@@ -117,5 +122,64 @@ describe('fetchAlpacaNewsById', () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe('Alpaca news answered 403');
     expect((error as Error).message).not.toContain(keys.secretKey);
+  });
+});
+
+describe('fetchAlpacaNewsRange', () => {
+  const keys = { keyId: 'test-key-id', secretKey: 'test-secret' };
+  const page = (news: unknown[], next: string | null) =>
+    new Response(JSON.stringify({ news, next_page_token: next }), { status: 200 });
+  const start = new Date('2026-10-01T13:00:00Z');
+  const end = new Date('2026-10-01T13:40:00Z');
+
+  it('returns the window oldest first across pages, without content, with a timeout', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(page([{ ...raw, id: 41000001, content: '<p>body</p>' }], 'p2'))
+      .mockResolvedValueOnce(page([{ ...raw, id: 41000002 }, { id: 41000003 }], null));
+
+    const range = await fetchAlpacaNewsRange({
+      start,
+      end,
+      symbols: ['NVDA', 'TSM'],
+      keys,
+      fetch,
+    });
+
+    expect(range.items.map((item) => item.id)).toEqual([41000001, 41000002]);
+    expect(range.items[0]).not.toHaveProperty('content');
+    // The item without a headline or times failed AlpacaNewsItem.
+    expect(range).toMatchObject({ skipped: 1, complete: true });
+    const first = new URL(fetch.mock.calls[0]![0] as string);
+    expect(Object.fromEntries(first.searchParams)).toEqual({
+      symbols: 'NVDA,TSM',
+      start: '2026-10-01T13:00:00.000Z',
+      end: '2026-10-01T13:40:00.000Z',
+      limit: '50',
+      sort: 'asc',
+      include_content: 'false',
+    });
+    expect(new URL(fetch.mock.calls[1]![0] as string).searchParams.get('page_token')).toBe('p2');
+    expect(fetch.mock.calls[0]![1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('says when the page limit cut the window short', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockImplementation(() => Promise.resolve(page([raw], 'more')));
+
+    const range = await fetchAlpacaNewsRange({ start, end, symbols: ['TSM'], keys, fetch });
+
+    expect(fetch).toHaveBeenCalledTimes(20);
+    expect(range.complete).toBe(false);
+  });
+
+  it('reports an error status without echoing the keys', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response('too many', { status: 429 }));
+    await expect(
+      fetchAlpacaNewsRange({ start, end, symbols: ['TSM'], keys, fetch }),
+    ).rejects.toThrow(/^Alpaca news answered 429$/);
   });
 });

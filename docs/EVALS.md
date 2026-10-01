@@ -277,7 +277,7 @@ Written on 1 Oct 2026, from the run above: the 90 labels of part 1, 12 labels on
 
 #### Proposals
 
-Decided on 1 Oct 2026: proposal 1 became T27 (BACKLOG.md), proposals 2, 3 and 4 are in the SPEC.md decision log (T16), and proposal 5 stays a note under T19.
+Decided on 1 Oct 2026: proposal 1 became T27 (BACKLOG.md), proposals 2, 3 and 4 are in the SPEC.md decision log (T16), and proposal 5 stays a note under T19, resolved in T19 (an extraction that fails the schema is asked once more on Groq, then on Gemini).
 
 1. The mention rule, in place of tagged only: start the graph from every tagged universe company, as tagged only does, but read a holding as high only when the extraction also names it; a holding the item only mentions reads medium.
    - On the wraps it agrees on 9 of 12, against 3 today and 4 under tagged only: the 6 missing cards appear as medium and the two pairs labeled none stay none. The 3 misses left are the named holdings above.

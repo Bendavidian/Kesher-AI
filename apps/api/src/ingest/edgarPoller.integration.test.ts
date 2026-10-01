@@ -36,6 +36,7 @@ describe('EDGAR poller on mongod', () => {
     requests.push(url as string);
     const body = answers.get(url as string);
     if (body === 'fail') return Promise.resolve(new Response('busy', { status: 503 }));
+    if (typeof body === 'number') return Promise.resolve(new Response('', { status: body }));
     return Promise.resolve(new Response(JSON.stringify(body ?? recent([]))));
   };
 
@@ -147,15 +148,61 @@ describe('EDGAR poller on mongod', () => {
     expect(await collection(mongo.db, 'ingest_counters').countDocuments()).toBe(0);
   });
 
-  it('logs a failing filer and goes on with the others', async () => {
+  it('goes on past failing filers and names them in one line per poll', async () => {
     answers.set(submissionsUrl('0000002488'), 'fail');
+    answers.set(submissionsUrl('0000006951'), 'fail');
     answers.set(
       submissionsUrl('0001045810'),
       recent([['0001045810-26-000104', '2026-09-29T12:00:00.000Z', 'd.htm']]),
     );
     await poller().poll();
     expect(handed).toHaveLength(1);
-    expect(logs.some((l) => l.startsWith('edgar poll for AMD failed'))).toBe(true);
+    expect(logs).toEqual([
+      'edgar poll failed for 2 of 17 companies (AMAT, AMD): SecHttpError: HTTP 503 from https://data.sec.gov/submissions/CIK0000006951.json',
+    ]);
+  });
+
+  it('pauses every request after a 403 or 429, says so once, doubles the pause and resets', async () => {
+    let clock = now.getTime();
+    const minutes = (n: number) => n * 60_000;
+    const p = createEdgarPoller({
+      db: mongo.db,
+      userAgent: 'Kesher test',
+      onFiling: () => undefined,
+      log: (message) => logs.push(message),
+      fetch,
+      now: () => new Date(clock),
+      gapMs: 0,
+    });
+    // AMAT comes first in symbol order.
+    answers.set(submissionsUrl('0000006951'), 429);
+
+    await p.poll();
+    expect(requests).toHaveLength(1);
+    expect(logs).toEqual(['edgar answered 429; every poll pauses for 10 min']);
+    expect(p.status()).toEqual({ lastPollAt: null, pausedUntil: new Date(clock + minutes(10)) });
+
+    // Within the pause no request goes out.
+    clock += minutes(9);
+    await p.poll();
+    expect(requests).toHaveLength(1);
+
+    clock += minutes(1);
+    await p.poll();
+    expect(requests).toHaveLength(2);
+    expect(logs.at(-1)).toBe('edgar answered 429; every poll pauses for 20 min');
+
+    clock += minutes(20);
+    answers.delete(submissionsUrl('0000006951'));
+    await p.poll();
+    expect(requests).toHaveLength(2 + 17);
+    expect(p.status()).toEqual({ lastPollAt: new Date(clock), pausedUntil: null });
+
+    // After a clean poll the next pause starts at 10 minutes again.
+    answers.set(submissionsUrl('0000006951'), 403);
+    await p.poll();
+    expect(logs.at(-1)).toBe('edgar answered 403; every poll pauses for 10 min');
+    expect(logs).toHaveLength(3);
   });
 
   it('start polls at once and again after the interval; stop ends it', async () => {

@@ -21,6 +21,7 @@ describe('indexes', () => {
     expect(uniqueKeys('filing_chunks')).toEqual([['sourceId', 'chunkIndex']]);
     expect(uniqueKeys('ingest_counters')).toEqual([['day', 'mode', 'reason']]);
     expect(uniqueKeys('research_budget')).toEqual([['day']]);
+    expect(uniqueKeys('ingest_budget')).toEqual([['day']]);
   });
 
   it('expires guest documents on expiresAt', () => {

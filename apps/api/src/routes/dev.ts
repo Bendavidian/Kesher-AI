@@ -27,6 +27,11 @@ export function sendReplayOutcome(
     case 'rate_limited':
       res.status(503).json({ error: 'the model providers are rate limited; replay again later' });
       return;
+    case 'extraction_failed':
+      res.status(503).json({
+        error: 'the extraction failed its schema on both model providers; replay again later',
+      });
+      return;
   }
 }
 

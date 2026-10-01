@@ -9,6 +9,7 @@ export * from './whyYou';
 export * from './feed';
 export * from './report';
 export * from './runs';
+export * from './ingest';
 export * from './domain/common';
 export * from './domain/universe';
 export * from './domain/user';
