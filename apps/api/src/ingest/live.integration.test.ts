@@ -263,7 +263,9 @@ describe('live ingestion end to end, on mongod', () => {
     expect(replayed).toMatchObject({ outcome: 'processed', sourceCreated: true });
     if (replayed.outcome !== 'processed') throw new Error('not processed');
 
-    // Investigate on its card is untouched: the research budget is its own.
+    // Investigate on its card is untouched: the research budget is its own. The gate queued an
+    // automatic run for the replayed card first; once it has ended, Investigate may start one.
+    await api.idle();
     const cookie = await signIn(api.url, 'A');
     const investigate = await fetch(`${api.url}/events/${replayed.eventId}/investigate`, {
       method: 'POST',
