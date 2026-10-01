@@ -10,7 +10,7 @@ import { createModelClient, MODELS } from '../llm/client';
 import { loadModelRecording, type ModelRecording } from '../llm/recordings';
 import { buildCompanies } from '../seed/build';
 import { DEMO_SOURCE_ID } from '../seed/config';
-import { mockModel, rateLimitError, resolveMocks } from '../test/models';
+import { mockModel, rateLimitError, resolveMocks, schemaFailureError } from '../test/models';
 import { MONGO_START_TIMEOUT_MS, startTestMongo, type TestMongo } from '../test/mongo';
 
 async function listen(server: Server): Promise<string> {
@@ -32,10 +32,12 @@ describe('POST /dev/replay/:sourceId', () => {
   let server: Server;
   let keylessServer: Server;
   let limitedServer: Server;
+  let unusableServer: Server;
   let prodServer: Server;
   let baseUrl: string;
   let keylessUrl: string;
   let limitedUrl: string;
+  let unusableUrl: string;
   let prodUrl: string;
 
   const replay = (id: string, url = baseUrl) =>
@@ -65,6 +67,20 @@ describe('POST /dev/replay/:sourceId', () => {
     });
   };
 
+  // Every extraction answer fails the schema: Groq twice, then Gemini.
+  const unusable = () => {
+    const guard = mockModel(MODELS.screen.model, recorded.screen.chunks);
+    const groq = mockModel(MODELS.extraction.model, [schemaFailureError()]);
+    const gemini = mockModel(MODELS.fallback.model, ['{"themes":3}']);
+    return createModelClient({
+      resolve: resolveMocks({
+        [guard.modelId]: guard,
+        [groq.modelId]: groq,
+        [gemini.modelId]: gemini,
+      }),
+    });
+  };
+
   beforeAll(async () => {
     mongo = await startTestMongo('kesher_replay_test');
     await ensureCollections(mongo.db);
@@ -84,6 +100,14 @@ describe('POST /dev/replay/:sourceId', () => {
       log: quiet,
     }).listen(0);
     limitedUrl = await listen(limitedServer);
+    unusableServer = createApp({
+      db: mongo.db,
+      devRoutes: true,
+      models: unusable,
+      logError: quiet,
+      log: quiet,
+    }).listen(0);
+    unusableUrl = await listen(unusableServer);
     prodServer = createApp({ db: mongo.db, devRoutes: false }).listen(0);
     prodUrl = await listen(prodServer);
   }, MONGO_START_TIMEOUT_MS);
@@ -95,7 +119,9 @@ describe('POST /dev/replay/:sourceId', () => {
   });
 
   afterAll(async () => {
-    for (const s of [server, keylessServer, limitedServer, prodServer]) await close(s);
+    for (const s of [server, keylessServer, limitedServer, unusableServer, prodServer]) {
+      await close(s);
+    }
     await mongo?.stop();
   });
 
@@ -150,6 +176,20 @@ describe('POST /dev/replay/:sourceId', () => {
     expect(await response.json()).toEqual({
       error: 'the model providers are rate limited; replay again later',
     });
+  });
+
+  it('answers 503 when the extraction fails its schema on both providers, and counts it', async () => {
+    const response = await replay(DEMO_SOURCE_ID, unusableUrl);
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: 'the extraction failed its schema on both model providers; replay again later',
+    });
+    const counter = await collection(mongo.db, 'ingest_counters').findOne({});
+    expect(counter).toMatchObject({ mode: 'replay', reason: 'extraction_failed', count: 1 });
+
+    const retry = ReplayResponse.parse(await (await replay(DEMO_SOURCE_ID)).json());
+    expect(retry).toMatchObject({ outcome: 'processed', sourceCreated: false });
   });
 
   it('replays a live item that only the recordings collection holds', async () => {

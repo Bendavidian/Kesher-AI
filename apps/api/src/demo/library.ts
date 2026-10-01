@@ -3,6 +3,7 @@ import type { Db } from 'mongodb';
 import { collection } from '../db/collections';
 import type { LazyEmbedder } from '../embed/event';
 import type { EvalEvent } from '../eval/dataset';
+import { ExtractionFailedError } from '../extract/extraction';
 import { toIncomingItem } from '../ingest/alpaca';
 import { findProcessed, processItem } from '../ingest/process';
 import { loadRecording, RECORDINGS_DIR } from '../ingest/recordings';
@@ -34,6 +35,7 @@ export type LibraryStop =
   | { reason: 'no_recording' }
   | { reason: 'missing_key'; message: string }
   | { reason: 'rate_limited' }
+  | { reason: 'extraction_failed' }
   | { reason: 'dropped'; detail: string };
 
 export interface LibraryResult {
@@ -87,6 +89,8 @@ export async function loadLibrary(
         result.stopped = { id: event.id, reason: 'missing_key', message: error.message };
       } else if (isRateLimited(error)) {
         result.stopped = { id: event.id, reason: 'rate_limited' };
+      } else if (error instanceof ExtractionFailedError) {
+        result.stopped = { id: event.id, reason: 'extraction_failed' };
       } else {
         throw error;
       }

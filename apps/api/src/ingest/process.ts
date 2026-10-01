@@ -3,8 +3,8 @@ import type { Db } from 'mongodb';
 import { describeError } from '../config/redact';
 import { collection } from '../db/collections';
 import { embedEvent, type LazyEmbedder } from '../embed/event';
-import { extractSource } from '../extract/extraction';
-import { MissingModelKeyError, type ModelClient } from '../llm/client';
+import { ExtractionFailedError, extractSource } from '../extract/extraction';
+import { isSchemaFailure, MissingModelKeyError, type ModelClient } from '../llm/client';
 import { isScored, scoreEvent, type ScoredItem } from '../relevance/feed';
 import { screenInput, screenText } from '../screen/injection';
 import { countDrop } from './counters';
@@ -92,7 +92,22 @@ export async function processItem(
 
   const event = await events.findOne({ _id: ingested.eventId });
   if (!event?.extraction) {
-    const { extraction } = await extractSource(models(), source, now());
+    const { extraction } = await extractSource(models(), source, now(), {
+      schemaRetry: true,
+    }).catch(async (error: unknown) => {
+      if (!isSchemaFailure(error)) throw error;
+      // Counted, unlike a 429 or a missing key: the providers answered, and every answer was
+      // unusable (SPEC.md decision log, T19). A failed count must not hide the failure.
+      try {
+        await countDrop(db, 'extraction_failed', mode, now());
+      } catch (countError) {
+        log(`counting the failed extraction failed: ${describeError(countError)}`);
+      }
+      log(
+        `extraction of ${source.provider} ${source.externalId} failed its schema on every provider it reached; it resumes on the next try`,
+      );
+      throw new ExtractionFailedError(source);
+    });
     await events.updateOne({ _id: ingested.eventId, extraction: null }, { $set: { extraction } });
   }
 

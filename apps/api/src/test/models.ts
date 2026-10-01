@@ -19,6 +19,26 @@ export function rateLimitError(retryAfterSeconds?: number, responseBody?: string
   });
 }
 
+// Groq's answer when the model's JSON fails the output schema it checks on its side: a 400, not a
+// 429, with the rejected text in failed_generation.
+export function schemaFailureError(failedGeneration = '{"error": "User request not allowed."}') {
+  return new APICallError({
+    message: 'Generated JSON does not match the expected schema. Please adjust your prompt.',
+    url: 'https://api.test/v1/chat/completions',
+    requestBodyValues: {},
+    statusCode: 400,
+    responseBody: JSON.stringify({
+      error: {
+        message: 'Generated JSON does not match the expected schema. Please adjust your prompt.',
+        type: 'invalid_request_error',
+        code: 'json_validate_failed',
+        failed_generation: failedGeneration,
+      },
+    }),
+    isRetryable: false,
+  });
+}
+
 // A model turn that calls tools, the way a provider answers a call with tools.
 export interface ToolTurn {
   text?: string;

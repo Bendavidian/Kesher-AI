@@ -40,7 +40,7 @@ export async function recordModels(
   const [result, extractionLatency] = await timed(
     async (): Promise<ExtractionResult | { refused: APICallError }> => {
       try {
-        return await extractSource(client, item);
+        return await extractSource(client, item, now);
       } catch (error) {
         // A 429 is the free tier's limit, not an answer: it is never recorded.
         if (APICallError.isInstance(error) && error.statusCode !== 429) return { refused: error };

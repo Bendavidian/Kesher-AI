@@ -4,6 +4,8 @@ import type { LlmProvider } from '@kesher/shared';
 import {
   APICallError,
   generateText,
+  NoObjectGeneratedError,
+  NoOutputGeneratedError,
   Output,
   ToolChoiceViolationError,
   type LanguageModel,
@@ -69,6 +71,25 @@ export function isRateLimited(error: unknown): error is APICallError {
   return APICallError.isInstance(error) && error.statusCode === 429;
 }
 
+// An answer that failed the output schema. Groq checks it on its side and answers 400 with the
+// code json_validate_failed, not 429; the SDK checks every other answer and throws
+// NoObjectGeneratedError, or NoOutputGeneratedError when there was no text to parse. Any other
+// 400 (a request the provider refuses) is not one: asking again would not change it. The code is
+// read from the parsed body, never searched in it: failed_generation holds model text written
+// from an untrusted article.
+export function isSchemaFailure(error: unknown): boolean {
+  if (NoObjectGeneratedError.isInstance(error) || NoOutputGeneratedError.isInstance(error)) {
+    return true;
+  }
+  if (!APICallError.isInstance(error) || error.statusCode !== 400) return false;
+  try {
+    const body = JSON.parse(error.responseBody ?? '') as { error?: { code?: unknown } };
+    return body.error?.code === 'json_validate_failed';
+  } catch {
+    return false;
+  }
+}
+
 // The wait a retry-after header asks for, in seconds; undefined without one.
 function headerWaitMs(error: APICallError): number | undefined {
   const seconds = Number(error.responseHeaders?.['retry-after']);
@@ -96,6 +117,12 @@ export interface SingleRequest<T> {
   prompt: string;
   schema: z.ZodType<T>;
   maxOutputTokens?: number;
+}
+
+export interface SingleOptions {
+  // Extraction only (SPEC.md decision log, T19): an answer that fails the schema gets one more
+  // call on Groq, then the Gemini fallback, instead of failing the item at once.
+  schemaRetry?: boolean;
 }
 
 export interface SingleResult<T> extends ModelRef {
@@ -158,7 +185,7 @@ export class RunRateLimitError extends Error {
 }
 
 export interface ModelClient {
-  generateSingle<T>(request: SingleRequest<T>): Promise<SingleResult<T>>;
+  generateSingle<T>(request: SingleRequest<T>, options?: SingleOptions): Promise<SingleResult<T>>;
   screenChunk(text: string): Promise<{ text: string; model: string }>;
   pickRunProvider(budgetTokens: number): ModelRef;
   // onWait runs before each wait, so the run records it as a step.
@@ -175,6 +202,8 @@ export interface ModelClientOptions {
 }
 
 const DEFAULT_MAX_OUTPUT_TOKENS = 1_024;
+// Calls on Groq for one request with schemaRetry before Gemini gets it.
+const SCHEMA_ATTEMPTS = 2;
 const SCREEN_OUTPUT_TOKENS = 16;
 const DEFAULT_BLOCK_MS = 60_000;
 
@@ -285,13 +314,18 @@ export function createModelClient({
   }
 
   return {
-    // One call on Groq; on a 429 that same call goes to Gemini once (SPEC.md Stack).
-    async generateSingle(request) {
-      try {
-        return await single(MODELS.extraction, request);
-      } catch (error) {
-        if (!isRateLimited(error)) throw error;
-        return single(MODELS.fallback, request);
+    // One call on Groq; on a 429 that same call goes to Gemini once (SPEC.md Stack). With
+    // schemaRetry, an answer that fails the schema is asked again on Groq once, and a second
+    // failure goes to Gemini too: at most three calls, and Gemini's failure is the one thrown.
+    async generateSingle(request, { schemaRetry = false } = {}) {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await single(MODELS.extraction, request);
+        } catch (error) {
+          if (isRateLimited(error)) return single(MODELS.fallback, request);
+          if (!schemaRetry || !isSchemaFailure(error)) throw error;
+          if (attempt === SCHEMA_ATTEMPTS) return single(MODELS.fallback, request);
+        }
       }
     },
 

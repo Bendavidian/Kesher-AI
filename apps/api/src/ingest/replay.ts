@@ -1,6 +1,7 @@
 import { AccessionNumber, Company, ReplayResponse, ResetResponse } from '@kesher/shared';
 import type { Db } from 'mongodb';
 import { collection } from '../db/collections';
+import { ExtractionFailedError } from '../extract/extraction';
 import { isRateLimited, MissingModelKeyError, type ModelClient } from '../llm/client';
 import { toIncomingItem } from './alpaca';
 import { toIncomingFiling } from './edgar';
@@ -53,7 +54,9 @@ export type ReplayOutcome =
   // No committed file and no live recording, or a filing whose CIK is not a seeded company.
   | { kind: 'no_recording' }
   | { kind: 'missing_key'; message: string }
-  | { kind: 'rate_limited' };
+  | { kind: 'rate_limited' }
+  // The extraction failed its schema on Groq twice and on Gemini; counted, and resumes.
+  | { kind: 'extraction_failed' };
 
 // The recording mapped the way live ingestion maps it. A filing takes its symbol and name from
 // the universe company with its CIK; null when that company is not seeded.
@@ -65,8 +68,9 @@ async function incoming(db: Db, live: LiveItem): Promise<IncomingItem | null> {
 
 // Replays one recorded item by its provider id, never by keyword, through the same pipeline as
 // live items: pre filter, injection screen, extraction. The committed recording file is read
-// first, then the live recordings collection. A missing model key or rate limited providers
-// leave the item stored without an extraction; it resumes on the next replay.
+// first, then the live recordings collection. A missing model key, rate limited providers or an
+// extraction that failed its schema leave the item stored without an extraction; it resumes on
+// the next replay.
 export async function replayItem(
   db: Db,
   target: ReplayTarget,
@@ -88,6 +92,7 @@ export async function replayItem(
     if (error instanceof MissingModelKeyError)
       return { kind: 'missing_key', message: error.message };
     if (isRateLimited(error)) return { kind: 'rate_limited' };
+    if (error instanceof ExtractionFailedError) return { kind: 'extraction_failed' };
     throw error;
   }
 }
