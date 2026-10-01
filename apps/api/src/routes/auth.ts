@@ -1,4 +1,4 @@
-import { LoginRequest, PublicUser, type User } from '@kesher/shared';
+import { isGuest, LoginRequest, PublicUser, type User } from '@kesher/shared';
 import express, { Router, type ErrorRequestHandler } from 'express';
 import type { Db } from 'mongodb';
 import { hashPassword, verifyPassword } from '../auth/password';
@@ -28,6 +28,7 @@ export const toPublicUser = (user: User): PublicUser =>
     displayName: user.displayName,
     holdings: user.holdings,
     interests: user.interests,
+    ...(user.expiresAt ? { expiresAt: user.expiresAt } : {}),
   });
 
 const LOGIN_FAILED = { error: 'email or password is wrong' };
@@ -58,7 +59,8 @@ export function authRouter(db: Db, { secret, secureCookie, onSignOut }: AuthOpti
     const user = await users.findOne({ email: body.data.email });
     const stored = user?.passwordHash ?? (await (decoyHash ??= hashPassword('decoy')));
     const valid = await verifyPassword(body.data.password, stored);
-    if (!user || !valid) {
+    // A guest has no password anyone holds; it is signed in only by POST /guest (T24).
+    if (!user || !valid || isGuest(user)) {
       res.status(401).json(LOGIN_FAILED);
       return;
     }

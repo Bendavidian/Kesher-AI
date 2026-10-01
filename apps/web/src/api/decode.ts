@@ -34,7 +34,8 @@ export function decodeFeed(json: unknown): FeedCard[] {
 export const decodeHidden = (json: unknown): HiddenFeed => HiddenFeed.parse(reviveDates(json));
 export const decodeIngestStatus = (json: unknown): IngestStatus =>
   IngestStatus.parse(reviveDates(json));
-export const decodeUser = (json: unknown): PublicUser => PublicUser.parse(json);
+// A guest's user carries expiresAt (T24).
+export const decodeUser = (json: unknown): PublicUser => PublicUser.parse(reviveDates(json));
 export const decodeScored = (json: unknown): EventScored => EventScored.parse(json);
 // A step's input is free form JSON: an ISO string in it stays a string, as the tool received it.
 // Dates are revived everywhere else, then each step's input is put back as sent.

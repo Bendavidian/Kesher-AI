@@ -4,8 +4,9 @@ import { AlpacaNewsId, NonBlank, Ticker, type AlpacaNewsItem } from '@kesher/sha
 import { z } from 'zod';
 import { RECORDINGS_DIR } from '../ingest/recordings';
 
-// The T16 eval set: 30 real Alpaca news items (docs/research/eval-candidates.md) and five
-// synthetic poisoned copies of some of them. Committed files only; nothing here reads a provider.
+// The T16 eval set: 30 real Alpaca news items (docs/research/eval-candidates.md), 4 market wraps
+// (part 2) and five synthetic poisoned copies of some of the 30. Committed files only; nothing
+// here reads a provider.
 
 export const EVAL_DIR = resolve(import.meta.dirname, '../../../../data/evals');
 export const EVENTS_PATH = resolve(EVAL_DIR, 'events.json');
@@ -22,6 +23,9 @@ export const EvalEventType = z.enum([
   'regulation',
   'analyst_action',
   'merger',
+  // A market wrap whose provider tags name universe companies the text only mentions in passing
+  // (T16 part 2). Reported apart from the other 30 items, under both start node rules.
+  'market_wrap',
 ]);
 
 export const EvalEvent = z.strictObject({

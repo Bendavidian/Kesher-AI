@@ -115,9 +115,15 @@ It checks health, the web shell, closed development routes, sign in and sockets 
 - **Reporting a problem:** please use GitHub's private vulnerability reporting (Security tab, "Report a vulnerability") rather than a public issue.
 
 ## Evaluation
-The eval numbers come in T18 part 2, after T16: label agreement over 20 recorded events × 3 personas, the verifier catch rate on planted errors, injection success with and without the screen, and cost and latency per event.
+`npm run eval` replays the eval set through the full pipeline on a local mongod, from recorded model answers, and writes [docs/EVALS.md](docs/EVALS.md) with every table and the tuning proposals. No provider is called, and CI runs the same replay. The numbers as of T16:
 
-Verification is proven so far on a fixture of 17 planted errors: the real verifier and the deterministic checks caught all 17, and every clean claim was supported (T14).
+- **Relevance:** the code's band agrees with the user's label on 78 of 90 pairs (87%), 30 recorded news items × 3 personas: A 97%, B 63%, C 100%. Every disagreement sits on a graph path: 9 are a supply hop at 0.8, 3 are two hops.
+- **Verification:** 17 of 17 planted errors caught, each by the check it was planted for, and no clean claim removed (the T14 fixture, one recorded verifier call of 2,377 tokens).
+- **Injection:** on 5 synthetic poisoned items, the injected text changed the extraction in 2 of 5 without the screen and 1 of 5 with it. After the code defenses (the provider's tags as start nodes, an extraction with no tools), relevance moved in 1 of 5. The screen flagged 2 of 5 poisoned items and none of the 30 real ones.
+- **Filing retrieval,** vector only on the free tier: precision at 3 is 70% and recall at 3 is 46% over 11 judged queries.
+- **Passing mentions:** on 4 market wraps, today's start node rule agrees on 3 of 12 pairs and tagged only on 4 of 12. EVALS.md proposes a rule for companies an item only mentions.
+- **Graph review:** 22 of 28 relationships proposed from 10-K sentences were accepted.
+- **Cost and latency per event:** a median extraction of 812 tokens (p95 915) in 687 ms (p95 2,242 ms), one injection screen call of 205 ms, and 3 ms of pipeline code. Every call is on a free tier, so $0.
 
 ## License
 [MIT](LICENSE)

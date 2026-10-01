@@ -2,6 +2,7 @@ export { HealthResponse } from './health';
 export { DemoReplayResponse, ReplayResponse, ResetResponse } from './dev';
 export * from './auth';
 export * from './demo';
+export * from './guest';
 export * from './realtime';
 export { normalizeText } from './text';
 export * from './whyYou';

@@ -30,9 +30,10 @@ const proposed = (sourceId: string, persona: 'A' | 'B' | 'C'): Label => ({
 const three = (sourceId: string) => (['A', 'B', 'C'] as const).map((p) => proposed(sourceId, p));
 
 describe('the committed eval set', () => {
-  it('has 30 items with exactly one label per persona', async () => {
+  it('has 30 items and 4 market wraps, with exactly one label per persona', async () => {
     const events = await loadEvents();
-    expect(events).toHaveLength(30);
+    expect(events.filter((e) => e.type !== 'market_wrap')).toHaveLength(30);
+    expect(events.filter((e) => e.type === 'market_wrap')).toHaveLength(4);
     expect(checkLabels(events, await loadLabels())).toEqual([]);
   });
 });

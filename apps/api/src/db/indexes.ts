@@ -7,9 +7,17 @@ import {
 } from 'mongodb';
 import { COLLECTION_NAMES, type CollectionName } from './collections';
 
+// Removes a guest and everything of its own 24 hours after it was created (SPEC.md decision
+// log, T24). Only guest documents carry expiresAt, so nothing else ever expires.
+const EXPIRES_AT_TTL: IndexDescription = {
+  name: 'expires_at_ttl',
+  key: { expiresAt: 1 },
+  expireAfterSeconds: 0,
+};
+
 // Unique indexes on natural keys make duplicates impossible, whatever writes them.
 export const INDEXES: Record<CollectionName, IndexDescription[]> = {
-  users: [{ name: 'email_unique', key: { email: 1 }, unique: true }],
+  users: [{ name: 'email_unique', key: { email: 1 }, unique: true }, EXPIRES_AT_TTL],
   companies: [
     { name: 'symbol_unique', key: { symbol: 1 }, unique: true },
     { name: 'cik_unique', key: { cik: 1 }, unique: true },
@@ -28,15 +36,17 @@ export const INDEXES: Record<CollectionName, IndexDescription[]> = {
   feed_items: [
     { name: 'user_event_unique', key: { userId: 1, eventId: 1 }, unique: true },
     { name: 'user_created_at', key: { userId: 1, createdAt: -1 } },
+    EXPIRES_AT_TTL,
   ],
   agent_runs: [
     { name: 'user_created_at', key: { userId: 1, createdAt: -1 } },
     { name: 'event', key: { eventId: 1 } },
     // The research gate's recent run check, per user and event (T12).
     { name: 'user_event_created_at', key: { userId: 1, eventId: 1, createdAt: -1 } },
+    EXPIRES_AT_TTL,
   ],
-  reports: [{ name: 'run_unique', key: { runId: 1 }, unique: true }],
-  claims: [{ name: 'report', key: { reportId: 1 } }],
+  reports: [{ name: 'run_unique', key: { runId: 1 }, unique: true }, EXPIRES_AT_TTL],
+  claims: [{ name: 'report', key: { reportId: 1 } }, EXPIRES_AT_TTL],
   filing_chunks: [
     { name: 'source_chunk_unique', key: { sourceId: 1, chunkIndex: 1 }, unique: true },
   ],

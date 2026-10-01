@@ -1,4 +1,5 @@
-import type { FeedCard, HiddenFeed, PersonaKey, PublicUser } from '@kesher/shared';
+import type { FeedCard, HiddenFeed, PublicUser } from '@kesher/shared';
+import type { Viewer } from '../view/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveDeps } from './deps';
 import type { FeedSocket } from './socket';
@@ -29,10 +30,12 @@ const START: LiveFeed = {
   connected: false,
 };
 
-// The state of one persona's session. A switch starts from START without resetting in the effect.
+// The state of one viewer's session. A switch starts from START without resetting in the effect.
 interface Session extends LiveFeed {
-  persona: PersonaKey;
+  viewer: string;
 }
+
+const viewerId = (viewer: Viewer | null) => (viewer ? `${viewer.key}:${viewer.session}` : '');
 
 // One card per event: a push replaces the card it updates, and a reset and replay gives the same
 // event a new FeedItem.
@@ -42,13 +45,17 @@ export function upsertCard(cards: readonly FeedCard[], card: FeedCard): FeedCard
 
 // Signs in as the persona, loads GET /feed and GET /feed/hidden, and keeps them live over
 // Socket.IO: after each scored event it reads the hidden items again, so an event with no path
-// shows as None (SPEC.md decision log, T23).
+// shows as None (SPEC.md decision log, T23). A guest is already signed in by the cookie POST
+// /guest set, so it only reads GET /me (T24). A null viewer waits: the app is still finding out
+// whether the cookie is a guest's.
 export function useLiveFeed(
-  personaKey: PersonaKey,
+  viewer: Viewer | null,
   onScored: (eventId: string) => void,
 ): LiveFeedControls {
   const { api, connectFeed } = useLiveDeps();
-  const [session, setSession] = useState<Session>({ ...START, persona: personaKey });
+  const current = viewerId(viewer);
+  const key = viewer?.key;
+  const [session, setSession] = useState<Session>({ ...START, viewer: current });
 
   // Read by socket handlers, which outlive a render.
   const cardsRef = useRef<FeedCard[]>([]);
@@ -60,14 +67,15 @@ export function useLiveFeed(
   });
 
   useEffect(() => {
+    if (!key) return;
     let active = true;
     let socket: FeedSocket | undefined;
     cardsRef.current = [];
-    // Updates this persona's session; one left from the previous persona is dropped.
+    // Updates this viewer's session; one left from the previous viewer is dropped.
     const setState = (update: (s: LiveFeed) => LiveFeed) =>
       setSession((s) => {
-        const current = s.persona === personaKey ? s : START;
-        return { ...update(current), persona: personaKey };
+        const mine = s.viewer === current ? s : START;
+        return { ...update(mine), viewer: current };
       });
 
     const setCards = (cards: FeedCard[]) => {
@@ -92,7 +100,7 @@ export function useLiveFeed(
 
     void (async () => {
       try {
-        const user = await api.signInAs(personaKey);
+        const user = await (key === 'guest' ? api.me() : api.signInAs(key));
         if (!active) return;
         // Only this user's cards: an answer that arrives after a switch is dropped.
         upsertRef.current = (card) => {
@@ -128,8 +136,8 @@ export function useLiveFeed(
       active = false;
       socket?.close();
     };
-  }, [personaKey, api, connectFeed]);
+  }, [current, key, api, connectFeed]);
 
   const upsert = useCallback((card: FeedCard) => upsertRef.current(card), []);
-  return { ...(session.persona === personaKey ? session : START), upsert };
+  return { ...(session.viewer === current ? session : START), upsert };
 }

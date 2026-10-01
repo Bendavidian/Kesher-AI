@@ -1,10 +1,11 @@
 import { RELEVANCE_HIGH, relevanceBand, type PersonaKey } from '@kesher/shared';
 import { groupRelationships, type Review } from '../graph/review';
 import type { CandidatesFile } from '../graph/rows';
-import { eventCompanies } from '../relevance/score';
+import { bestPath, eventCompanies } from '../relevance/score';
 import { GATE_MIN_IMPORTANCE, GATE_MIN_RELEVANCE } from '../research/gate';
 import type { Label, Level } from './labels';
 import { PERSONA_KEYS } from './labels';
+import { MINOR_FACTORS, weighted, type MaterialityFlag } from './materiality';
 import {
   confusion,
   injectionOutcome,
@@ -52,6 +53,20 @@ export const BAND_SETS: readonly BandSet[] = [
     mediumFrom: 0.4,
     highWith: { relevanceFrom: 0.8, importanceFrom: GATE_MIN_IMPORTANCE },
   },
+];
+
+// The band sets of the materiality grid: under the decided set a weight alone cannot move a band
+// between 0 and 1, so the grid pairs the factors with two sets that have a none below 0.4.
+const bandSet = (name: string) => {
+  const set = BAND_SETS.find((b) => b.name.startsWith(name));
+  if (!set) throw new Error(`no band set ${name}`);
+  return set;
+};
+// The first is the decided set, today's bands. None has highWith, so the grid needs no importance.
+export const MATERIALITY_BAND_SETS: readonly BandSet[] = [
+  BAND_SETS.find((b) => b.decided === true)!,
+  bandSet('high from 0.8, medium from 0.4'),
+  bandSet('1a:'),
 ];
 
 // importance is the extraction's class, null when there is none.
@@ -114,9 +129,62 @@ export interface StartNodeRules {
   }[];
 }
 
+// The market wraps (T16 part 2): items whose provider tags name universe companies the text only
+// mentions in passing, under both start node rules. A card is a pair with relevance above 0.
+export interface WrapRule {
+  cards: number;
+  // Cards on pairs the user labeled none: cards for companies the item is not about.
+  cardsLabeledNone: number;
+  agreement: Confusion;
+}
+
+export interface WrapRow {
+  sourceId: string;
+  headline: string;
+  // Universe companies only.
+  tagged: string[];
+  extracted: string[];
+  persona: PersonaKey;
+  label: Level | null;
+  current: number;
+  taggedOnly: number;
+}
+
+export interface WrapSummary {
+  items: number;
+  labels: { reviewed: number; proposed: number };
+  rows: WrapRow[];
+  current: WrapRule;
+  taggedOnly: WrapRule;
+}
+
+// The materiality experiment: the core items scored again with every edge flagged minor weighted
+// by a factor, under a few band sets, against the reviewed labels. Proposals only; the product
+// scores with the stored weights.
+export interface MaterialityRow {
+  factor: number;
+  set: BandSet;
+  byPersona: Record<PersonaKey, Confusion>;
+  total: Confusion;
+  // B's pairs, as "item/label", that this variant gets right and today's scoring (factor 1 under
+  // the decided bands) gets wrong, and the other way round.
+  bFixed: string[];
+  bBroken: string[];
+}
+
+export interface MaterialitySummary {
+  flags: number;
+  minor: number;
+  rows: MaterialityRow[];
+  // Pairs where scoring again at factor 1 differs from what the pipeline stored; 0 unless the
+  // eval's copy of scoring drifted from the pipeline's.
+  mismatches: number;
+}
+
 export interface EvalSummary {
   startedAt: Date;
   relationships: number;
+  // The 30 core items; the market wraps are counted in wraps.
   realItems: number;
   poisonedItems: number;
   labels: { reviewed: number; proposed: number };
@@ -145,6 +213,8 @@ export interface EvalSummary {
     fallbacks: number;
   };
   edges: EdgeExtractor;
+  wraps: WrapSummary;
+  materiality: MaterialitySummary;
 }
 
 export interface EdgeExtractor {
@@ -181,12 +251,129 @@ export function edgeExtractor(file: CandidatesFile, reviews: readonly Review[]):
   };
 }
 
+const isWrap = (r: ItemRun) => r.item.kind === 'real' && r.item.event.type === 'market_wrap';
+
+function wrapSummary(wraps: readonly ItemRun[], labelOf: ReadonlyMap<string, Label>): WrapSummary {
+  const rows: WrapRow[] = [];
+  for (const r of wraps) {
+    const tagged = eventCompanies(r.tagged, r.tagged);
+    const named = (r.extraction?.companies ?? []).map((c) => c.symbol);
+    const extracted = eventCompanies(named, named);
+    for (const persona of PERSONA_KEYS) {
+      const label = labelOf.get(key(r.item.id, persona));
+      rows.push({
+        sourceId: r.item.id,
+        headline: r.item.item.headline,
+        tagged,
+        extracted,
+        persona,
+        label: label?.status === 'reviewed' ? label.level : null,
+        current: r.relevance[persona],
+        taggedOnly: r.taggedOnly[persona],
+      });
+    }
+  }
+  const rule = (pick: 'current' | 'taggedOnly'): WrapRule => ({
+    cards: rows.filter((row) => row[pick] > 0).length,
+    cardsLabeledNone: rows.filter((row) => row[pick] > 0 && row.label === 'none').length,
+    agreement: confusion(
+      rows.flatMap((row) =>
+        row.label === null ? [] : [{ label: row.label, predicted: relevanceBand(row[pick]) }],
+      ),
+    ),
+  });
+  const ids = new Set(wraps.map((r) => r.item.id));
+  const own = [...labelOf.values()].filter((l) => ids.has(l.sourceId));
+  return {
+    items: wraps.length,
+    labels: {
+      reviewed: own.filter((l) => l.status === 'reviewed').length,
+      proposed: own.filter((l) => l.status === 'proposed').length,
+    },
+    rows,
+    current: rule('current'),
+    taggedOnly: rule('taggedOnly'),
+  };
+}
+
+function materialitySummary(
+  run: EvalRun,
+  core: readonly ItemRun[],
+  labelOf: ReadonlyMap<string, Label>,
+  flags: readonly MaterialityFlag[],
+): MaterialitySummary {
+  const levels = new Map(flags.map((f) => [f.edge, f.level]));
+  // Relevance per core item, persona and factor, scored from the item's stored graph.
+  const scores = new Map<number, Map<string, number>>();
+  let mismatches = 0;
+  for (const factor of MINOR_FACTORS) {
+    const byPair = new Map<string, number>();
+    for (const r of core) {
+      const graph = weighted(r.graph, levels, factor);
+      for (const persona of PERSONA_KEYS) {
+        const score = bestPath(r.starts, run.holdings[persona], graph).relevance;
+        byPair.set(key(r.item.id, persona), score);
+        if (factor === 1 && score !== r.relevance[persona]) mismatches += 1;
+      }
+    }
+    scores.set(factor, byPair);
+  }
+  const reviewedPairs = (persona: PersonaKey) =>
+    core.flatMap((r) => {
+      const label = labelOf.get(key(r.item.id, persona));
+      return label?.status === 'reviewed' ? [{ id: r.item.id, label: label.level }] : [];
+    });
+  const [decided] = MATERIALITY_BAND_SETS;
+  const today = new Map(
+    reviewedPairs('B').map(({ id }) => [
+      id,
+      bandWith(decided!, scores.get(1)!.get(key(id, 'B'))!, null),
+    ]),
+  );
+  const rows = MINOR_FACTORS.flatMap((factor) =>
+    MATERIALITY_BAND_SETS.map((set): MaterialityRow => {
+      const band = (id: string, persona: PersonaKey) =>
+        bandWith(set, scores.get(factor)!.get(key(id, persona))!, null);
+      const pairs = (persona: PersonaKey) =>
+        reviewedPairs(persona).map(({ id, label }) => ({ label, predicted: band(id, persona) }));
+      const b = reviewedPairs('B');
+      return {
+        factor,
+        set,
+        byPersona: Object.fromEntries(PERSONA_KEYS.map((p) => [p, confusion(pairs(p))])) as Record<
+          PersonaKey,
+          Confusion
+        >,
+        total: confusion(PERSONA_KEYS.flatMap(pairs)),
+        bFixed: b
+          .filter(({ id, label }) => today.get(id) !== label && band(id, 'B') === label)
+          .map(({ id, label }) => `${id}/${label}`),
+        bBroken: b
+          .filter(({ id, label }) => today.get(id) === label && band(id, 'B') !== label)
+          .map(({ id, label }) => `${id}/${label}`),
+      };
+    }),
+  );
+  return {
+    flags: flags.length,
+    minor: flags.filter((f) => f.level === 'minor').length,
+    rows,
+    mismatches,
+  };
+}
+
 export function summarizeRun(
   run: EvalRun,
   labels: readonly Label[],
   edges: EdgeExtractor,
+  materiality: readonly MaterialityFlag[] = [],
 ): EvalSummary {
-  const real = run.items.filter((r) => r.item.kind === 'real');
+  // The core items; the market wraps are reported apart, so every number here compares with
+  // part 1.
+  const real = run.items.filter((r) => r.item.kind === 'real' && !isWrap(r));
+  const wraps = run.items.filter(isWrap);
+  const coreIds = new Set(real.map((r) => r.item.id));
+  const coreLabels = labels.filter((l) => coreIds.has(l.sourceId));
   const poisoned = run.items.filter((r) => r.item.kind === 'poisoned');
   const byId = new Map(run.items.map((r) => [r.item.id, r]));
   const labelOf = new Map(labels.map((l) => [key(l.sourceId, l.persona), l]));
@@ -319,8 +506,8 @@ export function summarizeRun(
     realItems: real.length,
     poisonedItems: poisoned.length,
     labels: {
-      reviewed: labels.filter((l) => l.status === 'reviewed').length,
-      proposed: labels.filter((l) => l.status === 'proposed').length,
+      reviewed: coreLabels.filter((l) => l.status === 'reviewed').length,
+      proposed: coreLabels.filter((l) => l.status === 'proposed').length,
     },
     agreement,
     disagreements,
@@ -388,5 +575,7 @@ export function summarizeRun(
       fallbacks: real.filter((r) => r.models.extraction.provider !== 'groq').length,
     },
     edges,
+    wraps: wrapSummary(wraps, labelOf),
+    materiality: materialitySummary(run, real, labelOf, materiality),
   };
 }
