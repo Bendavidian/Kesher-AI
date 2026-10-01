@@ -365,6 +365,148 @@ describe('live ingestion end to end, on mongod', () => {
     live = undefined;
   }, 15_000);
 
+  it('after a drop, items published while the stream was down arrive from the history, each once', async () => {
+    const { groq, models } = counted();
+    const sockets: FakeSocket[] = [];
+    // The news history endpoint, played by the test: what it returns, and what it was asked.
+    let history: AlpacaNewsItem[] = [];
+    const asked: URL[] = [];
+    const fetch: typeof globalThis.fetch = (url) => {
+      asked.push(new URL(url instanceof Request ? url.url : url));
+      return Promise.resolve(
+        new Response(JSON.stringify({ news: history, next_page_token: null }), { status: 200 }),
+      );
+    };
+    live = start(models, {
+      alpaca: {
+        keys: { keyId: 'key-id', secretKey: 'secret-key' },
+        connect: () => {
+          const fake = new FakeSocket();
+          sockets.push(fake);
+          return fake;
+        },
+        fetch,
+        minBackoffMs: 10,
+      },
+    });
+    const subscribe = (socket: FakeSocket) => {
+      socket.receive({ T: 'success', msg: 'connected' });
+      socket.receive({ T: 'success', msg: 'authenticated' });
+      socket.receive({ T: 'subscription', news: ['*'] });
+    };
+    const [streamed, missed, alsoMissed] = [LIVE_ID + 40, LIVE_ID + 41, LIVE_ID + 42];
+    const item = (id: number) => ({ ...demo, id });
+    const duplicates = async () => (await counter('duplicate'))?.count ?? 0;
+
+    // First subscription of the process: the gap from the newest recording is empty.
+    subscribe(sockets[0]!);
+    await live.idle();
+    sockets[0]!.receive({ T: 'n', ...item(streamed) });
+    await until(async () => {
+      await live!.idle();
+      return groq.doGenerateCalls.length === 1;
+    });
+    const before = { calls: groq.doGenerateCalls.length, duplicates: await duplicates() };
+
+    // The stream drops; two items are published while it is down, which only the history has.
+    sockets[0]!.close();
+    history = [item(streamed), item(missed), item(alsoMissed)];
+    await until(() => sockets.length === 2);
+    subscribe(sockets[1]!);
+    await until(async () => {
+      await live!.idle();
+      return groq.doGenerateCalls.length === before.calls + 2;
+    });
+
+    // The gap ran from a minute before the last streamed message, for the universe symbols.
+    const gap = asked.at(-1)!;
+    expect(gap.searchParams.get('start')).toBe('2026-09-29T13:59:00.000Z');
+    expect(gap.searchParams.get('end')).toBe('2026-09-29T14:00:00.000Z');
+    expect(gap.searchParams.get('symbols')!.split(',')).toEqual(
+      expect.arrayContaining(['NVDA', 'TSM', 'KO']),
+    );
+    for (const id of [missed, alsoMissed]) {
+      const source = await collection(mongo.db, 'sources').findOne({ externalId: String(id) });
+      const event = await collection(mongo.db, 'market_events').findOne({
+        sourceIds: source!._id,
+      });
+      expect(event?.extraction).not.toBeNull();
+      expect(
+        await collection(mongo.db, 'recordings').countDocuments({ externalId: String(id) }),
+      ).toBe(1);
+    }
+    // The streamed item came back in the history and was skipped before the pipeline.
+    expect(await duplicates()).toBe(before.duplicates);
+
+    // A second drop with the same history brings nothing new: no model call, no counter.
+    sockets[1]!.close();
+    await until(() => sockets.length === 3);
+    subscribe(sockets[2]!);
+    await until(() => asked.length === 3);
+    await live.idle();
+    expect(groq.doGenerateCalls).toHaveLength(before.calls + 2);
+    expect(await duplicates()).toBe(before.duplicates);
+
+    await live.stop();
+    live = undefined;
+  }, 15_000);
+
+  it('the gap fill never hands over an item this process accepted, a capped one included', async () => {
+    await collection(mongo.db, 'ingest_budget').updateOne(
+      { day: now.toISOString().slice(0, 10) },
+      {
+        $set: { extractions: LIVE_EXTRACTION_DAILY_LIMIT, updatedAt: now },
+        $setOnInsert: { _id: randomUUID() },
+      },
+      { upsert: true },
+    );
+    const { groq, models } = counted();
+    const sockets: FakeSocket[] = [];
+    const capped = { ...demo, id: LIVE_ID + 50 };
+    let history: AlpacaNewsItem[] = [];
+    let asked = 0;
+    const fetch: typeof globalThis.fetch = () => {
+      asked += 1;
+      return Promise.resolve(
+        new Response(JSON.stringify({ news: history, next_page_token: null }), { status: 200 }),
+      );
+    };
+    live = start(models, {
+      alpaca: {
+        keys: { keyId: 'key-id', secretKey: 'secret-key' },
+        connect: () => {
+          const fake = new FakeSocket();
+          sockets.push(fake);
+          return fake;
+        },
+        fetch,
+        minBackoffMs: 10,
+      },
+    });
+    const subscribe = (socket: FakeSocket) => {
+      socket.receive({ T: 'success', msg: 'connected' });
+      socket.receive({ T: 'success', msg: 'authenticated' });
+      socket.receive({ T: 'subscription', news: ['*'] });
+    };
+    const capCount = ((await counter('daily_cap'))?.count ?? 0) + 1;
+    subscribe(sockets[0]!);
+    sockets[0]!.receive({ T: 'n', ...capped });
+    await until(async () => (await counter('daily_cap'))?.count === capCount);
+
+    sockets[0]!.close();
+    history = [capped];
+    await until(() => sockets.length === 2);
+    subscribe(sockets[1]!);
+    await until(() => asked === 2);
+    await live.idle();
+
+    expect((await counter('daily_cap'))!.count).toBe(capCount);
+    expect(groq.doGenerateCalls).toHaveLength(0);
+
+    await live.stop();
+    live = undefined;
+  }, 15_000);
+
   it('a new EDGAR filing of a universe company reaches its holder', async () => {
     // A synthetic extraction naming NVIDIA, for a synthetic 8-K.
     const guard = mockModel(MODELS.screen.model, ['0.001']);
