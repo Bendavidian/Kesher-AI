@@ -32,8 +32,8 @@ export interface AppDeps {
   web?: string;
   // Mounts POST /mcp when set. The secret verifies run tokens (MCP_TOKEN_SECRET).
   mcp?: { secret: string };
-  // Mounts sign in, GET /me, GET /feed, explain and the guest routes when set. The secret is
-  // JWT_SECRET.
+  // Mounts sign in, GET /me, GET /feed, explain, the guest routes and GET /ingest/status when
+  // set. The secret is JWT_SECRET.
   auth?: AuthOptions;
   // The clock and limits of the guest routes (SPEC.md decision log, T24). For tests.
   guest?: GuestOptions;
