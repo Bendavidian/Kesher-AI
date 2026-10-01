@@ -1,4 +1,4 @@
-import type { AlpacaNewsItem, EdgarFiling } from '@kesher/shared';
+import type { AlpacaNewsItem, EdgarFiling, LiveStatus } from '@kesher/shared';
 import type { Db } from 'mongodb';
 import { describeError, describeErrorLine } from '../config/redact';
 import { collection } from '../db/collections';
@@ -41,6 +41,8 @@ export interface LiveIngest {
   handleFiling(filing: EdgarFiling, company: FilerRef): Promise<void>;
   // Resolves when no gap fill runs and the queue has nothing running or waiting. For tests.
   idle(): Promise<void>;
+  // The stream, the poller and the queue as they are now, for GET /ingest/status.
+  status(): LiveStatus;
   stop(): Promise<void>;
 }
 
@@ -233,6 +235,11 @@ export function startLiveIngest({
   return {
     handleNews,
     handleFiling,
+    status: () => ({
+      stream: stream?.status() ?? null,
+      edgar: poller?.status() ?? null,
+      queue: queue.status(),
+    }),
     // The gap fill first: it hands its items to the queue.
     idle: async () => {
       await gap;

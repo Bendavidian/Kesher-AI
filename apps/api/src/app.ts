@@ -1,5 +1,5 @@
 import type { CompanyConceptSource, SearchBackend } from '@kesher/mcp';
-import { HealthResponse, type ToolName } from '@kesher/shared';
+import { HealthResponse, type LiveStatus, type ToolName } from '@kesher/shared';
 import express, { type ErrorRequestHandler, type Express } from 'express';
 import type { Db } from 'mongodb';
 import type { LazyEmbedder } from './embed/event';
@@ -13,6 +13,7 @@ import { authRouter, type AuthOptions } from './routes/auth';
 import { demoRouter, type DemoOptions } from './routes/demo';
 import { devRouter } from './routes/dev';
 import { feedRouter } from './routes/feed';
+import { ingestRouter } from './routes/ingest';
 import { mcpRouter } from './routes/mcp';
 import { researchRouter } from './routes/research';
 import { atlasSearch } from './search/atlas';
@@ -69,6 +70,9 @@ export interface AppDeps {
   // SEC XBRL values for get_financial_facts (sec/xbrl.ts). Without it the tool answers that SEC
   // data is unavailable.
   companyConcept?: CompanyConceptSource;
+  // The live ingester's own status for GET /ingest/status, null while it is not running. The
+  // server starts it after listening, so this is read on each request.
+  liveStatus?: () => LiveStatus | null;
 }
 
 // The Express app, and what runs after each scoring run: the Socket.IO pushes, then the research
@@ -109,6 +113,7 @@ export function createApi({
   priceReactions,
   search,
   companyConcept,
+  liveStatus,
 }: AppDeps): Api {
   const app = express();
   app.disable('x-powered-by');
@@ -140,6 +145,7 @@ export function createApi({
     // Every card the api sends carries the same price reaction.
     const market = priceReactions && { priceReaction: priceReactions, logError };
     app.use(feedRouter(db, auth.secret, market));
+    app.use(ingestRouter(db, auth.secret, liveStatus));
     if (mcp && research) {
       const deps: InvestigateDeps = {
         db,
