@@ -50,6 +50,8 @@ export const INDEXES: Record<CollectionName, IndexDescription[]> = {
   ],
   // One budget per UTC day; runs are reserved with a conditional $inc.
   research_budget: [{ name: 'day_unique', key: { day: 1 }, unique: true }],
+  // One live extraction budget per UTC day, reserved the same way (T19).
+  ingest_budget: [{ name: 'day_unique', key: { day: 1 }, unique: true }],
 };
 
 const embeddingField = {

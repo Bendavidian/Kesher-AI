@@ -213,7 +213,7 @@ Split in two parts under this id on 30 Sep 2026 (SPEC.md decision log, T18):
 - Part 2, after T16 and T20: the eval numbers in the README, the rehearsal from docs/DEMO.md, and the live Benzinga item observed on one development machine with LIVE_INGEST on in US market hours.
 Done when for part 1: `npm run smoke` passes against the deployed URL, Investigate included, and the feed, report and run screens render there.
 
-### [ ] T19 Live ingestion hardening
+### [~] T19 Live ingestion hardening
 Found in T10. Items published while the Alpaca stream was down are lost: after a reconnect, fetch the gap from the REST news endpoint by time and pass it through the same path (the pre filter and the duplicate check keep it idempotent). Groq allows 200,000 tokens a day, about 220 extractions at roughly 900 tokens each; past that, extraction falls back to Gemini, which research also uses. Add a daily cap or priority for live extraction, counted like the other drops, before LIVE_INGEST runs all day. The first start on an empty database also hands over the last 24 hours of universe filings at once.
 From the T10 review: a half open socket never closes, so the stream can go silent without reconnecting (add an idle check that tolerates quiet nights, or ping); the live queue has no length cap (cap it and count what is shed); the EDGAR poller logs a 429 or 403 per company every 5 minutes with no backoff.
 Done when: a test drops the stream, delivers items only through the REST gap, and each is processed once; and a test shows the cap stops live extraction without touching replay or Investigate.
