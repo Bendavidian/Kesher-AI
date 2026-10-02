@@ -1,11 +1,11 @@
 // T25: writes the favicon, the icons and the link preview image to apps/web/public from the Route
-// mark (src/brand/mark.ts), in the theme token colors of src/index.css. Run it after a change to
+// mark (packages/shared/src/brand.ts), in the theme token colors of src/index.css. Run it after a change to
 // the mark or the tokens and commit the output: `npm run brand`. The Overpass files for the
 // preview image are downloaded once from Google Fonts to the gitignored .cache/fonts.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
-import { MARK, type MarkToken } from '../src/brand/mark.ts';
+import { MARK, type MarkToken } from '../../../packages/shared/src/brand.ts';
 
 const WEB_DIR = resolve(import.meta.dirname, '..');
 const PUBLIC_DIR = join(WEB_DIR, 'public');

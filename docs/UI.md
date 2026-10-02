@@ -47,7 +47,7 @@ Define these once in the Tailwind theme. Components never hardcode hex values.
 - Percentages always carry a sign and a true minus (+1.25%, −1.16%), in up or down color.
 
 ## Brand mark
-- The Route mark: a line from a company, the ring, to the user, the orange dot. apps/web/src/brand/mark.ts holds its geometry in a 64 by 64 viewBox.
+- The Route mark: a line from a company, the ring, to the user, the orange dot. packages/shared/src/brand.ts holds its geometry in a 64 by 64 viewBox (apps/web/src/brand/mark.ts re-exports it), so the api draws the same mark on the report share card (T30).
 - Colors are tokens: the line supplier, the ring bg with a text stroke, the dot you. The top bar draws the mark at 24px with these as classes.
 - `npm run brand` writes the favicon (the mark on a bg rounded square), favicon.ico, the touch icon and the 1200 by 630 link preview image (the mark, "Kesher AI" in Overpass 800 and one line in text-2) to apps/web/public.
 

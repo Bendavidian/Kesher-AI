@@ -32,3 +32,8 @@ export const ReportDetail = z.strictObject({
   card: FeedCard.nullable(),
 });
 export type ReportDetail = z.infer<typeof ReportDetail>;
+
+// POST /reports/:reportId/share (SPEC.md decision log, T30): the public URL of the report's share
+// card, the same on every share of the report.
+export const ShareResponse = z.strictObject({ url: z.url({ protocol: /^https$/ }) });
+export type ShareResponse = z.infer<typeof ShareResponse>;
