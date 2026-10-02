@@ -1,3 +1,4 @@
+import { Tooltip } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { reportPath, runPath } from '../routes';
@@ -7,9 +8,19 @@ import { EvidenceCard } from './EvidenceCard';
 
 type Decider = 'code' | 'model';
 
-const DECIDER_TAG: Record<Decider, { label: string; className: string }> = {
-  code: { label: 'By code', className: 'bg-code-tint text-code' },
-  model: { label: 'By the model', className: 'bg-model-tint text-model' },
+// The tooltip says who set the score and how (T29), as principle 2 has it: the model classifies,
+// code computes.
+const DECIDER_TAG: Record<Decider, { label: string; className: string; tip: string }> = {
+  code: {
+    label: 'By code',
+    className: 'bg-code-tint text-code',
+    tip: 'Computed by code from stored data. No model sets this number.',
+  },
+  model: {
+    label: 'By the model',
+    className: 'bg-model-tint text-model',
+    tip: 'Classified by the model from 1 to 5 against a fixed rubric. Code computes the other scores.',
+  },
 };
 
 interface ScoreProps {
@@ -27,11 +38,25 @@ function Score({ label, by, value, valueClass, note, testId }: ScoreProps) {
     <div className="flex flex-col gap-[3px] border-b border-divider px-4 py-3">
       <span className="flex items-center justify-between">
         <span className="text-xs font-bold text-text-2">{label}</span>
-        <span
-          className={`rounded-[5px] px-[7px] py-0.5 text-[10px] font-extrabold ${tag.className}`}
+        <Tooltip
+          label={tag.tip}
+          multiline
+          position="left"
+          events={{ hover: true, focus: true, touch: true }}
+          classNames={{
+            tooltip:
+              'w-[240px] rounded-button border border-border-strong bg-raised px-3 py-2 text-xs leading-normal font-normal text-text',
+          }}
         >
-          {tag.label}
-        </span>
+          {/* A 44px target around the small tag: the pseudo element widens what takes the
+              pointer, the tag keeps its size. */}
+          <span
+            tabIndex={0}
+            className={`relative cursor-help rounded-[5px] px-[7px] py-0.5 text-[10px] font-extrabold before:absolute before:-inset-x-2 before:-inset-y-[13px] before:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-you ${tag.className}`}
+          >
+            {tag.label}
+          </span>
+        </Tooltip>
       </span>
       <span
         data-testid={testId}
@@ -58,9 +83,9 @@ const SECONDARY =
   'flex h-11 items-center justify-center rounded-button border border-border-strong text-sm font-bold text-text';
 
 // The Investigate request itself: busy until the api answers, then the card carries the state.
+// A request that fails is a notification (T29).
 export interface InvestigateRequest {
   busy: boolean;
-  error: string | null;
 }
 
 // Investigate, the research state on the card and the link to its report. The state comes from
@@ -100,11 +125,6 @@ function ResearchActions({
       <p aria-live="polite" className="text-xs text-text-2 empty:hidden">
         {status}
       </p>
-      {request.error && (
-        <p role="alert" className="text-xs text-text-2">
-          {request.error}
-        </p>
-      )}
       {reportId && !running ? (
         <>
           <Link to={reportPath(reportId)} className={PRIMARY}>
@@ -128,7 +148,7 @@ function ResearchActions({
   );
 }
 
-const IDLE: InvestigateRequest = { busy: false, error: null };
+const IDLE: InvestigateRequest = { busy: false };
 
 export function ScoresPanel({
   view,

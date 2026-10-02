@@ -1,20 +1,22 @@
 import { UniverseSymbol, type IngestStatus } from '@kesher/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchHealth, type ApiStatus } from '../api/health';
 import { EventDetail } from '../components/EventDetail';
 import { FeedList } from '../components/FeedList';
 import { GuestPicker } from '../components/GuestPicker';
+import { messageOf, notifyError } from '../components/notify';
 import { PersonaSwitcher } from '../components/PersonaSwitcher';
 import { ScoresPanel, type InvestigateRequest } from '../components/ScoresPanel';
 import { TickerFooter } from '../components/TickerFooter';
 import { ReplayButton, ReplayStatus, SearchBox, TopBar } from '../components/TopBar';
 import { useLiveDeps } from '../live/deps';
 import { useLiveFeed } from '../live/useLiveFeed';
+import { PERSONA_A, useSession } from '../session/context';
 import { buildFeedView } from '../view/feed';
 import { labelsFor, personaFrom, SWITCHER_LABELS } from '../view/personas';
-import type { Viewer, ViewerKey } from '../view/types';
+import type { ViewerKey } from '../view/types';
 
-const IDLE: InvestigateRequest = { busy: false, error: null };
+const IDLE: InvestigateRequest = { busy: false };
 
 // How often the ticker footer reads the live ingestion status.
 export const INGEST_STATUS_MS = 60_000;
@@ -44,17 +46,21 @@ function rememberPick(symbols: UniverseSymbol[]): void {
     // Nothing to remember in.
   }
 }
-
-interface Props {
-  // The viewer and the last scored event live above the routes, so they survive a visit to
-  // another screen and a switch. viewer is null while the app checks for a guest cookie.
-  viewer: Viewer | null;
-  onViewerChange: (viewer: Viewer) => void;
-  lastScoredEventId: string | null;
-  onScored: (eventId: string) => void;
+// A removed guest leaves no pick behind (T29).
+function forgetPick(): void {
+  try {
+    localStorage.removeItem(LAST_PICK);
+  } catch {
+    // Nothing was remembered.
+  }
 }
 
-export function FeedScreen({ viewer, onViewerChange, lastScoredEventId, onScored }: Props) {
+// Below xl (1280px) the panels stack, so the event a visitor picks is a screen away (T29).
+const STACKED = '(max-width: 1279.98px)';
+
+export function FeedScreen() {
+  // The viewer and the last scored event live in the session, above the routes (T29).
+  const { viewer, setViewer: onViewerChange, lastScoredEventId, onScored } = useSession();
   const viewerKey: ViewerKey = viewer?.key ?? 'A';
   const viewerId = viewer ? `${viewer.key}:${viewer.session}` : '';
   const { api } = useLiveDeps();
@@ -62,10 +68,8 @@ export function FeedScreen({ viewer, onViewerChange, lastScoredEventId, onScored
   // The Replay control shows only where the api has the demo route (DEMO_MODE).
   const [demoMode, setDemoMode] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [replay, setReplay] = useState<{ busy: boolean; error: string | null }>({
-    busy: false,
-    error: null,
-  });
+  const eventPanel = useRef<HTMLElement>(null);
+  const [replaying, setReplaying] = useState(false);
   // Keyed by viewer and event, so a request on one card never shows on another.
   const [investigate, setInvestigate] = useState<InvestigateState>({
     ...IDLE,
@@ -116,32 +120,29 @@ export function FeedScreen({ viewer, onViewerChange, lastScoredEventId, onScored
   }, [api, signedIn]);
 
   const onReplay = () => {
-    setReplay({ busy: true, error: null });
+    setReplaying(true);
     api.replayDemo().then(
-      () => setReplay({ busy: false, error: null }),
-      (error: unknown) =>
-        setReplay({
-          busy: false,
-          error: error instanceof Error ? error.message : 'the replay failed',
-        }),
+      () => setReplaying(false),
+      (error: unknown) => {
+        setReplaying(false);
+        notifyError(messageOf(error, 'the replay failed'));
+      },
     );
   };
 
   // The api answers with the card, now running; pushes then carry it to done or failed.
   const onInvestigate = (eventId: string) => {
     const key = { viewerId, eventId };
-    setInvestigate({ ...key, busy: true, error: null });
+    setInvestigate({ ...key, busy: true });
     api.investigate(eventId).then(
       (card) => {
         live.upsert(card);
-        setInvestigate({ ...key, busy: false, error: null });
+        setInvestigate({ ...key, busy: false });
       },
-      (error: unknown) =>
-        setInvestigate({
-          ...key,
-          busy: false,
-          error: error instanceof Error ? error.message : 'the research could not start',
-        }),
+      (error: unknown) => {
+        setInvestigate({ ...key, busy: false });
+        notifyError(messageOf(error, 'the research could not start'));
+      },
     );
   };
 
@@ -168,9 +169,35 @@ export function FeedScreen({ viewer, onViewerChange, lastScoredEventId, onScored
         setPicker({
           open: true,
           busy: false,
-          error: error instanceof Error ? error.message : 'the portfolio could not be saved',
+          error: messageOf(error, 'the portfolio could not be saved'),
         }),
     );
+  };
+
+  // The guest removes itself and everything stored for it, then the screen returns to persona A.
+  const onRemove = () => {
+    setPicker({ open: true, busy: true, error: null });
+    api.deleteGuest().then(
+      () => {
+        forgetPick();
+        setPicker({ open: false, busy: false, error: null });
+        setSelectedEventId(null);
+        onViewerChange(PERSONA_A);
+      },
+      (error: unknown) =>
+        setPicker({
+          open: true,
+          busy: false,
+          error: messageOf(error, 'the portfolio could not be removed'),
+        }),
+    );
+  };
+
+  const onSelect = (eventId: string) => {
+    setSelectedEventId(eventId);
+    if (!window.matchMedia(STACKED).matches) return;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    eventPanel.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
   };
 
   // Until the api answers, the screen names the chosen persona with no holdings.
@@ -203,16 +230,7 @@ export function FeedScreen({ viewer, onViewerChange, lastScoredEventId, onScored
     <div className="flex min-h-screen flex-col xl:h-screen">
       <TopBar current="feed" start={<SearchBox />}>
         {replayed && <ReplayStatus at={replayed.event.publishedAt} />}
-        {demoMode && !guest && (
-          <div className="flex items-center gap-2">
-            <ReplayButton busy={replay.busy} onReplay={onReplay} />
-            {replay.error && (
-              <span role="alert" className="max-w-[220px] text-xs text-text-2">
-                {replay.error}
-              </span>
-            )}
-          </div>
-        )}
+        {demoMode && !guest && <ReplayButton busy={replaying} onReplay={onReplay} />}
         <PersonaSwitcher personas={SWITCHER_LABELS} value={viewerKey} onChange={onSwitch} />
       </TopBar>
       <main className="flex flex-1 flex-col gap-3 p-3 xl:min-h-0 xl:flex-row">
@@ -222,15 +240,16 @@ export function FeedScreen({ viewer, onViewerChange, lastScoredEventId, onScored
           hidden={feed.hidden}
           hiddenTotal={feed.hiddenTotal}
           selectedEventId={feed.selected?.event._id ?? null}
-          onSelect={setSelectedEventId}
+          onSelect={onSelect}
           notice={notice}
           className="xl:w-[360px] xl:shrink-0"
         />
         <EventDetail
+          ref={eventPanel}
           view={selected}
           reaction={selected?.reaction ?? null}
           replayKey={viewerId}
-          className="xl:min-w-0 xl:flex-1 xl:overflow-y-auto"
+          className="scroll-mt-3 xl:min-w-0 xl:flex-1 xl:overflow-y-auto"
         />
         <ScoresPanel
           view={selected}
@@ -257,6 +276,7 @@ export function FeedScreen({ viewer, onViewerChange, lastScoredEventId, onScored
           busy={picker.busy}
           error={picker.error}
           onSubmit={onPick}
+          onRemove={onRemove}
           onCancel={() => setPicker({ open: false, busy: false, error: null })}
         />
       )}

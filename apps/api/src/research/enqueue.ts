@@ -27,6 +27,8 @@ export interface ResearchJobDeps extends Omit<ResearchDeps, 'models' | 'newId'> 
   queue?: JobQueue;
   // Called after each research state change of the item, for feed:update.
   onResearch?: (item: FeedItem) => Promise<void> | void;
+  // One line per job that is skipped when it starts, with ids only.
+  log?: (line: string) => void;
 }
 
 export interface ResearchJob {
@@ -51,7 +53,7 @@ export async function enqueueResearch(
   deps: ResearchJobDeps,
   job: ResearchJob,
 ): Promise<EnqueueResult> {
-  const { db, onResearch, logError = () => undefined } = deps;
+  const { db, onResearch, logError = () => undefined, log = () => undefined } = deps;
   const { userId, eventId } = job;
   const now = deps.now ?? Date.now;
   const queue = deps.queue ?? createQueue({ logError });
@@ -126,6 +128,13 @@ export async function enqueueResearch(
   };
 
   const run = async () => {
+    // A guest removed while the job waited (DELETE /guest, T29) is never researched. Its item is
+    // gone with it, so nothing is settled or pushed; the reserved run stays counted.
+    const user = await collection(db, 'users').countDocuments({ _id: userId }, { limit: 1 });
+    if (user === 0) {
+      log(`research run ${runId} skipped: user ${userId} no longer exists`);
+      return;
+    }
     // A reset or a takeover while the job waited leaves nothing to run; the reserved run stays
     // counted.
     const running = await items.findOneAndUpdate(

@@ -1,3 +1,8 @@
+/* Mantine's styles sit in their own layer, after Tailwind's base and before its utilities, so a
+   utility class always wins over a Mantine default (SPEC.md decision log, T29). */
+@layer theme, base, mantine, components, utilities;
+@import '@mantine/core/styles.layer.css';
+@import '@mantine/notifications/styles.layer.css';
 @import 'tailwindcss';
 
 /* Tokens from docs/UI.md. The default palette is removed, so components can only use these. */

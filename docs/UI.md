@@ -37,12 +37,18 @@ Define these once in the Tailwind theme. Components never hardcode hex values.
 | code | #2DD4BF | anything code computed: relevance and confidence tags, code steps, cost |
 | code-tint | #0E2A27 | code chips |
 
+## Mantine (T29)
+Mantine (core, hooks, notifications) supplies four components; everything else is Tailwind on the tokens.
+- Theme: apps/web/src/theme/mantine.ts names only `var(--color-...)`, `var(--font-...)` and `var(--radius-...)`, so this table stays the one source of colors; a CSS variables resolver maps Mantine's body, text, dimmed, placeholder and default border to the tokens; the color scheme is forced dark.
+- Cascade: Mantine's styles load in a `mantine` layer after Tailwind's base and before its utilities, so a utility class on a Mantine component always wins.
+- Used for: the guest picker (Modal), the Recent runs selector (Select), request errors (notifications) and the score tags (Tooltip). Each is styled with the tokens through `classNames`.
+
 ## Type and shape
 - Overpass 400, 600, 700 and 800 for the interface. Overpass Mono for code, ids and tool names.
 - Tabular numerals everywhere numbers appear.
 - Sizes: event headline 24/800, panel title 15/800, section title 13/800, body 13 to 14, meta 11 to 12.
 - Radius: panels 10, buttons 8, chips 5 to 6.
-- Desktop first. The three panel layout targets screens 1280px and wider. Below that, the panels stack in one column in the order feed, event, scores.
+- Desktop first. The three panel layout targets screens 1280px and wider. Below that, the panels stack in one column in the order feed, event, scores, and picking a card scrolls to the event panel (at once under prefers-reduced-motion). A 375px phone is checked too: nothing runs past the page edge (T29).
 - 12px gaps between panels. Top bar 56px, ticker footer 34px. Touch targets at least 44px.
 - Percentages always carry a sign and a true minus (+1.25%, −1.16%), in up or down color.
 
@@ -52,8 +58,9 @@ Define these once in the Tailwind theme. Components never hardcode hex values.
 - `npm run brand` writes the favicon (the mark on a bg rounded square), favicon.ico, the touch icon and the 1200 by 630 link preview image (the mark, "Kesher AI" in Overpass 800 and one line in text-2) to apps/web/public.
 
 ## Feed screen
-- **Top bar:** logo, tabs (Feed, Agent runs), search, replay status with a pulsing orange dot and the event time in ET, persona switcher. The switcher has a fourth option, Your portfolio (T24), which opens the guest picker; the Replay control is hidden for a guest.
-- **Guest picker (T24):** a dialog over the feed, panel style, titled Your portfolio. The 17 universe companies in four sector groups, each a 44px toggle with the ticker in mono and the short name; the picked ones in the you tint with an orange border. At most 6: once 6 are picked the rest are disabled. A count ("3 of 6 picked"), Cancel (secondary) and Show my feed, or Update my feed for a guest (primary orange). One meta line says the guest portfolio is deleted after 24 hours and Investigate runs once a day for it; an api error shows as one neutral line. The feed header of a guest repeats that line.
+- **Top bar:** logo, tabs (Feed, Agent runs), search, replay status with a pulsing orange dot and the event time in ET, persona switcher. On a narrow screen the switcher's options scroll sideways inside the bar. The switcher has a fourth option, Your portfolio (T24), which opens the guest picker; the Replay control is hidden for a guest.
+- **Guest picker (T24):** a Mantine Modal over the feed (T29), panel style, titled Your portfolio, with focus on the first company and Escape to cancel. The 17 universe companies in four sector groups, each a 44px toggle with the ticker in mono and the short name; the picked ones in the you tint with an orange border. At most 6: once 6 are picked the rest are disabled. A count ("3 of 6 picked"), Cancel (secondary) and Show my feed, or Update my feed for a guest (primary orange). One meta line says the guest portfolio is deleted after 24 hours and Investigate runs once a day for it; an api error shows as one neutral line inside the picker. The feed header of a guest repeats that line.
+- **Remove my portfolio (T29):** for a guest only, a secondary button next to Cancel. It first asks in a neutral inset block ("Remove this guest portfolio now, with its feed and its research? This cannot be undone.") with Keep it (secondary) and Remove now (primary orange); Remove now calls DELETE /guest, clears the remembered pick and returns to persona A.
 - **Three panels:** feed list 360px, event detail fluid, scores and evidence 340px.
 - **Feed list:** rows with time label, relevance pill (High filled orange, Medium outlined, None gray), headline, and a mini connection path.
 - **Event detail:**
@@ -63,7 +70,8 @@ Define these once in the Tailwind theme. Components never hardcode hex values.
   - The connection path.
   - Market table with the anchor explained in one line.
   - Open gap bars.
-- **Scores panel:** relevance (by code, orange value), importance (by the model, amber), confidence (by code, teal), and one line on which scores change per investor.
+- **Scores panel:** relevance (by code, orange value), importance (by the model, amber), confidence (by code, teal), and one line on which scores change per investor. The By code and By the model tags carry a tooltip that says who set the score (T29); it opens on hover, focus and touch, and the tag's target is widened to 44px without changing its size.
+- **Request errors (T29):** a failed Replay or Investigate shows as a Mantine notification at the top right, under the top bar: panel style, a strong border, the message in text, a 44px Dismiss button, role="alert", closing by itself after 8 seconds. Never red.
 - **Evidence:** the verbatim quote, the filing, a tier chip and a reviewed mark.
 - **Actions:** Investigate this event (primary orange) and View agent run (secondary).
 - **Ticker footer:** the replayed session's closing moves, the api status, and the data delay. Next to the api status, one line in text-3 on live ingestion (GET /ingest/status, read at sign in and every minute): "Live ingest off" with the last live item in ET where the api does not ingest, or "Live", the stream state (connected, connecting, reconnecting, stream stopped), the last item in ET, the queue length and today's extractions of the cap. The line is the summary of a details element, a 44px target that overlaps the 34px footer's edges; it opens upward a panel, "Live ingestion today", with the extractions, the queue, the EDGAR poller and each of today's counters by name, values in code color, since code counted them.
@@ -78,7 +86,7 @@ The signature component.
 ## Research report screen
 - **Main panel:**
   - Breadcrumb and title.
-  - Chips for mode, tool calls, supported count and removed count.
+  - Chips for mode, tool calls, supported count and removed count; they wrap on a narrow screen.
   - A segmented bar with one green segment per supported claim and one red per removed claim.
   - A legend for claim types.
   - Share (T30), a secondary button left of View agent run, for a persona only (never a guest). It turns into Sharing… while the api makes the card, then into Copy link and Open image (a new tab) with "Anyone with the link can open the image." in text-3 under them; Copy link then says "Link copied.". A report shared before opens with Copy link and Open image. A failed share keeps Share and says why in one text-2 line: "Too many shares for now. Try again later.", "The share image couldn't be made right now." or "Couldn't share the report.". Never red: nothing was removed.
@@ -90,7 +98,7 @@ The signature component.
 ## Agent run screen
 - **Left panel:**
   - Breadcrumb, title and status chips.
-  - A compact Recent runs selector at the right of the breadcrumb row: the user's runs, newest first, each with its time in ET, event and mode, and a status chip; choosing one opens that run. It lets the demo show a failed run next to a successful one without another screen.
+  - A compact Recent runs selector at the right of the breadcrumb row, a Mantine Select (T29) 44px high showing the current run: the user's runs, newest first, each with its time in ET, event and mode, and a status chip; choosing one opens that run. It lets the demo show a failed run next to a successful one without another screen.
   - Summary tiles: tool calls, tokens against the run budget, model, cost.
   - A legend for step kinds.
   - The step timeline: a vertical line colored by step kind (code teal, tool blue, model amber, a check that removed a claim red), with duration and tokens per step. The selected step is highlighted.

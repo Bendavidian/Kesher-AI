@@ -90,6 +90,8 @@ function fakeLive({
       guest = { ...guest, holdings: symbols.map((symbol) => ({ symbol, quantity: 1 })) };
       return Promise.resolve(guest);
     }),
+    // The api signs the guest out; the screen then signs in as persona A.
+    deleteGuest: vi.fn(() => Promise.resolve()),
     feed: vi.fn(() => Promise.resolve(signedIn === 'guest' ? GUEST_CARDS : feeds[signedIn])),
     hidden: vi.fn(() => Promise.resolve(signedIn === 'guest' ? NONE_HIDDEN : hidden[signedIn])),
     investigate: vi.fn(() =>
@@ -463,6 +465,20 @@ describe('feed screen, signed in through the persona switcher', () => {
     expect(within(scores).queryByRole('link', { name: 'Open research report' })).toBeNull();
   });
 
+  it('says who set each score in a tooltip on its tag (T29)', async () => {
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    const { scores } = regions();
+    const [relevanceTag] = within(scores).getAllByText('By code');
+    fireEvent.focus(relevanceTag!);
+    expect((await screen.findByRole('tooltip')).textContent).toBe(
+      'Computed by code from stored data. No model sets this number.',
+    );
+    fireEvent.blur(relevanceTag!);
+    fireEvent.focus(within(scores).getByText('By the model'));
+    expect(await screen.findByText(/Classified by the model from 1 to 5/)).toBeTruthy();
+  });
+
   it('names the error when research cannot start', async () => {
     const { api, deps } = fakeLive();
     api.investigate.mockRejectedValueOnce(new Error('research on this event is already running'));
@@ -470,7 +486,8 @@ describe('feed screen, signed in through the persona switcher', () => {
     await ready();
     const { scores } = regions();
     fireEvent.click(within(scores).getByRole('button', { name: 'Investigate this event' }));
-    expect((await within(scores).findByRole('alert')).textContent).toBe(
+    // A notification, outside the panel (T29).
+    expect((await screen.findByRole('alert')).textContent).toBe(
       'research on this event is already running',
     );
     expect(
@@ -708,5 +725,92 @@ describe('Your portfolio, the guest option of the switcher (T24)', () => {
     expect(pressedLabels()).toEqual(['AI investor']);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('offers Remove my portfolio to a guest only', async () => {
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    pickPersona('Your portfolio');
+    const dialog = screen.getByRole('dialog', { name: 'Your portfolio' });
+    expect(within(dialog).queryByRole('button', { name: 'Remove my portfolio' })).toBeNull();
+  });
+
+  it('removes a guest after a confirm, forgets the pick and returns to persona A (T29)', async () => {
+    localStorage.setItem('kesher.guestPick', JSON.stringify(['NVDA']));
+    const { api, deps } = fakeLive({ start: 'guest' });
+    render(<App deps={deps} />);
+    await ready('Events that connect to NVDA');
+
+    pickPersona('Your portfolio');
+    const dialog = screen.getByRole('dialog', { name: 'Your portfolio' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove my portfolio' }));
+    // Nothing is removed before the confirm, and Keep it goes back.
+    expect(within(dialog).getByText(/This cannot be undone/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep it' }));
+    expect(api.deleteGuest).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('button', { name: 'Update my feed' })).toBeTruthy();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove my portfolio' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove now' }));
+    await ready('Events that connect to NVDA, MSFT and AMZN');
+    expect(api.deleteGuest).toHaveBeenCalledOnce();
+    expect(api.signInAs).toHaveBeenCalledWith('A');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(pressedLabels()).toEqual(['AI investor']);
+    expect(localStorage.getItem('kesher.guestPick')).toBeNull();
+  });
+
+  it('names a removal error in the picker and keeps the guest (T29)', async () => {
+    const { api, deps } = fakeLive({ start: 'guest' });
+    api.deleteGuest.mockRejectedValueOnce(new Error('a portfolio change is already running'));
+    render(<App deps={deps} />);
+    await ready('Events that connect to NVDA');
+    pickPersona('Your portfolio');
+    const dialog = screen.getByRole('dialog', { name: 'Your portfolio' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove my portfolio' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove now' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toBe(
+      'a portfolio change is already running',
+    );
+    expect(pressedLabels()).toEqual(['Your portfolio']);
+  });
+});
+
+describe('feed screen below xl (T29)', () => {
+  const stacked = (matches: boolean) =>
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query) =>
+        ({
+          matches: query.includes('max-width') ? matches : false,
+          media: query,
+          onchange: null,
+          addListener: () => undefined,
+          removeListener: () => undefined,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+          dispatchEvent: () => false,
+        }) as MediaQueryList,
+    );
+  afterEach(() => vi.restoreAllMocks());
+
+  it('scrolls to the event panel when a card is picked', async () => {
+    stacked(true);
+    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView');
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    const { feed, event } = regions();
+    fireEvent.click(row(feed));
+    expect(scroll).toHaveBeenCalledOnce();
+    expect(scroll.mock.contexts[0]).toBe(event);
+    expect(scroll.mock.calls[0]![0]).toEqual({ behavior: 'smooth', block: 'start' });
+  });
+
+  it('never scrolls where the three panels sit side by side', async () => {
+    stacked(false);
+    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView');
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    fireEvent.click(row(regions().feed));
+    expect(scroll).not.toHaveBeenCalled();
   });
 });

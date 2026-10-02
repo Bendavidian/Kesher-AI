@@ -83,3 +83,46 @@ export async function changeGuestPortfolio(
   await scoreUser(db, user, now);
   return { outcome: 'changed', user };
 }
+
+export type DeleteGuest = { outcome: 'deleted' } | { outcome: 'not_guest' } | { outcome: 'gone' };
+
+// Removes a guest before its 24 hours are up, with everything stored for it: its feed items, its
+// research runs, their reports and their claims (SPEC.md decision log, T29). A persona is never
+// removed. The user goes first, so a research job that starts from now on finds it gone and is
+// skipped. Anything written for the guest after that, by a run already going or a scoring run
+// that had read the guest, carries the guest's expiresAt and is removed by the TTL indexes, as is
+// whatever a failed cleanup leaves: the guest is gone once its User is, and the error is only
+// logged.
+export async function deleteGuest(
+  db: Db,
+  userId: string,
+  logError: (error: unknown) => void = () => undefined,
+): Promise<DeleteGuest> {
+  const users = collection(db, 'users');
+  const user = await users.findOne({ _id: userId }, { projection: { expiresAt: 1 } });
+  if (!user) return { outcome: 'gone' };
+  if (!user.expiresAt) return { outcome: 'not_guest' };
+  const { deletedCount } = await users.deleteOne({ _id: userId, expiresAt: { $exists: true } });
+  // The TTL monitor got there first.
+  if (deletedCount === 0) return { outcome: 'gone' };
+
+  try {
+    const runs = collection(db, 'agent_runs');
+    const reports = collection(db, 'reports');
+    const runIds = (await runs.find({ userId }, { projection: { _id: 1 } }).toArray()).map(
+      (run) => run._id,
+    );
+    const reportIds = (
+      await reports.find({ runId: { $in: runIds } }, { projection: { _id: 1 } }).toArray()
+    ).map((report) => report._id);
+    await collection(db, 'claims').deleteMany({ reportId: { $in: reportIds } });
+    await reports.deleteMany({ _id: { $in: reportIds } });
+    await runs.deleteMany({ userId });
+    await collection(db, 'feed_items').deleteMany({ userId });
+  } catch (error) {
+    logError(
+      new Error(`guest ${userId} removed; its documents are left to the TTL`, { cause: error }),
+    );
+  }
+  return { outcome: 'deleted' };
+}

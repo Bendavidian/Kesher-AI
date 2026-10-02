@@ -28,6 +28,7 @@ function fakeDeps(report = () => Promise.resolve(DEMO_REPORT_DETAIL)) {
     me: vi.fn(() => Promise.resolve(PUBLIC_USERS.A)),
     createGuest: vi.fn(() => Promise.reject(new Error('not used'))),
     changeGuestPortfolio: vi.fn(() => Promise.reject(new Error('not used'))),
+    deleteGuest: vi.fn(() => Promise.reject(new Error('not used'))),
     feed: vi.fn(() => Promise.resolve([])),
     hidden: vi.fn(() => Promise.reject(new Error('not used'))),
     investigate: vi.fn(() => Promise.reject(new Error('not used'))),

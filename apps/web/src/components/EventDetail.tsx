@@ -1,4 +1,5 @@
 import type { SourceProvider } from '@kesher/shared';
+import type { Ref } from 'react';
 import { formatEt } from '../view/format';
 import { TIER_LABEL, type EventView } from '../view/feed';
 import type { PriceReaction } from '../view/types';
@@ -70,12 +71,15 @@ interface Props {
   // Changes with the persona, so the connection path replays.
   replayKey: string;
   className?: string;
+  // The panel the feed scrolls to when a card is picked below xl (T29).
+  ref?: Ref<HTMLElement>;
 }
 
-export function EventDetail({ view, reaction, replayKey, className = '' }: Props) {
+export function EventDetail({ view, reaction, replayKey, className = '', ref }: Props) {
   if (!view) {
     return (
       <section
+        ref={ref}
         aria-label="Event"
         className={`flex flex-col rounded-panel border border-border bg-panel px-[22px] py-[18px] ${className}`}
       >
@@ -93,6 +97,7 @@ export function EventDetail({ view, reaction, replayKey, className = '' }: Props
 
   return (
     <section
+      ref={ref}
       aria-label="Event"
       className={`flex flex-col gap-3.5 rounded-panel border border-border bg-panel px-[22px] py-[18px] ${className}`}
     >

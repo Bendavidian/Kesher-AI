@@ -15,12 +15,14 @@ import { collection } from '../db/collections';
 import { MAX_LIVE_GUESTS } from '../guest/guest';
 import { toIncomingItem } from '../ingest/alpaca';
 import { processItem } from '../ingest/process';
+import { createQueue } from '../jobs/queue';
 import { loadRecording } from '../ingest/recordings';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
 import { loadModelRecording } from '../llm/recordings';
 import { loadReactionFixture } from '../market/fixture';
 import { autoResearch } from '../research/auto';
 import { AUTO_RUN_LIMIT, GUEST_RUN_LIMIT } from '../research/dailyBudget';
+import { enqueueResearch } from '../research/enqueue';
 import { runSeed } from '../seed/seed';
 import {
   recordedModels,
@@ -68,6 +70,8 @@ describe('guest portfolios, on mongod (T24)', () => {
       body: JSON.stringify(body),
     });
   const get = (path: string, cookie: string) => fetch(`${api.url}${path}`, { headers: { cookie } });
+  const remove = (cookie: string) =>
+    fetch(`${api.url}/guest`, { method: 'DELETE', headers: { cookie } });
 
   const createGuest = async (symbols: string[]): Promise<Guest> => {
     const response = await post('/guest', { symbols });
@@ -447,6 +451,137 @@ describe('guest portfolios, on mongod (T24)', () => {
       (await collection(mongo.db, 'feed_items').findOne({ userId: later.user._id, eventId }))!
         .createdAt,
     ).toEqual(replayedAt);
+  });
+
+  it('removes a guest with its feed items, runs, reports and claims (T29)', async () => {
+    const guest = await createGuest(['NVDA']);
+    const other = await createGuest(['NVDA']);
+    // The other guest's research too, where a wrong filter on runs or reports would show.
+    expect((await investigate(other.cookie)).status).toBe(202);
+    const othersRun = await settled(other.user._id);
+    expect(othersRun.research.state).toBe('done');
+    useModel();
+    expect((await investigate(guest.cookie)).status).toBe(202);
+    const done = await settled(guest.user._id);
+    expect(done.research.state).toBe('done');
+    const runId = done.research.runId!;
+    const reportId = done.research.reportId!;
+    expect(await collection(mongo.db, 'claims').countDocuments({ reportId })).toBeGreaterThan(0);
+    const othersItems = await collection(mongo.db, 'feed_items').countDocuments({
+      userId: other.user._id,
+    });
+    const personasItems = await collection(mongo.db, 'feed_items').countDocuments({
+      expiresAt: { $exists: false },
+    });
+
+    const socket = connect(api.url, {
+      transports: ['websocket'],
+      extraHeaders: { cookie: guest.cookie },
+      reconnection: false,
+    });
+    sockets.push(socket);
+    await new Promise<void>((resolve) => socket.once('connect', () => resolve()));
+    const disconnected = new Promise<void>((resolve) => socket.once('disconnect', () => resolve()));
+
+    const removed = await remove(guest.cookie);
+    expect(removed.status).toBe(204);
+    expect(removed.headers.getSetCookie()[0]).toMatch(
+      /^kesher_session=;.*Expires=Thu, 01 Jan 1970/i,
+    );
+    await disconnected;
+
+    const { db } = mongo;
+    expect(await collection(db, 'users').countDocuments({ _id: guest.user._id })).toBe(0);
+    expect(await collection(db, 'feed_items').countDocuments({ userId: guest.user._id })).toBe(0);
+    expect(await collection(db, 'agent_runs').countDocuments({ _id: runId })).toBe(0);
+    expect(await collection(db, 'reports').countDocuments({ _id: reportId })).toBe(0);
+    expect(await collection(db, 'claims').countDocuments({ reportId })).toBe(0);
+    // Nobody else loses anything.
+    expect(await collection(db, 'feed_items').countDocuments({ userId: other.user._id })).toBe(
+      othersItems,
+    );
+    expect(
+      await collection(db, 'feed_items').countDocuments({ expiresAt: { $exists: false } }),
+    ).toBe(personasItems);
+    expect((await feedOf(other.cookie)).length).toBeGreaterThan(0);
+    expect(await collection(db, 'agent_runs').countDocuments({ userId: other.user._id })).toBe(1);
+    const othersReportId = othersRun.research.reportId!;
+    expect(await collection(db, 'reports').countDocuments({ _id: othersReportId })).toBe(1);
+    expect(
+      await collection(db, 'claims').countDocuments({ reportId: othersReportId }),
+    ).toBeGreaterThan(0);
+
+    // The old cookie names no one now.
+    expect((await get('/me', guest.cookie)).status).toBe(401);
+    expect((await remove(guest.cookie)).status).toBe(401);
+  });
+
+  it('never removes a persona, and needs a session (T29)', async () => {
+    const personaA = await signIn(api.url, 'A');
+    const personasItems = () =>
+      collection(mongo.db, 'feed_items').countDocuments({ expiresAt: { $exists: false } });
+    const before = await personasItems();
+    expect(before).toBeGreaterThan(0);
+    const refused = await remove(personaA);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ error: 'a persona is never removed' });
+    expect((await get('/me', personaA)).status).toBe(200);
+    expect(await personasItems()).toBe(before);
+    expect((await fetch(`${api.url}/guest`, { method: 'DELETE' })).status).toBe(401);
+  });
+
+  it('clears the cookie of a guest that is already gone (T29)', async () => {
+    const guest = await createGuest(['KO']);
+    // The TTL monitor removed it while its cookie was still valid.
+    await collection(mongo.db, 'users').deleteOne({ _id: guest.user._id });
+    const response = await remove(guest.cookie);
+    expect(response.status).toBe(401);
+    expect(response.headers.getSetCookie()[0]).toMatch(
+      /^kesher_session=;.*Expires=Thu, 01 Jan 1970/i,
+    );
+  });
+
+  it('skips a research job still waiting for a guest removed meanwhile, and logs why (T29)', async () => {
+    const guest = await createGuest(['TSM']);
+    // A job ahead of it holds the queue until the guest is gone.
+    const queue = createQueue();
+    let release = () => {};
+    void queue.push(() => new Promise<void>((resolve) => (release = resolve)));
+    const lines: string[] = [];
+    let models = 0;
+    const queued = await enqueueResearch(
+      {
+        db: mongo.db,
+        mcp: { url: `${api.url}/mcp`, secret: TEST_MCP_SECRET },
+        redact: (text) => text,
+        models: () => {
+          models += 1;
+          return research;
+        },
+        queue,
+        log: (line) => lines.push(line),
+      },
+      {
+        userId: guest.user._id,
+        eventId,
+        mode: 'deep',
+        trigger: 'investigate',
+        reason: () => 'investigate',
+      },
+    );
+    if (queued.outcome !== 'queued') throw new Error(`expected queued, got ${queued.outcome}`);
+
+    expect((await remove(guest.cookie)).status).toBe(204);
+    release();
+    await queued.done;
+
+    expect(models).toBe(0);
+    expect(
+      await collection(mongo.db, 'agent_runs').countDocuments({ userId: guest.user._id }),
+    ).toBe(0);
+    expect(lines).toEqual([
+      `research run ${queued.item.research.runId} skipped: user ${guest.user._id} no longer exists`,
+    ]);
   });
 
   it(`answers 503 once ${MAX_LIVE_GUESTS} guests are alive`, async () => {
