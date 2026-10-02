@@ -2,6 +2,7 @@ import {
   DEMO_PASSWORD,
   DEMO_PERSONAS,
   DemoReplayResponse,
+  ShareResponse,
   type FeedCard,
   type HiddenFeed,
   type IngestStatus,
@@ -43,6 +44,8 @@ export interface KesherApi {
   investigate(eventId: string): Promise<FeedCard>;
   // One report of the signed in user, with its claims, sources, run and card.
   report(reportId: string): Promise<ReportDetail>;
+  // The public URL of the report's share card (T30): made at the first share, the same after.
+  share(reportId: string): Promise<ShareResponse>;
   // One agent run of the signed in user, with its steps as stored.
   run(runId: string): Promise<RunDetail>;
   // The signed in user's agent runs, newest first.
@@ -112,6 +115,9 @@ export const httpApi: KesherApi = {
   },
   async report(reportId) {
     return decodeReport(await request(`/reports/${encodeURIComponent(reportId)}`));
+  },
+  async share(reportId) {
+    return ShareResponse.parse(await post(`/reports/${encodeURIComponent(reportId)}/share`));
   },
   async run(runId) {
     return decodeRun(await request(`/runs/${encodeURIComponent(runId)}`));

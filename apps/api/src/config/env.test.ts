@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Env, parseLiveEnv } from './env';
+import { Env, parseCloudinaryEnv, parseLiveEnv } from './env';
 
 const base = { MONGODB_URI: 'mongodb://localhost:27017' };
 
@@ -85,5 +85,29 @@ describe('parseLiveEnv', () => {
 
   it('rejects a value that is not a boolean', () => {
     expect(() => parseLiveEnv({ LIVE_INGEST: 'maybe' })).toThrow(/LIVE_INGEST/);
+  });
+});
+
+describe('parseCloudinaryEnv (T30)', () => {
+  it('is optional: unset or empty, sharing is off', () => {
+    expect(parseCloudinaryEnv({})).toBeUndefined();
+    expect(parseCloudinaryEnv({ CLOUDINARY_URL: '' })).toBeUndefined();
+  });
+
+  it('reads the console URL', () => {
+    expect(parseCloudinaryEnv({ CLOUDINARY_URL: 'cloudinary://123:s3cret@my-cloud' })).toEqual({
+      cloudName: 'my-cloud',
+      apiKey: '123',
+      apiSecret: 's3cret',
+    });
+  });
+
+  it('stops the api for a malformed value, naming the key and never the value', () => {
+    expect(() => parseCloudinaryEnv({ CLOUDINARY_URL: 'https://123:s3cret@my-cloud' })).toThrow(
+      /^CLOUDINARY_URL must be/,
+    );
+    expect(() => parseCloudinaryEnv({ CLOUDINARY_URL: 'https://123:s3cret@my-cloud' })).not.toThrow(
+      /s3cret/,
+    );
   });
 });

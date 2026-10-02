@@ -40,6 +40,7 @@ These are reused from development, because they identify free provider accounts 
 - GROQ_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY. They share the free daily quotas with development. A separate Gemini key from a separate Google Cloud project, with billing off, would give the public app its own Gemini quota.
 - ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY, for SIP bars and the market calendar, and with LIVE_INGEST on for the news stream and its gap fill. Render then holds the one live WebSocket the free plan allows for these keys, so no development machine may turn LIVE_INGEST on.
 - SEC_USER_AGENT, a name and a contact rather than a secret, for get_financial_facts and the EDGAR poller.
+- CLOUDINARY_URL, the free Cloudinary account that holds the shared report images (T30). Without it Share on the report screen answers that sharing is not configured; everything else works.
 
 ## The day before: rehearsal checklist
 Run it from top to bottom on the deployed URL, https://kesher-5ymr.onrender.com, less than 24 hours before the demo. The Investigate below then counts as the card's recent run, so the demo's Replay attaches its report instead of starting a new run.

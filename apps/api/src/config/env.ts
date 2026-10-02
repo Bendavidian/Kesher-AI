@@ -4,6 +4,7 @@ import { MIN_SECRET_LENGTH } from '@kesher/shared';
 import { z } from 'zod';
 import type { AlpacaKeys } from '../ingest/alpaca';
 import type { ModelKeys } from '../llm/client';
+import { parseCloudinaryUrl, type CloudinaryConfig } from '../share/cloudinary';
 
 // The repo root .env, from apps/api/src/config.
 const ROOT_ENV_FILE = resolve(import.meta.dirname, '../../../../.env');
@@ -131,6 +132,22 @@ const ModelEnv = z.object({
 export function loadModelKeys(): ModelKeys {
   const env = load(ModelEnv);
   return { groq: env.GROQ_API_KEY, google: env.GOOGLE_GENERATIVE_AI_API_KEY };
+}
+
+// Cloudinary for the shared report images (SPEC.md decision log, T30). Optional: unset or empty,
+// the api starts and a report not yet shared answers 503. A value that is set but malformed stops
+// the api at startup, naming the key only.
+const CloudinaryEnv = z.object({
+  CLOUDINARY_URL: z.string().min(1).optional().catch(undefined),
+});
+
+export function parseCloudinaryEnv(source: NodeJS.ProcessEnv): CloudinaryConfig | undefined {
+  const { CLOUDINARY_URL } = parse(CloudinaryEnv, source);
+  return CLOUDINARY_URL === undefined ? undefined : parseCloudinaryUrl(CLOUDINARY_URL);
+}
+
+export function loadCloudinaryConfig(): CloudinaryConfig | undefined {
+  return parseCloudinaryEnv(readEnv());
 }
 
 export function loadMcpEnv(): McpEnv {

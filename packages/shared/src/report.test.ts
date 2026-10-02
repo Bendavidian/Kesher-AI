@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ReportDetail, ReportSource } from './report';
+import { ReportDetail, ReportSource, ShareResponse } from './report';
 
 const at = new Date('2026-09-29T12:00:00Z');
 const id = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
@@ -83,5 +83,14 @@ describe('ReportDetail', () => {
 
   it('rejects unknown keys', () => {
     expect(ReportDetail.safeParse({ ...detail, userId: id(3) }).success).toBe(false);
+  });
+});
+
+describe('ShareResponse (T30)', () => {
+  it('is an https URL and nothing else', () => {
+    const url = 'https://res.cloudinary.com/demo/image/upload/v1/kesher/reports/x.png';
+    expect(ShareResponse.parse({ url })).toEqual({ url });
+    expect(ShareResponse.safeParse({ url: url.replace('https', 'http') }).success).toBe(false);
+    expect(ShareResponse.safeParse({ url, created: true }).success).toBe(false);
   });
 });

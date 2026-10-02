@@ -1,4 +1,5 @@
 import {
+  isGuest,
   SHORT_NAME,
   type Claim,
   type ClaimStatus,
@@ -122,6 +123,87 @@ function RemovedIcon() {
   );
 }
 
+const SECONDARY_BUTTON =
+  'flex h-11 shrink-0 items-center rounded-button border border-border-strong px-[18px] text-sm font-bold text-text hover:bg-raised focus-visible:outline-2 focus-visible:outline-you';
+
+type Share =
+  | { status: 'idle' }
+  | { status: 'sharing' }
+  | { status: 'shared'; url: string; note: string }
+  | { status: 'error'; message: string };
+
+const SHARED_NOTE = 'Anyone with the link can open the image.';
+
+function shareError(error: unknown): string {
+  if (error instanceof ApiError && error.status === 429) {
+    return 'Too many shares for now. Try again later.';
+  }
+  if (error instanceof ApiError && error.status === 503) {
+    return "The share image couldn't be made right now.";
+  }
+  return "Couldn't share the report.";
+}
+
+// Share (T30): the api renders the report as an image card and answers its public URL, the same
+// on every later share. A report shared before opens with its link.
+function ShareControl({ reportId, sharedUrl }: { reportId: string; sharedUrl: string | null }) {
+  const { api } = useLiveDeps();
+  const [share, setShare] = useState<Share>(
+    sharedUrl ? { status: 'shared', url: sharedUrl, note: SHARED_NOTE } : { status: 'idle' },
+  );
+
+  const start = () => {
+    setShare({ status: 'sharing' });
+    api.share(reportId).then(
+      ({ url }) => setShare({ status: 'shared', url, note: SHARED_NOTE }),
+      (error: unknown) => setShare({ status: 'error', message: shareError(error) }),
+    );
+  };
+  const copy = (url: string) => {
+    navigator.clipboard.writeText(url).then(
+      () => setShare({ status: 'shared', url, note: 'Link copied.' }),
+      () => setShare({ status: 'shared', url, note: "Couldn't copy; open the image instead." }),
+    );
+  };
+
+  return (
+    <div className="flex flex-col items-end gap-1.5">
+      <div className="flex items-center gap-2">
+        {share.status === 'shared' ? (
+          <>
+            <button type="button" onClick={() => copy(share.url)} className={SECONDARY_BUTTON}>
+              Copy link
+            </button>
+            <a href={share.url} target="_blank" rel="noreferrer" className={SECONDARY_BUTTON}>
+              Open image
+            </a>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={start}
+            disabled={share.status === 'sharing'}
+            aria-busy={share.status === 'sharing'}
+            className={`${SECONDARY_BUTTON} disabled:cursor-wait disabled:text-text-3 disabled:hover:bg-transparent`}
+          >
+            {share.status === 'sharing' ? 'Sharing…' : 'Share'}
+          </button>
+        )}
+      </div>
+      {share.status === 'shared' && (
+        <p role="status" className="text-xs text-text-3">
+          {share.note}
+        </p>
+      )}
+      {share.status === 'error' && (
+        <p role="alert" className="text-xs text-text-2">
+          {share.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 type Load =
   | { status: 'loading' }
   | { status: 'missing' }
@@ -242,12 +324,15 @@ function ReportBody({ detail, user }: { detail: ReportDetail; user: PublicUser |
                   ))}
                 </div>
               </div>
-              <Link
-                to={runPath(run._id)}
-                className="flex h-11 shrink-0 items-center rounded-button border border-border-strong px-[18px] text-sm font-bold text-text hover:bg-raised focus-visible:outline-2 focus-visible:outline-you"
-              >
-                View agent run
-              </Link>
+              <div className="flex flex-wrap items-start gap-2">
+                {/* Personas only: a guest's public image would outlive the guest (T24). */}
+                {user && !isGuest(user) && (
+                  <ShareControl reportId={report._id} sharedUrl={report.shareImage?.url ?? null} />
+                )}
+                <Link to={runPath(run._id)} className={SECONDARY_BUTTON}>
+                  View agent run
+                </Link>
+              </div>
             </div>
             <ul
               aria-label="Claim types"

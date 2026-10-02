@@ -98,6 +98,7 @@ function fakeLive({
       Promise.resolve(researched({ state: 'running', runId: RUN_ID, reportId: null })),
     ),
     report: vi.fn(() => Promise.reject(new Error('no report in this test'))),
+    share: vi.fn(() => Promise.reject(new Error('not used'))),
     run: vi.fn(() => Promise.reject(new Error('no run in this test'))),
     runs: vi.fn(() => Promise.resolve([])),
     ingestStatus: vi.fn(() => Promise.resolve(ingest)),

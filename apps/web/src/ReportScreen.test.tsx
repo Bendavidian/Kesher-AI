@@ -19,6 +19,8 @@ import { buildReportView } from './view/report';
 
 afterEach(cleanup);
 
+const SHARE_URL = 'https://res.cloudinary.com/kesher/image/upload/v1/kesher/reports/r.png';
+
 // The api as the report screen uses it: GET /reports/:reportId and GET /me for persona A.
 function fakeDeps(report = () => Promise.resolve(DEMO_REPORT_DETAIL)) {
   const api = {
@@ -31,6 +33,7 @@ function fakeDeps(report = () => Promise.resolve(DEMO_REPORT_DETAIL)) {
     hidden: vi.fn(() => Promise.reject(new Error('not used'))),
     investigate: vi.fn(() => Promise.reject(new Error('not used'))),
     report: vi.fn(report),
+    share: vi.fn(() => Promise.resolve({ url: SHARE_URL })),
     run: vi.fn(() => Promise.resolve(DEMO_RUN_DETAIL)),
     runs: vi.fn(() => Promise.resolve(DEMO_RUN_SUMMARIES)),
     replayDemo: vi.fn(() => Promise.reject(new Error('not used'))),
@@ -237,5 +240,79 @@ describe('Research report screen', () => {
     expect(hidden.textContent).toBe('4 claims were not verified, so they are not shown.');
     for (const color of ['text-down', 'bg-down-tint'])
       expect(hidden.className).not.toContain(color);
+  });
+});
+
+describe('Share on the report screen (T30)', () => {
+  it('shares the report and then offers its link', async () => {
+    const { api, deps } = fakeDeps();
+    renderAt(reportPath(DEMO_REPORT._id), deps);
+    fireEvent.click(await screen.findByRole('button', { name: 'Share' }));
+
+    const open = await screen.findByRole('link', { name: 'Open image' });
+    expect(open.getAttribute('href')).toBe(SHARE_URL);
+    expect(open.getAttribute('target')).toBe('_blank');
+    expect(api.share).toHaveBeenCalledExactlyOnceWith(DEMO_REPORT._id);
+    expect(screen.getByText('Anyone with the link can open the image.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull();
+  });
+
+  it('copies the link', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const { deps } = fakeDeps();
+    renderAt(reportPath(DEMO_REPORT._id), deps);
+    fireEvent.click(await screen.findByRole('button', { name: 'Share' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }));
+
+    expect(await screen.findByText('Link copied.')).toBeTruthy();
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(SHARE_URL);
+  });
+
+  it('opens with the link of a report shared before, without sharing again', async () => {
+    const shared = {
+      ...DEMO_REPORT_DETAIL,
+      report: {
+        ...DEMO_REPORT_DETAIL.report,
+        shareImage: {
+          url: SHARE_URL,
+          publicId: `kesher/reports/${DEMO_REPORT._id}`,
+          createdAt: new Date('2026-10-02T10:00:00Z'),
+        },
+      },
+    };
+    const { api, deps } = fakeDeps(() => Promise.resolve(shared));
+    renderAt(reportPath(DEMO_REPORT._id), deps);
+
+    expect((await screen.findByRole('link', { name: 'Open image' })).getAttribute('href')).toBe(
+      SHARE_URL,
+    );
+    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull();
+    expect(api.share).not.toHaveBeenCalled();
+  });
+
+  it('says why a share failed, and Share stays', async () => {
+    const { api, deps } = fakeDeps();
+    api.share.mockImplementation(() =>
+      Promise.reject(new ApiError('too many shares; try again later', 429)),
+    );
+    renderAt(reportPath(DEMO_REPORT._id), deps);
+    fireEvent.click(await screen.findByRole('button', { name: 'Share' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Too many shares for now. Try again later.',
+    );
+    expect(screen.getByRole('button', { name: 'Share' })).toBeTruthy();
+  });
+
+  it('offers no Share to a guest', async () => {
+    const { deps, api } = fakeDeps();
+    api.me.mockImplementation(() =>
+      Promise.resolve({ ...PUBLIC_USERS.A, expiresAt: new Date('2026-10-03T10:00:00Z') }),
+    );
+    renderAt(reportPath(DEMO_REPORT._id), deps);
+    await screen.findByRole('heading', { level: 1, name: 'Research report' });
+    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'View agent run' })).toBeTruthy();
   });
 });

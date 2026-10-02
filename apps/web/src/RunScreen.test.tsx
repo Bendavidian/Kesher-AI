@@ -36,6 +36,7 @@ function fakeDeps({
     hidden: vi.fn(() => Promise.reject(new Error('not used'))),
     investigate: vi.fn(() => Promise.reject(new Error('not used'))),
     report: vi.fn(() => Promise.reject(new Error('not used'))),
+    share: vi.fn(() => Promise.reject(new Error('not used'))),
     run: vi.fn((runId: string) => {
       const detail = runs.find((d) => d.run._id === runId);
       return detail
