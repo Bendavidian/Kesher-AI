@@ -15,6 +15,7 @@ import type { Socket } from 'socket.io-client';
 import { createApi } from '../app';
 import type { DemoOptions } from '../routes/demo';
 import type { GuestOptions } from '../routes/guest';
+import type { ShareOptions } from '../routes/share';
 import { memorySearch } from './search';
 import { SESSION_COOKIE } from '../auth/session';
 import { createModelClient, MODELS, type ModelClient } from '../llm/client';
@@ -66,6 +67,7 @@ export async function startApi(
     autoResearch = true,
     priceReactions,
     guest,
+    share,
     trustProxy,
     liveStatus,
   }: {
@@ -82,6 +84,8 @@ export async function startApi(
     priceReactions?: PriceReactions;
     // The clock and limits of the guest routes (T24).
     guest?: GuestOptions;
+    // The share route's uploader, clock and limit (T30); never Cloudinary in a test.
+    share?: ShareOptions;
     // Proxy hops, as server.ts passes 1 in production; tests set X-Forwarded-For with it.
     trustProxy?: number;
     // The live ingester's status, as server.ts passes it where LIVE_INGEST is on.
@@ -95,6 +99,7 @@ export async function startApi(
     ...(demo ? { demo } : {}),
     ...(web ? { web } : {}),
     ...(guest ? { guest } : {}),
+    ...(share ? { share } : {}),
     ...(trustProxy !== undefined ? { trustProxy } : {}),
     auth: {
       secret: TEST_JWT_SECRET,

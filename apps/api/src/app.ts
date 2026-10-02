@@ -18,6 +18,7 @@ import { guestRouter, type GuestOptions } from './routes/guest';
 import { ingestRouter } from './routes/ingest';
 import { mcpRouter } from './routes/mcp';
 import { researchRouter } from './routes/research';
+import { shareRouter, type ShareOptions } from './routes/share';
 import { atlasSearch } from './search/atlas';
 import { serveWeb, type WebLocals } from './web/serve';
 
@@ -38,6 +39,9 @@ export interface AppDeps {
   auth?: AuthOptions;
   // The clock and limits of the guest routes (SPEC.md decision log, T24). For tests.
   guest?: GuestOptions;
+  // POST /reports/:reportId/share, mounted with auth (SPEC.md decision log, T30). upload is
+  // Cloudinary when CLOUDINARY_URL is set; without it a report not yet shared answers 503.
+  share?: ShareOptions;
   // The proxy hops in front of the api, so req.ip is the client's address for the guest rate
   // limit: 1 behind Render's proxy in production, unset in development.
   trustProxy?: number;
@@ -116,6 +120,7 @@ export function createApi({
   mcp,
   auth,
   guest,
+  share,
   trustProxy,
   onScored,
   logError = logMessage,
@@ -164,6 +169,7 @@ export function createApi({
     const market = priceReactions && { priceReaction: priceReactions, logError };
     app.use(feedRouter(db, auth.secret, market));
     app.use(ingestRouter(db, auth.secret, liveStatus));
+    app.use(shareRouter(db, auth.secret, { ...share, logError }));
     if (mcp && research) {
       const deps: InvestigateDeps = {
         db,

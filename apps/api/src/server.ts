@@ -4,6 +4,7 @@ import { createApi } from './app';
 import {
   loadAlpacaKeys,
   loadAuthEnv,
+  loadCloudinaryConfig,
   loadEnv,
   loadLiveEnv,
   loadMcpEnv,
@@ -21,6 +22,7 @@ import { createPriceReactions } from './market/reactions';
 import { createRealtime } from './realtime/socket';
 import { researchTools } from './research/mcp';
 import { secFetcher, type Fetcher } from './sec/fetch';
+import { cloudinaryUploader } from './share/cloudinary';
 import { createCompanyConcepts, secConcepts } from './sec/xbrl';
 import { WEB_DIST_DIR } from './web/serve';
 
@@ -32,6 +34,8 @@ const modelKeys = loadModelKeys();
 const alpacaKeys = loadAlpacaKeys();
 // Fails here, naming the missing keys, when LIVE_INGEST is on without them.
 const live = loadLiveEnv();
+// Optional (T30); fails here, naming the key, when it is set but malformed.
+const cloudinary = loadCloudinaryConfig();
 const redact = redactor(env.MONGODB_URI, [
   mcpEnv.MCP_TOKEN_SECRET,
   authEnv.JWT_SECRET,
@@ -39,6 +43,8 @@ const redact = redactor(env.MONGODB_URI, [
   modelKeys.google ?? '',
   alpacaKeys?.keyId ?? '',
   alpacaKeys?.secretKey ?? '',
+  cloudinary?.apiSecret ?? '',
+  cloudinary?.apiKey ?? '',
 ]);
 
 const client = await connect(env.MONGODB_URI).catch((error: unknown) => {
@@ -110,6 +116,7 @@ const { app, afterScoring } = createApi({
   priceReactions,
   companyConcept,
   liveStatus: () => liveIngest?.status() ?? null,
+  share: cloudinary ? { upload: cloudinaryUploader(cloudinary) } : {},
 });
 const server = createServer(app);
 const realtime = createRealtime(server, {
@@ -122,7 +129,7 @@ const realtime = createRealtime(server, {
 let liveIngest: LiveIngest | undefined;
 server.listen(port, () => {
   console.log(
-    `api listening on http://localhost:${port}, database ${DB_NAME}, mcp on /mcp, socket.io on /socket.io, dev routes ${devRoutes ? 'on' : 'off'}, demo mode ${env.DEMO_MODE ? 'on' : 'off'}, local embeddings ${env.LOCAL_EMBEDDINGS ? 'on' : 'off'}, web ${web ? 'served' : 'from the Vite dev server'}, live ingest ${live.enabled ? 'on' : 'off'}`,
+    `api listening on http://localhost:${port}, database ${DB_NAME}, mcp on /mcp, socket.io on /socket.io, dev routes ${devRoutes ? 'on' : 'off'}, demo mode ${env.DEMO_MODE ? 'on' : 'off'}, local embeddings ${env.LOCAL_EMBEDDINGS ? 'on' : 'off'}, web ${web ? 'served' : 'from the Vite dev server'}, live ingest ${live.enabled ? 'on' : 'off'}, share images ${cloudinary ? 'on' : 'off'}`,
   );
   if (live.enabled) {
     liveIngest = startLiveIngest({
