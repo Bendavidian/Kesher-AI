@@ -71,6 +71,17 @@ flowchart LR
   - Groq prompt guard for the injection screen;
   - local `Xenova/all-MiniLM-L6-v2` embeddings.
 - **Market data:** Alpaca SIP bars and the market calendar. Price reactions are anchored to the regular session and always shown next to SMH and SPY, delayed 15 minutes.
+- **Media:** Cloudinary free plan. **Share** on a report uploads a PNG card that the api draws from a fixed template, and the report stores its URL.
+
+## MVC mapping
+Kesher uses no MVC framework, but its folders split along the same lines. The api is the model and controller side, and the web is the view.
+
+| Layer | Folders | What lives there |
+|---|---|---|
+| Models | [packages/shared/src/domain](packages/shared/src/domain), [apps/api/src/db](apps/api/src/db) | zod schemas and types for every stored document (User, Company, Relationship, Source, MarketEvent, FeedItem, AgentRun, Report, Claim and the rest), shared by the api and the web. `db/collections.ts` types each MongoDB collection with its schema, and `db/indexes.ts` creates the indexes and TTLs. |
+| Controllers | [apps/api/src/routes](apps/api/src/routes), [apps/api/src/app.ts](apps/api/src/app.ts), [packages/mcp](packages/mcp) | One Express router per area: `auth`, `guest`, `feed`, `research`, `share`, `ingest`, `demo`, `dev` and `mcp`. Each route validates its input with zod, takes the user from the session cookie, calls a service and answers JSON. `app.ts` mounts them in front of the single error middleware. The MCP server is the controller layer for the research agent, behind a run token. |
+| Services | `apps/api/src/`: [relevance](apps/api/src/relevance), [research](apps/api/src/research), [ingest](apps/api/src/ingest), [extract](apps/api/src/extract), [screen](apps/api/src/screen), [feed](apps/api/src/feed), [guest](apps/api/src/guest), [share](apps/api/src/share), [market](apps/api/src/market), [search](apps/api/src/search), [sec](apps/api/src/sec), [graph](apps/api/src/graph), [embed](apps/api/src/embed), [jobs](apps/api/src/jobs), [realtime](apps/api/src/realtime) | The logic the routes call: scoring and the graph path, the research gate and agent, verification, ingestion and extraction, price reactions, filing search, the guest lifecycle, the share card, the job queue and the Socket.IO pushes. Services know nothing about HTTP. |
+| Views | [apps/web/src](apps/web/src): `screens`, `components`, `view` | React screens and components, with `view/` turning api responses into what a screen shows. The response shapes they render (FeedCard, ReportDetail, RunDetail) are in packages/shared. The share card template, [apps/api/src/share/card.ts](apps/api/src/share/card.ts), is a server side view. |
 
 ## Demo personas
 The feed switches between three seeded personas. Their password, `kesher-demo`, is public on purpose: the switcher is a demo control, not authentication.
@@ -114,7 +125,7 @@ The deployed instance is a Render free web service described by [render.yaml](re
 - It is the one live ingester: `LIVE_INGEST` is set in its dashboard, the development machines keep it false, and the feed's footer shows the stream and today's counts. The steps and the rollback are in [docs/DEMO.md](docs/DEMO.md) (Live ingestion on Render).
 - The api serves the web build on the same origin, with its routes under `/api`.
 - The free instance has 512 MB, so `LOCAL_EMBEDDINGS=false` keeps the embedding model off. Research then runs without filing search, and the NVIDIA 10-K quote comes from the reviewed graph edge.
-- Secrets are set in the Render dashboard.
+- Secrets are set in the Render dashboard. `CLOUDINARY_URL` (optional) turns on Share on the report screen.
 - The public instance shares the development cluster's `kesher` database, through its own Atlas user with `readWrite` on `kesher` only. Nothing is seeded for it, and what development writes shows there, the daily research budget included ([docs/DEMO.md](docs/DEMO.md), Shared use and Database).
 - A free external cron pings `/health` every 10 minutes so the instance does not sleep.
 
