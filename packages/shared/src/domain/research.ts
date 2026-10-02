@@ -167,6 +167,15 @@ export const CodeClaimOmission = z.discriminatedUnion('kind', [
 ]);
 export type CodeClaimOmission = z.infer<typeof CodeClaimOmission>;
 
+// The report's share card (SPEC.md decision log, T30): the PNG the api rendered and stored on
+// Cloudinary at the first share, answered again on every later one.
+export const ShareImage = z.strictObject({
+  url: z.url({ protocol: /^https$/ }),
+  publicId: NonBlank,
+  createdAt: z.date(),
+});
+export type ShareImage = z.infer<typeof ShareImage>;
+
 export const Report = z.strictObject({
   _id: Id,
   runId: Id,
@@ -177,6 +186,8 @@ export const Report = z.strictObject({
   createdAt: z.date(),
   // A guest's reports expire with the guest (T24).
   expiresAt: z.date().optional(),
+  // Set at the report's first share (T30); a guest never shares.
+  shareImage: ShareImage.optional(),
 });
 export type Report = z.infer<typeof Report>;
 

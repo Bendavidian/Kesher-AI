@@ -47,7 +47,7 @@ Define these once in the Tailwind theme. Components never hardcode hex values.
 - Percentages always carry a sign and a true minus (+1.25%, −1.16%), in up or down color.
 
 ## Brand mark
-- The Route mark: a line from a company, the ring, to the user, the orange dot. apps/web/src/brand/mark.ts holds its geometry in a 64 by 64 viewBox.
+- The Route mark: a line from a company, the ring, to the user, the orange dot. packages/shared/src/brand.ts holds its geometry in a 64 by 64 viewBox (apps/web/src/brand/mark.ts re-exports it), so the api draws the same mark on the report share card (T30).
 - Colors are tokens: the line supplier, the ring bg with a text stroke, the dot you. The top bar draws the mark at 24px with these as classes.
 - `npm run brand` writes the favicon (the mark on a bg rounded square), favicon.ico, the touch icon and the 1200 by 630 link preview image (the mark, "Kesher AI" in Overpass 800 and one line in text-2) to apps/web/public.
 
@@ -81,6 +81,8 @@ The signature component.
   - Chips for mode, tool calls, supported count and removed count.
   - A segmented bar with one green segment per supported claim and one red per removed claim.
   - A legend for claim types.
+  - Share (T30), a secondary button left of View agent run, for a persona only (never a guest). It turns into Sharing… while the api makes the card, then into Copy link and Open image (a new tab) with "Anyone with the link can open the image." in text-3 under them; Copy link then says "Link copied.". A report shared before opens with Copy link and Open image. A failed share keeps Share and says why in one text-2 line: "Too many shares for now. Try again later.", "The share image couldn't be made right now." or "Couldn't share the report.". Never red: nothing was removed.
+  - The share card itself is a 1200 by 630 PNG the api draws (SPEC.md decision log, T30): on bg, the mark with "Kesher AI" in Overpass 800, the relevance band as a code chip at the top right, the headline in Overpass 800, the Why you line in text-2, a border rule, up to three claims each with its type chip (Fact supplier, Metric code) and a "Source:" line in text-3, and "Information, not advice." with the report's day in text-3 at the bottom.
 - **Claims table:** number, type chip (Fact supplier blue, Metric code teal, Inference model amber), claim with its evidence line, status.
 - **After the table:** neutral lines in text-3 for claims not shown (not verified, or hidden with a claim they build on) and for each claim code writes in every report but left out of this one: "The price reaction wasn't available yet, so no price metric is shown", "The market data couldn't be read, so no price metric is shown", "The filing quote for a link on your path couldn't be read, so it is not shown". Never red: nothing was removed. Then open questions, then the removed claim block in down tint with a link to the check in the agent run.
 - **Side panel:** your connection (mini path and relevance), then sources with tier chips and ids.

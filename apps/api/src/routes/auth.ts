@@ -1,5 +1,5 @@
 import { isGuest, LoginRequest, PublicUser, type User } from '@kesher/shared';
-import express, { Router, type ErrorRequestHandler } from 'express';
+import express, { Router } from 'express';
 import type { Db } from 'mongodb';
 import { hashPassword, verifyPassword } from '../auth/password';
 import {
@@ -36,14 +36,6 @@ const LOGIN_FAILED = { error: 'email or password is wrong' };
 // Compared against when the email is unknown, so both failures take the same time.
 let decoyHash: Promise<string> | undefined;
 
-const onBadJson: ErrorRequestHandler = (error: { type?: string }, _req, res, next) => {
-  if (error.type === 'entity.parse.failed') {
-    res.status(400).json({ error: 'invalid json' });
-    return;
-  }
-  next(error);
-};
-
 // POST /auth/login, POST /auth/logout and GET /me (docs/INTERFACES.md, Auth). The persona switcher
 // signs in as a seeded user with the public demo password; the cookie is the only identity.
 export function authRouter(db: Db, { secret, secureCookie, onSignOut }: AuthOptions): Router {
@@ -67,7 +59,6 @@ export function authRouter(db: Db, { secret, secureCookie, onSignOut }: AuthOpti
     setSessionCookie(res, await signSession(secret, user._id), secureCookie);
     res.json(toPublicUser(user));
   });
-  router.use('/auth/login', onBadJson);
 
   router.post('/auth/logout', async (req, res) => {
     const userId = await userFromCookie(secret, req.headers.cookie);

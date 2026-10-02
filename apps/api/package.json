@@ -34,6 +34,7 @@
     "@kesher/mcp": "*",
     "@kesher/shared": "*",
     "@modelcontextprotocol/client": "2.1.0",
+    "@resvg/resvg-js": "^2.6.2",
     "ai": "^7.0.118",
     "cookie": "^2.0.1",
     "express": "^5.2.1",

@@ -22,3 +22,4 @@ export * from './domain/ingest';
 export * from './domain/recording';
 export * from './price';
 export * from './reportCore';
+export * from './brand';

@@ -509,3 +509,32 @@ describe('Claim origin and Report omitted (T20)', () => {
     expect(Report.safeParse(older).success).toBe(false);
   });
 });
+
+describe('Report shareImage (T30)', () => {
+  const report = {
+    _id: id(7),
+    runId: id(8),
+    sections: [],
+    openQuestions: [],
+    omitted: [],
+    createdAt: at,
+  };
+  const shareImage = {
+    url: 'https://res.cloudinary.com/demo/image/upload/v1/kesher/reports/x.png',
+    publicId: `kesher/reports/${id(7)}`,
+    createdAt: at,
+  };
+
+  it('is optional, so reports stored before T30 parse', () => {
+    expect(Report.safeParse(report).success).toBe(true);
+    expect(Report.safeParse({ ...report, shareImage }).success).toBe(true);
+  });
+
+  it('takes an https URL only, and no other key', () => {
+    const http = { ...shareImage, url: shareImage.url.replace('https', 'http') };
+    expect(Report.safeParse({ ...report, shareImage: http }).success).toBe(false);
+    expect(
+      Report.safeParse({ ...report, shareImage: { ...shareImage, userId: id(1) } }).success,
+    ).toBe(false);
+  });
+});

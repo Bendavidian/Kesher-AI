@@ -16,6 +16,7 @@ import express, {
 import type { Db } from 'mongodb';
 import { collection } from '../db/collections';
 import { loggedSearch } from '../search/atlas';
+import { bodyError } from './bodyError';
 
 // The JSON body is passed to the SDK already parsed, so the web Request carries headers only.
 function toWebRequest(req: ExpressRequest): Request {
@@ -39,13 +40,22 @@ async function sendWebResponse(res: ExpressResponse, response: Response): Promis
   await pipeline(Readable.fromWeb(response.body), res);
 }
 
-// Answers a malformed body as a client error instead of the app's generic 500.
-const onBadJson: ErrorRequestHandler = (error: { type?: string }, _req, res, next) => {
-  if (error.type === 'entity.parse.failed') {
-    res.status(400).json({ error: 'invalid json' });
+// A body the parser refused answers in JSON-RPC, which MCP clients read, instead of the REST
+// shape of app.ts (SPEC.md decision log, T30): not JSON is a parse error, any other an invalid
+// request. No request id was read, so id is null.
+const RPC_BODY_ERROR = {
+  invalid_json: { code: -32700, message: 'Parse error' },
+  too_large: { code: -32600, message: 'Request body too large' },
+  unreadable: { code: -32600, message: 'Unreadable request body' },
+} as const;
+
+const onBodyError: ErrorRequestHandler = (error, _req, res, next) => {
+  const body = bodyError(error);
+  if (!body) {
+    next(error);
     return;
   }
-  next(error);
+  res.status(body.status).json({ jsonrpc: '2.0', error: RPC_BODY_ERROR[body.kind], id: null });
 };
 
 // Without market data, get_price_reaction answers so, and nothing is logged as a failure.
@@ -101,6 +111,6 @@ export function mcpRouter(
   router.all('/mcp', express.json({ limit: '1mb' }), async (req, res) => {
     await sendWebResponse(res, await serve(toWebRequest(req), req.body));
   });
-  router.use('/mcp', onBadJson);
+  router.use('/mcp', onBodyError);
   return router;
 }

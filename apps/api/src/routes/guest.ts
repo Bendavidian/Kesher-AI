@@ -1,5 +1,5 @@
 import { GuestPortfolioRequest } from '@kesher/shared';
-import express, { Router, type ErrorRequestHandler, type Response } from 'express';
+import express, { Router, type Response } from 'express';
 import type { Db } from 'mongodb';
 import { currentUser, requireUser, setSessionCookie, signSession } from '../auth/session';
 import { changeGuestPortfolio, createGuest } from '../guest/guest';
@@ -20,14 +20,6 @@ export interface GuestOptions {
 }
 
 const BAD_REQUEST = { error: 'choose 1 to 6 different companies from the universe' };
-
-const onBadJson: ErrorRequestHandler = (error: { type?: string }, _req, res, next) => {
-  if (error.type === 'entity.parse.failed') {
-    res.status(400).json({ error: 'invalid json' });
-    return;
-  }
-  next(error);
-};
 
 function refuse(res: Response, take: Extract<RateTake, { ok: false }>, error: string): void {
   res.set('Retry-After', String(take.retryAfterSeconds));
@@ -123,7 +115,6 @@ export function guestRouter(
     }
     res.json(toPublicUser(changed.user));
   });
-  router.use('/guest', onBadJson);
 
   return router;
 }

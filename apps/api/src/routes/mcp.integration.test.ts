@@ -357,14 +357,18 @@ describe('POST /mcp', () => {
       }
     });
 
-    it('answers a malformed JSON body with 400', async () => {
+    it('answers a malformed JSON body with a JSON-RPC parse error', async () => {
       const response = await fetch(`${baseUrl}/mcp`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: '{"jsonrpc":',
       });
       expect(response.status).toBe(400);
-      expect(await response.json()).toEqual({ error: 'invalid json' });
+      expect(await response.json()).toEqual({
+        jsonrpc: '2.0',
+        error: { code: -32700, message: 'Parse error' },
+        id: null,
+      });
     });
 
     it('rejects search_news for a token without it, while get_event still works', async () => {

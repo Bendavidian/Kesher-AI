@@ -49,3 +49,6 @@ services:
         sync: false
       - key: SEC_USER_AGENT
         sync: false
+      # The shared report images on Cloudinary's free plan (T30). Without it Share answers 503.
+      - key: CLOUDINARY_URL
+        sync: false
