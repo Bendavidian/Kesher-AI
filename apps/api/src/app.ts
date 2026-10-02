@@ -152,7 +152,7 @@ export function createApi({
   }
   if (auth) {
     app.use(authRouter(db, auth));
-    app.use(guestRouter(db, auth, guest));
+    app.use(guestRouter(db, auth, { logError, ...guest }));
     // Every card the api sends carries the same price reaction.
     const market = priceReactions && { priceReaction: priceReactions, logError };
     app.use(feedRouter(db, auth.secret, market));
@@ -174,6 +174,7 @@ export function createApi({
         ...(priceReactions ? { priceReactions } : {}),
         queue,
         logError,
+        log,
         ...(onResearch ? { onResearch } : {}),
         ...(onRunStep ? { onStep: onRunStep } : {}),
         ...(onRunEnd ? { onEnd: onRunEnd } : {}),

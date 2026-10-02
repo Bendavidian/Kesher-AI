@@ -1,8 +1,14 @@
 import { GuestPortfolioRequest } from '@kesher/shared';
 import express, { Router, type ErrorRequestHandler, type Response } from 'express';
 import type { Db } from 'mongodb';
-import { currentUser, requireUser, setSessionCookie, signSession } from '../auth/session';
-import { changeGuestPortfolio, createGuest } from '../guest/guest';
+import {
+  clearSessionCookie,
+  currentUser,
+  requireUser,
+  setSessionCookie,
+  signSession,
+} from '../auth/session';
+import { changeGuestPortfolio, createGuest, deleteGuest } from '../guest/guest';
 import { clientKey, createRateLimiter, type RateTake } from '../guest/rateLimit';
 import { toPublicUser, type AuthOptions } from './auth';
 
@@ -17,6 +23,8 @@ export interface GuestOptions {
   now?: () => number;
   createLimit?: number;
   changeLimit?: number;
+  // Where a removal's failed cleanup is logged (T29).
+  logError?: (error: unknown) => void;
 }
 
 const BAD_REQUEST = { error: 'choose 1 to 6 different companies from the universe' };
@@ -34,23 +42,25 @@ function refuse(res: Response, take: Extract<RateTake, { ok: false }>, error: st
   res.status(429).json({ error });
 }
 
-// POST /guest and PUT /guest/portfolio (docs/INTERFACES.md, REST). POST /guest creates a guest
-// from the picked companies and signs it in; like login it needs no session. The guest's identity
-// is then the session cookie only, as for a persona.
+// POST /guest, PUT /guest/portfolio and DELETE /guest (docs/INTERFACES.md, REST). POST /guest
+// creates a guest from the picked companies and signs it in; like login it needs no session. The
+// guest's identity is then the session cookie only, as for a persona.
 export function guestRouter(
   db: Db,
-  { secret, secureCookie }: AuthOptions,
+  { secret, secureCookie, onSignOut }: AuthOptions,
   {
     now = Date.now,
     createLimit = GUEST_CREATE_LIMIT,
     changeLimit = GUEST_CHANGE_LIMIT,
+    logError,
   }: GuestOptions = {},
 ): Router {
   const router = Router();
   const creates = createRateLimiter({ limit: createLimit, windowMs: HOUR_MS, now });
   const changes = createRateLimiter({ limit: changeLimit, windowMs: HOUR_MS, now });
   const json = express.json({ limit: '2kb' });
-  // One change at a time per guest, so the items never end scored against older holdings.
+  // One change or removal at a time per guest, so the items never end scored against older
+  // holdings, and a change never rescores a guest being removed.
   const changing = new Set<string>();
 
   router.post('/guest', json, async (req, res) => {
@@ -122,6 +132,33 @@ export function guestRouter(
       return;
     }
     res.json(toPublicUser(changed.user));
+  });
+  // The guest removes itself before its 24 hours are up (SPEC.md decision log, T29).
+  router.delete('/guest', requireUser(secret), async (_req, res) => {
+    const userId = currentUser(res);
+    if (changing.has(userId)) {
+      res.status(409).json({ error: 'a portfolio change is already running' });
+      return;
+    }
+    changing.add(userId);
+    let deleted;
+    try {
+      deleted = await deleteGuest(db, userId, logError);
+    } finally {
+      changing.delete(userId);
+    }
+    if (deleted.outcome === 'not_guest') {
+      res.status(403).json({ error: 'a persona is never removed' });
+      return;
+    }
+    // Removed now, or already gone: either way this cookie names no one.
+    clearSessionCookie(res, secureCookie);
+    if (deleted.outcome === 'gone') {
+      res.status(401).json({ error: 'sign in required' });
+      return;
+    }
+    onSignOut?.(userId);
+    res.status(204).end();
   });
   router.use('/guest', onBadJson);
 
