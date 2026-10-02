@@ -298,6 +298,14 @@ Found in the T16 wrap on 1 Oct 2026. bestPath (apps/api/src/relevance/score.ts) 
 Break the tie on what the edges say (their from, type and to) instead of their ids, so the same graph content always gives the same path.
 Done when: a test scores the same graph twice under different edge ids and gets the same path, and `npm run eval` writes the same path for 42563518 on every run.
 
+### [ ] T30 Server side requirement gaps
+From the bootcamp requirements audit, approved by the user on 2 Oct 2026 (SPEC.md decision log, T30). Three gaps on the server side:
+- External media storage. A Share button on the report screen. The api renders a PNG share card from the report with a deterministic template, never a model: the Kesher mark, the headline, the path line (the Why you label), the relevance band, and up to three supported fact or metric claims in report order with their source names. It uploads the PNG to Cloudinary on the free plan (CLOUDINARY_URL), stores the image URL on the Report (Report.shareImage) and answers that URL again on the next share, with no second upload. POST /reports/:reportId/share: owner only, 403 for a guest, rate limited per user; CLOUDINARY_URL in .env.example and in render.yaml with sync: false. Tests mock Cloudinary; CI never calls it.
+- Unified error handling. The invalid JSON handling moves into the one onError in app.ts, which also answers a body that is too large with 413; the local onBadJson handlers of auth and guest are deleted, so every REST route has one error middleware and one error shape. /mcp keeps a local handler that answers a real JSON-RPC parse error (-32700).
+- README: an MVC mapping section that maps models, controllers and services to the existing folders.
+Report gains a stored field, so nothing writes it to the shared Atlas kesher before the code is deployed (note under T22): verified locally on mongodb-memory-server, against Atlas only after deploy.
+Done when: tests cover the card template (escaping, claim selection, the same SVG for the same report), a real PNG render, the Cloudinary signature and upload against a fake fetch, and the route on a local mongod (owner only, guest 403, reuse without a second upload, two shares at once uploading once, 429, 503 without CLOUDINARY_URL); app.test.ts shows 400 invalid json and 413 on every REST route with a body and the JSON-RPC parse error on /mcp; one real upload from a local run against a local mongod; the Share button checked in the browser at 1440px and 1279px.
+
 ## V2 (not in MVP)
 Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).
 
