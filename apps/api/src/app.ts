@@ -10,6 +10,7 @@ import type { InvestigateDeps } from './research/investigate';
 import type { PriceReactions } from './market/reactions';
 import { createModelClient, resolveFromKeys, type ModelClient } from './llm/client';
 import { authRouter, type AuthOptions } from './routes/auth';
+import { bodyError, type BodyError } from './routes/bodyError';
 import { demoRouter, type DemoOptions } from './routes/demo';
 import { devRouter } from './routes/dev';
 import { feedRouter } from './routes/feed';
@@ -91,6 +92,12 @@ export interface Api {
   // Resolves once every research job queued so far has run. For tests.
   idle: () => Promise<void>;
 }
+
+const BODY_ERROR: Record<BodyError['kind'], string> = {
+  invalid_json: 'invalid json',
+  too_large: 'body too large',
+  unreadable: 'unreadable body',
+};
 
 const logMessage = (error: unknown) =>
   console.error(error instanceof Error ? error.message : 'request failed');
@@ -218,13 +225,21 @@ export function createApi({
     });
   }
 
-  // Answers without internals; driver errors can carry connection details.
+  // The one error middleware of every REST route, with one shape: `{ error }` (SPEC.md decision
+  // log, T30). A body the client got wrong answers its 4xx and is not logged; anything else
+  // answers without internals, since driver errors can carry connection details.
   const onError: ErrorRequestHandler = (error, _req, res, next) => {
-    logError(error);
     if (res.headersSent) {
+      logError(error);
       next(error);
       return;
     }
+    const body = bodyError(error);
+    if (body) {
+      res.status(body.status).json({ error: BODY_ERROR[body.kind] });
+      return;
+    }
+    logError(error);
     res.status(500).json({ error: 'internal error' });
   };
   app.use(onError);
