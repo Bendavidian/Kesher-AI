@@ -208,7 +208,9 @@ function ReportBody({ detail, user }: { detail: ReportDetail; user: PublicUser |
               <span className="max-w-[620px] truncate">{event?.headline}</span>
             </nav>
             <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-              <div className="flex flex-col gap-2.5">
+              {/* At most the row's width, so the chips wrap on a phone instead of running past the
+                  panel (T29). */}
+              <div className="flex max-w-full min-w-0 flex-col gap-2.5">
                 <h1 className="text-[26px] leading-[1.2] font-extrabold">Research report</h1>
                 <ul
                   aria-label="Report summary"

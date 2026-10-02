@@ -48,7 +48,7 @@ Mantine (core, hooks, notifications) supplies four components; everything else i
 - Tabular numerals everywhere numbers appear.
 - Sizes: event headline 24/800, panel title 15/800, section title 13/800, body 13 to 14, meta 11 to 12.
 - Radius: panels 10, buttons 8, chips 5 to 6.
-- Desktop first. The three panel layout targets screens 1280px and wider. Below that, the panels stack in one column in the order feed, event, scores.
+- Desktop first. The three panel layout targets screens 1280px and wider. Below that, the panels stack in one column in the order feed, event, scores, and picking a card scrolls to the event panel (at once under prefers-reduced-motion). A 375px phone is checked too: nothing runs past the page edge (T29).
 - 12px gaps between panels. Top bar 56px, ticker footer 34px. Touch targets at least 44px.
 - Percentages always carry a sign and a true minus (+1.25%, −1.16%), in up or down color.
 
@@ -58,7 +58,7 @@ Mantine (core, hooks, notifications) supplies four components; everything else i
 - `npm run brand` writes the favicon (the mark on a bg rounded square), favicon.ico, the touch icon and the 1200 by 630 link preview image (the mark, "Kesher AI" in Overpass 800 and one line in text-2) to apps/web/public.
 
 ## Feed screen
-- **Top bar:** logo, tabs (Feed, Agent runs), search, replay status with a pulsing orange dot and the event time in ET, persona switcher. The switcher has a fourth option, Your portfolio (T24), which opens the guest picker; the Replay control is hidden for a guest.
+- **Top bar:** logo, tabs (Feed, Agent runs), search, replay status with a pulsing orange dot and the event time in ET, persona switcher. On a narrow screen the switcher's options scroll sideways inside the bar. The switcher has a fourth option, Your portfolio (T24), which opens the guest picker; the Replay control is hidden for a guest.
 - **Guest picker (T24):** a Mantine Modal over the feed (T29), panel style, titled Your portfolio, with focus on the first company and Escape to cancel. The 17 universe companies in four sector groups, each a 44px toggle with the ticker in mono and the short name; the picked ones in the you tint with an orange border. At most 6: once 6 are picked the rest are disabled. A count ("3 of 6 picked"), Cancel (secondary) and Show my feed, or Update my feed for a guest (primary orange). One meta line says the guest portfolio is deleted after 24 hours and Investigate runs once a day for it; an api error shows as one neutral line inside the picker. The feed header of a guest repeats that line.
 - **Remove my portfolio (T29):** for a guest only, a secondary button next to Cancel. It first asks in a neutral inset block ("Remove this guest portfolio now, with its feed and its research? This cannot be undone.") with Keep it (secondary) and Remove now (primary orange); Remove now calls DELETE /guest, clears the remembered pick and returns to persona A.
 - **Three panels:** feed list 360px, event detail fluid, scores and evidence 340px.
@@ -86,7 +86,7 @@ The signature component.
 ## Research report screen
 - **Main panel:**
   - Breadcrumb and title.
-  - Chips for mode, tool calls, supported count and removed count.
+  - Chips for mode, tool calls, supported count and removed count; they wrap on a narrow screen.
   - A segmented bar with one green segment per supported claim and one red per removed claim.
   - A legend for claim types.
 - **Claims table:** number, type chip (Fact supplier blue, Metric code teal, Inference model amber), claim with its evidence line, status.

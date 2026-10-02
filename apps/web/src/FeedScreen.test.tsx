@@ -774,3 +774,42 @@ describe('Your portfolio, the guest option of the switcher (T24)', () => {
     expect(pressedLabels()).toEqual(['Your portfolio']);
   });
 });
+
+describe('feed screen below xl (T29)', () => {
+  const stacked = (matches: boolean) =>
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query) =>
+        ({
+          matches: query.includes('max-width') ? matches : false,
+          media: query,
+          onchange: null,
+          addListener: () => undefined,
+          removeListener: () => undefined,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+          dispatchEvent: () => false,
+        }) as MediaQueryList,
+    );
+  afterEach(() => vi.restoreAllMocks());
+
+  it('scrolls to the event panel when a card is picked', async () => {
+    stacked(true);
+    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView');
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    const { feed, event } = regions();
+    fireEvent.click(row(feed));
+    expect(scroll).toHaveBeenCalledOnce();
+    expect(scroll.mock.contexts[0]).toBe(event);
+    expect(scroll.mock.calls[0]![0]).toEqual({ behavior: 'smooth', block: 'start' });
+  });
+
+  it('never scrolls where the three panels sit side by side', async () => {
+    stacked(false);
+    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView');
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    fireEvent.click(row(regions().feed));
+    expect(scroll).not.toHaveBeenCalled();
+  });
+});

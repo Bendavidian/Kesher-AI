@@ -1,5 +1,5 @@
 import { UniverseSymbol, type IngestStatus } from '@kesher/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchHealth, type ApiStatus } from '../api/health';
 import { EventDetail } from '../components/EventDetail';
 import { FeedList } from '../components/FeedList';
@@ -55,6 +55,9 @@ function forgetPick(): void {
   }
 }
 
+// Below xl (1280px) the panels stack, so the event a visitor picks is a screen away (T29).
+const STACKED = '(max-width: 1279.98px)';
+
 export function FeedScreen() {
   // The viewer and the last scored event live in the session, above the routes (T29).
   const { viewer, setViewer: onViewerChange, lastScoredEventId, onScored } = useSession();
@@ -65,6 +68,7 @@ export function FeedScreen() {
   // The Replay control shows only where the api has the demo route (DEMO_MODE).
   const [demoMode, setDemoMode] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const eventPanel = useRef<HTMLElement>(null);
   const [replaying, setReplaying] = useState(false);
   // Keyed by viewer and event, so a request on one card never shows on another.
   const [investigate, setInvestigate] = useState<InvestigateState>({
@@ -189,6 +193,13 @@ export function FeedScreen() {
     );
   };
 
+  const onSelect = (eventId: string) => {
+    setSelectedEventId(eventId);
+    if (!window.matchMedia(STACKED).matches) return;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    eventPanel.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+  };
+
   // Until the api answers, the screen names the chosen persona with no holdings.
   const persona = (live.user && personaFrom(live.user)) ?? {
     ...labelsFor(viewerKey),
@@ -229,15 +240,16 @@ export function FeedScreen() {
           hidden={feed.hidden}
           hiddenTotal={feed.hiddenTotal}
           selectedEventId={feed.selected?.event._id ?? null}
-          onSelect={setSelectedEventId}
+          onSelect={onSelect}
           notice={notice}
           className="xl:w-[360px] xl:shrink-0"
         />
         <EventDetail
+          ref={eventPanel}
           view={selected}
           reaction={selected?.reaction ?? null}
           replayKey={viewerId}
-          className="xl:min-w-0 xl:flex-1 xl:overflow-y-auto"
+          className="scroll-mt-3 xl:min-w-0 xl:flex-1 xl:overflow-y-auto"
         />
         <ScoresPanel
           view={selected}
