@@ -1,5 +1,5 @@
 import type { AgentRun, AgentStep, RunDetail, RunSummary } from '@kesher/shared';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from './api/client';
@@ -243,7 +243,8 @@ describe('Agent run screen', () => {
 
   it('names why a failed run ended, with no report link', async () => {
     await renderRun(runPath(DEMO_FAILED_RUN._id));
-    expect(screen.getByText('Failed')).toBeTruthy();
+    // The status chip, not the closed Recent runs list Mantine keeps in the page.
+    expect(screen.getByText('Failed', { ignore: '[role="option"] *' })).toBeTruthy();
     expect(screen.getByText(/kept asking to wait, so the run ended without a report/)).toBeTruthy();
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
     expect(within(crumbs).getByRole('link', { name: 'Feed' })).toBeTruthy();
@@ -255,30 +256,32 @@ describe('Recent runs selector', () => {
   it('lists the user runs with time, mode and status, and switches between them', async () => {
     const { api, deps } = fakeDeps();
     await renderRun(runPath(DEMO_RUN._id), deps);
-    const toggle = screen.getByRole('button', { name: /Recent runs/ });
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    const select = screen.getByRole('combobox', { name: 'Recent runs' });
+    // The current run is the one chosen.
+    expect((select as HTMLInputElement).value).toMatch(/TSMC, deep mode$/);
+    fireEvent.click(select);
 
-    const rows = within(screen.getByRole('list', { name: 'Recent runs' })).getAllByRole('link');
+    const rows = within(await screen.findByRole('listbox')).getAllByRole('option');
     expect(rows).toHaveLength(2);
     expect(rows[0]!.textContent).toMatch(/Sep 28, \d{2}:\d{2} ET/);
     expect(rows[0]!.textContent).toContain('TSMC, deep mode');
     expect(rows[0]!.textContent).toContain('Failed');
     expect(rows[1]!.textContent).toContain('Completed');
-    expect(rows[1]!.getAttribute('aria-current')).toBe('page');
+    expect(rows[1]!.getAttribute('aria-selected')).toBe('true');
 
     fireEvent.click(rows[0]!);
     await screen.findByText(/kept asking to wait/);
     expect(api.run).toHaveBeenLastCalledWith(DEMO_FAILED_RUN._id);
-    expect(screen.queryByRole('list', { name: 'Recent runs' })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
   });
 
   it('closes on Escape', async () => {
     await renderRun();
-    fireEvent.click(screen.getByRole('button', { name: /Recent runs/ }));
-    fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('list', { name: 'Recent runs' })).toBeNull();
+    const select = screen.getByRole('combobox', { name: 'Recent runs' });
+    fireEvent.click(select);
+    await screen.findByRole('listbox');
+    fireEvent.keyDown(select, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
   });
 });
 

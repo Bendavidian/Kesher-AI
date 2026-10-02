@@ -5,18 +5,21 @@ import { NotFoundScreen } from './screens/NotFoundScreen';
 import { ReportScreen } from './screens/ReportScreen';
 import { RunScreen, RunsIndexScreen } from './screens/RunScreen';
 import { SessionProvider } from './session/SessionProvider';
+import { UiProvider } from './theme/UiProvider';
 
 export function AppRoutes() {
   return (
-    <SessionProvider>
-      <Routes>
-        <Route path="/" element={<FeedScreen />} />
-        <Route path="/reports/:reportId" element={<ReportScreen />} />
-        <Route path="/runs" element={<RunsIndexScreen />} />
-        <Route path="/runs/:runId" element={<RunScreen />} />
-        <Route path="*" element={<NotFoundScreen />} />
-      </Routes>
-    </SessionProvider>
+    <UiProvider>
+      <SessionProvider>
+        <Routes>
+          <Route path="/" element={<FeedScreen />} />
+          <Route path="/reports/:reportId" element={<ReportScreen />} />
+          <Route path="/runs" element={<RunsIndexScreen />} />
+          <Route path="/runs/:runId" element={<RunScreen />} />
+          <Route path="*" element={<NotFoundScreen />} />
+        </Routes>
+      </SessionProvider>
+    </UiProvider>
   );
 }
 

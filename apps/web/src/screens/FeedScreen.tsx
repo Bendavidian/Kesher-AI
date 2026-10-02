@@ -4,6 +4,7 @@ import { fetchHealth, type ApiStatus } from '../api/health';
 import { EventDetail } from '../components/EventDetail';
 import { FeedList } from '../components/FeedList';
 import { GuestPicker } from '../components/GuestPicker';
+import { messageOf, notifyError } from '../components/notify';
 import { PersonaSwitcher } from '../components/PersonaSwitcher';
 import { ScoresPanel, type InvestigateRequest } from '../components/ScoresPanel';
 import { TickerFooter } from '../components/TickerFooter';
@@ -15,7 +16,7 @@ import { buildFeedView } from '../view/feed';
 import { labelsFor, personaFrom, SWITCHER_LABELS } from '../view/personas';
 import type { ViewerKey } from '../view/types';
 
-const IDLE: InvestigateRequest = { busy: false, error: null };
+const IDLE: InvestigateRequest = { busy: false };
 
 // How often the ticker footer reads the live ingestion status.
 export const INGEST_STATUS_MS = 60_000;
@@ -56,10 +57,7 @@ export function FeedScreen() {
   // The Replay control shows only where the api has the demo route (DEMO_MODE).
   const [demoMode, setDemoMode] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [replay, setReplay] = useState<{ busy: boolean; error: string | null }>({
-    busy: false,
-    error: null,
-  });
+  const [replaying, setReplaying] = useState(false);
   // Keyed by viewer and event, so a request on one card never shows on another.
   const [investigate, setInvestigate] = useState<InvestigateState>({
     ...IDLE,
@@ -110,32 +108,29 @@ export function FeedScreen() {
   }, [api, signedIn]);
 
   const onReplay = () => {
-    setReplay({ busy: true, error: null });
+    setReplaying(true);
     api.replayDemo().then(
-      () => setReplay({ busy: false, error: null }),
-      (error: unknown) =>
-        setReplay({
-          busy: false,
-          error: error instanceof Error ? error.message : 'the replay failed',
-        }),
+      () => setReplaying(false),
+      (error: unknown) => {
+        setReplaying(false);
+        notifyError(messageOf(error, 'the replay failed'));
+      },
     );
   };
 
   // The api answers with the card, now running; pushes then carry it to done or failed.
   const onInvestigate = (eventId: string) => {
     const key = { viewerId, eventId };
-    setInvestigate({ ...key, busy: true, error: null });
+    setInvestigate({ ...key, busy: true });
     api.investigate(eventId).then(
       (card) => {
         live.upsert(card);
-        setInvestigate({ ...key, busy: false, error: null });
+        setInvestigate({ ...key, busy: false });
       },
-      (error: unknown) =>
-        setInvestigate({
-          ...key,
-          busy: false,
-          error: error instanceof Error ? error.message : 'the research could not start',
-        }),
+      (error: unknown) => {
+        setInvestigate({ ...key, busy: false });
+        notifyError(messageOf(error, 'the research could not start'));
+      },
     );
   };
 
@@ -162,7 +157,7 @@ export function FeedScreen() {
         setPicker({
           open: true,
           busy: false,
-          error: error instanceof Error ? error.message : 'the portfolio could not be saved',
+          error: messageOf(error, 'the portfolio could not be saved'),
         }),
     );
   };
@@ -197,16 +192,7 @@ export function FeedScreen() {
     <div className="flex min-h-screen flex-col xl:h-screen">
       <TopBar current="feed" start={<SearchBox />}>
         {replayed && <ReplayStatus at={replayed.event.publishedAt} />}
-        {demoMode && !guest && (
-          <div className="flex items-center gap-2">
-            <ReplayButton busy={replay.busy} onReplay={onReplay} />
-            {replay.error && (
-              <span role="alert" className="max-w-[220px] text-xs text-text-2">
-                {replay.error}
-              </span>
-            )}
-          </div>
-        )}
+        {demoMode && !guest && <ReplayButton busy={replaying} onReplay={onReplay} />}
         <PersonaSwitcher personas={SWITCHER_LABELS} value={viewerKey} onChange={onSwitch} />
       </TopBar>
       <main className="flex flex-1 flex-col gap-3 p-3 xl:min-h-0 xl:flex-row">

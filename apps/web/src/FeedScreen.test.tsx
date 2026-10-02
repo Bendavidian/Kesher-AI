@@ -462,6 +462,20 @@ describe('feed screen, signed in through the persona switcher', () => {
     expect(within(scores).queryByRole('link', { name: 'Open research report' })).toBeNull();
   });
 
+  it('says who set each score in a tooltip on its tag (T29)', async () => {
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    const { scores } = regions();
+    const [relevanceTag] = within(scores).getAllByText('By code');
+    fireEvent.focus(relevanceTag!);
+    expect((await screen.findByRole('tooltip')).textContent).toBe(
+      'Computed by code from stored data. No model sets this number.',
+    );
+    fireEvent.blur(relevanceTag!);
+    fireEvent.focus(within(scores).getByText('By the model'));
+    expect(await screen.findByText(/Classified by the model from 1 to 5/)).toBeTruthy();
+  });
+
   it('names the error when research cannot start', async () => {
     const { api, deps } = fakeLive();
     api.investigate.mockRejectedValueOnce(new Error('research on this event is already running'));
@@ -469,7 +483,8 @@ describe('feed screen, signed in through the persona switcher', () => {
     await ready();
     const { scores } = regions();
     fireEvent.click(within(scores).getByRole('button', { name: 'Investigate this event' }));
-    expect((await within(scores).findByRole('alert')).textContent).toBe(
+    // A notification, outside the panel (T29).
+    expect((await screen.findByRole('alert')).textContent).toBe(
       'research on this event is already running',
     );
     expect(
