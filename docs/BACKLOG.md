@@ -298,13 +298,17 @@ Found in the T16 wrap on 1 Oct 2026. bestPath (apps/api/src/relevance/score.ts) 
 Break the tie on what the edges say (their from, type and to) instead of their ids, so the same graph content always gives the same path.
 Done when: a test scores the same graph twice under different edge ids and gets the same path, and `npm run eval` writes the same path for 42563518 on every run.
 
-### [~] T29 Client side requirement gaps from the audit
+### [x] T29 Client side requirement gaps from the audit
 Started on 2 Oct 2026 from an audit of the course requirements against the web app. Four parts, each with its own decision log entry (SPEC.md decision log, T29):
 1. Mantine as the UI component library, which reverses the hand written components only practice since T01: the guest picker as a Mantine Modal, the Recent runs selector as a Mantine Select, Mantine notifications for request errors (Replay and Investigate) with role="alert", and tooltips on the By code and By the model tags. Mantine is themed from the CSS variables in index.css, never hex, so the theme test still passes; docs/UI.md says what is used and how.
 2. State management: the viewer and the session state (the viewer, the last scored event and the GET /me check for a guest) in a SessionContext with a useSession hook, instead of props from App.
 3. Mobile at 375px: the persona row scrolls instead of overflowing; selecting a card below xl scrolls to the event panel; the report's chip row wraps.
 4. CRUD delete: DELETE /guest for a guest only (a persona gets 403) deletes the user with its feed items, runs, reports and claims, closes its sockets, clears the cookie and answers 204. A research job still waiting in the queue for it is skipped when it starts, with a logged reason. A Remove my portfolio button in the guest picker, with a confirm step, also clears the last pick from local storage.
 Done when: an integration test removes a guest with every document it owns and nobody else's, refuses a persona, and skips a queued job for a removed guest with its log line; web tests cover the picker modal, the remove flow, the runs select, the notifications and useSession; the feed, report and run screens and the picker are checked in the Browser pane at 375, 1279 and 1440px; typecheck, lint and tests pass.
+Done (2 Oct 2026, SPEC.md decision log T29): as listed. Notifications sit under the top bar (top 64px) so they never cover the persona switcher. The reviewer found no blocker on DELETE /guest; its two majors were fixed (a cleanup that fails after the User is gone is logged and answers 204, the TTL being the backstop; late writes by a run or a scoring pass already going are documented as expiring by TTL). Checked in the Browser pane against Atlas: at 375px the page stays 375 wide on the feed, run and report screens, a card scrolls to the event panel, the Select and the picker fit; a live guest (NVDA, TSM, 35 cards) was created and removed through the picker, back to persona A with the pick cleared; at 1279 and 1440 the tooltip, a notification (Investigate with the api stopped) and the Select. 1,224 tests green.
+Notes from T29:
+- The web bundle grew with Mantine to 714 kB of JavaScript (218 kB gzip) and 261 kB of CSS, the whole Mantine stylesheet; Vite warns above 500 kB. Importing only the styles of the four components used, and splitting the run and report screens, would cut both.
+- At 375px the connection path in the event panel is cramped: line labels stack over the rings and the station labels run together. Not one of the three mobile fixes in T29; it needs its own entry if the phone width matters for the demo.
 
 ## V2 (not in MVP)
 Moved out of the MVP on 28 Sep 2026: the X API has no free tier (SPEC.md principle 9).
