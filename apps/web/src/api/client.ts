@@ -34,6 +34,8 @@ export interface KesherApi {
   // the api sets, or new holdings for the signed in guest.
   createGuest(symbols: UniverseSymbol[]): Promise<PublicUser>;
   changeGuestPortfolio(symbols: UniverseSymbol[]): Promise<PublicUser>;
+  // Removes the signed in guest and everything stored for it, and signs it out (T29).
+  deleteGuest(): Promise<void>;
   feed(): Promise<FeedCard[]>;
   // The most recent relevance 0 items, as explanations, and how many there are.
   hidden(): Promise<HiddenFeed>;
@@ -73,7 +75,7 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
   return response.status === 204 ? null : ((await response.json()) as unknown);
 }
 
-const send = (method: 'POST' | 'PUT', path: string, body?: unknown) =>
+const send = (method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) =>
   request(path, {
     method,
     ...(body === undefined
@@ -95,6 +97,9 @@ export const httpApi: KesherApi = {
   },
   async changeGuestPortfolio(symbols) {
     return decodeUser(await send('PUT', '/guest/portfolio', { symbols }));
+  },
+  async deleteGuest() {
+    await send('DELETE', '/guest');
   },
   async feed() {
     return decodeFeed(await request('/feed'));

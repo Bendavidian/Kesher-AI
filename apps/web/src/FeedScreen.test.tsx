@@ -90,6 +90,8 @@ function fakeLive({
       guest = { ...guest, holdings: symbols.map((symbol) => ({ symbol, quantity: 1 })) };
       return Promise.resolve(guest);
     }),
+    // The api signs the guest out; the screen then signs in as persona A.
+    deleteGuest: vi.fn(() => Promise.resolve()),
     feed: vi.fn(() => Promise.resolve(signedIn === 'guest' ? GUEST_CARDS : feeds[signedIn])),
     hidden: vi.fn(() => Promise.resolve(signedIn === 'guest' ? NONE_HIDDEN : hidden[signedIn])),
     investigate: vi.fn(() =>
@@ -722,5 +724,53 @@ describe('Your portfolio, the guest option of the switcher (T24)', () => {
     expect(pressedLabels()).toEqual(['AI investor']);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('offers Remove my portfolio to a guest only', async () => {
+    render(<App deps={fakeLive().deps} />);
+    await ready();
+    pickPersona('Your portfolio');
+    const dialog = screen.getByRole('dialog', { name: 'Your portfolio' });
+    expect(within(dialog).queryByRole('button', { name: 'Remove my portfolio' })).toBeNull();
+  });
+
+  it('removes a guest after a confirm, forgets the pick and returns to persona A (T29)', async () => {
+    localStorage.setItem('kesher.guestPick', JSON.stringify(['NVDA']));
+    const { api, deps } = fakeLive({ start: 'guest' });
+    render(<App deps={deps} />);
+    await ready('Events that connect to NVDA');
+
+    pickPersona('Your portfolio');
+    const dialog = screen.getByRole('dialog', { name: 'Your portfolio' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove my portfolio' }));
+    // Nothing is removed before the confirm, and Keep it goes back.
+    expect(within(dialog).getByText(/This cannot be undone/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep it' }));
+    expect(api.deleteGuest).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('button', { name: 'Update my feed' })).toBeTruthy();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove my portfolio' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove now' }));
+    await ready('Events that connect to NVDA, MSFT and AMZN');
+    expect(api.deleteGuest).toHaveBeenCalledOnce();
+    expect(api.signInAs).toHaveBeenCalledWith('A');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(pressedLabels()).toEqual(['AI investor']);
+    expect(localStorage.getItem('kesher.guestPick')).toBeNull();
+  });
+
+  it('names a removal error in the picker and keeps the guest (T29)', async () => {
+    const { api, deps } = fakeLive({ start: 'guest' });
+    api.deleteGuest.mockRejectedValueOnce(new Error('a portfolio change is already running'));
+    render(<App deps={deps} />);
+    await ready('Events that connect to NVDA');
+    pickPersona('Your portfolio');
+    const dialog = screen.getByRole('dialog', { name: 'Your portfolio' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove my portfolio' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove now' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toBe(
+      'a portfolio change is already running',
+    );
+    expect(pressedLabels()).toEqual(['Your portfolio']);
   });
 });

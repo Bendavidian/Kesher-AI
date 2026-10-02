@@ -10,11 +10,13 @@ import { useState } from 'react';
 interface Props {
   // The companies picked when it opens: the guest's holdings, or the visitor's last pick.
   initial: readonly UniverseSymbol[];
-  // A guest changes its holdings; anyone else creates a guest.
+  // A guest changes its holdings, or removes them; anyone else creates a guest.
   changing: boolean;
   busy: boolean;
   error: string | null;
   onSubmit: (symbols: UniverseSymbol[]) => void;
+  // Removes the guest and everything stored for it (T29). Offered to a guest only.
+  onRemove: () => void;
   onCancel: () => void;
 }
 
@@ -26,10 +28,20 @@ const SECONDARY =
 // The guest portfolio picker (SPEC.md decision log, T24), a Mantine Modal since T29: 1 to 6
 // universe companies by sector. Choosing only picks holdings; code scores every stored event for
 // them, as for the personas.
-export function GuestPicker({ initial, changing, busy, error, onSubmit, onCancel }: Props) {
+export function GuestPicker({
+  initial,
+  changing,
+  busy,
+  error,
+  onSubmit,
+  onRemove,
+  onCancel,
+}: Props) {
   const [picked, setPicked] = useState<UniverseSymbol[]>(() =>
     initial.slice(0, MAX_GUEST_HOLDINGS),
   );
+  // Remove asks once more before it deletes anything.
+  const [confirming, setConfirming] = useState(false);
   const full = picked.length >= MAX_GUEST_HOLDINGS;
 
   const toggle = (symbol: UniverseSymbol) =>
@@ -96,24 +108,55 @@ export function GuestPicker({ initial, changing, busy, error, onSubmit, onCancel
         </p>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-xs font-bold text-text-2 tabular-nums">
-          {picked.length} of {MAX_GUEST_HOLDINGS} picked
-        </span>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={onCancel} className={SECONDARY}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={picked.length === 0 || busy}
-            onClick={() => onSubmit(picked)}
-            className={PRIMARY}
-          >
-            {busy ? 'Scoring your feed' : changing ? 'Update my feed' : 'Show my feed'}
-          </button>
+      {confirming ? (
+        <div className="flex flex-col gap-3 rounded-panel border border-border-strong bg-inset p-3.5">
+          <p className="text-[13px] leading-normal text-text-2">
+            Remove this guest portfolio now, with its feed and its research? This cannot be undone.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+              className={SECONDARY}
+            >
+              Keep it
+            </button>
+            <button type="button" disabled={busy} onClick={onRemove} className={PRIMARY}>
+              {busy ? 'Removing' : 'Remove now'}
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="text-xs font-bold text-text-2 tabular-nums">
+            {picked.length} of {MAX_GUEST_HOLDINGS} picked
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {changing && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirming(true)}
+                className={SECONDARY}
+              >
+                Remove my portfolio
+              </button>
+            )}
+            <button type="button" onClick={onCancel} className={SECONDARY}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={picked.length === 0 || busy}
+              onClick={() => onSubmit(picked)}
+              className={PRIMARY}
+            >
+              {busy ? 'Scoring your feed' : changing ? 'Update my feed' : 'Show my feed'}
+            </button>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

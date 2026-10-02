@@ -11,7 +11,7 @@ import { TickerFooter } from '../components/TickerFooter';
 import { ReplayButton, ReplayStatus, SearchBox, TopBar } from '../components/TopBar';
 import { useLiveDeps } from '../live/deps';
 import { useLiveFeed } from '../live/useLiveFeed';
-import { useSession } from '../session/context';
+import { PERSONA_A, useSession } from '../session/context';
 import { buildFeedView } from '../view/feed';
 import { labelsFor, personaFrom, SWITCHER_LABELS } from '../view/personas';
 import type { ViewerKey } from '../view/types';
@@ -44,6 +44,14 @@ function rememberPick(symbols: UniverseSymbol[]): void {
     localStorage.setItem(LAST_PICK, JSON.stringify(symbols));
   } catch {
     // Nothing to remember in.
+  }
+}
+// A removed guest leaves no pick behind (T29).
+function forgetPick(): void {
+  try {
+    localStorage.removeItem(LAST_PICK);
+  } catch {
+    // Nothing was remembered.
   }
 }
 
@@ -162,6 +170,25 @@ export function FeedScreen() {
     );
   };
 
+  // The guest removes itself and everything stored for it, then the screen returns to persona A.
+  const onRemove = () => {
+    setPicker({ open: true, busy: true, error: null });
+    api.deleteGuest().then(
+      () => {
+        forgetPick();
+        setPicker({ open: false, busy: false, error: null });
+        setSelectedEventId(null);
+        onViewerChange(PERSONA_A);
+      },
+      (error: unknown) =>
+        setPicker({
+          open: true,
+          busy: false,
+          error: messageOf(error, 'the portfolio could not be removed'),
+        }),
+    );
+  };
+
   // Until the api answers, the screen names the chosen persona with no holdings.
   const persona = (live.user && personaFrom(live.user)) ?? {
     ...labelsFor(viewerKey),
@@ -237,6 +264,7 @@ export function FeedScreen() {
           busy={picker.busy}
           error={picker.error}
           onSubmit={onPick}
+          onRemove={onRemove}
           onCancel={() => setPicker({ open: false, busy: false, error: null })}
         />
       )}
