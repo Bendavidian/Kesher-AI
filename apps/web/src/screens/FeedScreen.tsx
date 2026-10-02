@@ -10,9 +10,10 @@ import { TickerFooter } from '../components/TickerFooter';
 import { ReplayButton, ReplayStatus, SearchBox, TopBar } from '../components/TopBar';
 import { useLiveDeps } from '../live/deps';
 import { useLiveFeed } from '../live/useLiveFeed';
+import { useSession } from '../session/context';
 import { buildFeedView } from '../view/feed';
 import { labelsFor, personaFrom, SWITCHER_LABELS } from '../view/personas';
-import type { Viewer, ViewerKey } from '../view/types';
+import type { ViewerKey } from '../view/types';
 
 const IDLE: InvestigateRequest = { busy: false, error: null };
 
@@ -45,16 +46,9 @@ function rememberPick(symbols: UniverseSymbol[]): void {
   }
 }
 
-interface Props {
-  // The viewer and the last scored event live above the routes, so they survive a visit to
-  // another screen and a switch. viewer is null while the app checks for a guest cookie.
-  viewer: Viewer | null;
-  onViewerChange: (viewer: Viewer) => void;
-  lastScoredEventId: string | null;
-  onScored: (eventId: string) => void;
-}
-
-export function FeedScreen({ viewer, onViewerChange, lastScoredEventId, onScored }: Props) {
+export function FeedScreen() {
+  // The viewer and the last scored event live in the session, above the routes (T29).
+  const { viewer, setViewer: onViewerChange, lastScoredEventId, onScored } = useSession();
   const viewerKey: ViewerKey = viewer?.key ?? 'A';
   const viewerId = viewer ? `${viewer.key}:${viewer.session}` : '';
   const { api } = useLiveDeps();
